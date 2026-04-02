@@ -1,0 +1,16 @@
+node_modules
+.next
+dist
+.turbo
+.env
+.env.local
+**/.env
+**/.env.local
+!**/.env.example
+!**/.env.local.example
+coverage
+playwright-report
+.data
+.venv
+__pycache__
+*.pyc

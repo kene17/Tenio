@@ -1,0 +1,14 @@
+{
+  "name": "@tenio/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tenio/contracts": "^0.0.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "tenio",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "health:api": "curl -s http://127.0.0.1:4000/health | python3 -m json.tool",
+    "ready:api": "curl -i -s http://127.0.0.1:4000/ready",
+    "setup:ai": "python3 -m venv services/ai/.venv && services/ai/.venv/bin/python -m pip install -e ./services/ai",
+    "dev:web": "npm run dev --workspace @tenio/web",
+    "dev:api": "npm run dev --workspace @tenio/api",
+    "dev:worker": "npm run dev --workspace @tenio/worker",
+    "dev:ai": "services/ai/.venv/bin/python -m uvicorn services.ai.app.main:app --reload"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

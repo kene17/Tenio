@@ -1,0 +1,2 @@
+ALTER TABLE audit_events
+ADD COLUMN IF NOT EXISTS organization_id TEXT NULL REFERENCES organizations(id) ON DELETE SET NULL;
