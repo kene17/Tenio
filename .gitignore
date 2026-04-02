@@ -14,3 +14,5 @@ playwright-report
 .venv
 __pycache__
 *.pyc
+*.tsbuildinfo
+*.egg-info
