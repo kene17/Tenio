@@ -96,6 +96,9 @@ export type PayerConfigurationRecord = {
   lastVerifiedAt: string;
   enabledWorkflows: string[];
   reviewThreshold: number;
+  escalationThreshold: number;
+  defaultSlaHours: number;
+  autoAssignOwner: boolean;
   statusRules: string[];
   reviewRules: string[];
   destinations: Array<{
@@ -106,6 +109,53 @@ export type PayerConfigurationRecord = {
   }>;
   issues: string[];
 };
+
+export function derivePayerConfigurationIssues(config: Pick<
+  PayerConfigurationRecord,
+  | "lastVerifiedAt"
+  | "destinations"
+  | "reviewThreshold"
+  | "escalationThreshold"
+  | "defaultSlaHours"
+  | "autoAssignOwner"
+  | "owner"
+>) {
+  const issues: string[] = [];
+  const daysSinceVerification =
+    (Date.now() - new Date(config.lastVerifiedAt).getTime()) / (24 * 60 * 60 * 1000);
+
+  if (daysSinceVerification > 4) {
+    issues.push("Portal verification overdue");
+  }
+
+  if (!config.destinations.some((destination) => destination.status === "active")) {
+    issues.push("No active downstream destination");
+  }
+
+  if (config.escalationThreshold >= config.reviewThreshold) {
+    issues.push("Escalation threshold must stay below review threshold");
+  }
+
+  if (config.defaultSlaHours < 12) {
+    issues.push("SLA window under 12 hours requires close staffing coverage");
+  }
+
+  if (config.autoAssignOwner && !config.owner.trim()) {
+    issues.push("Auto-assignment requires a default owner");
+  }
+
+  return issues;
+}
+
+export function derivePayerConfigurationStatus(
+  config: Pick<PayerConfigurationRecord, "enabledWorkflows" | "issues">
+) {
+  if (config.enabledWorkflows.length === 0) {
+    return "inactive" as const;
+  }
+
+  return config.issues.length > 0 ? ("needs_attention" as const) : ("active" as const);
+}
 
 export type ClaimsListItemView = {
   id: string;
@@ -192,6 +242,9 @@ export function createSeedPayerConfigurations(
       lastVerifiedAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
       enabledWorkflows: ["Claim Status"],
       reviewThreshold: 0.85,
+      escalationThreshold: 0.58,
+      defaultSlaHours: 24,
+      autoAssignOwner: true,
       statusRules: [
         'Portal text "In process" -> In Review',
         'Portal text "Pending review" -> Needs Review'
@@ -217,6 +270,9 @@ export function createSeedPayerConfigurations(
       lastVerifiedAt: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
       enabledWorkflows: ["Claim Status"],
       reviewThreshold: 0.8,
+      escalationThreshold: 0.52,
+      defaultSlaHours: 10,
+      autoAssignOwner: false,
       statusRules: ['Portal text "Denied" -> Blocked'],
       reviewRules: ["Conflicting status information", "Escalation required"],
       destinations: [
@@ -227,7 +283,10 @@ export function createSeedPayerConfigurations(
           status: "active"
         }
       ],
-      issues: ["Portal verification overdue", "Escalation rate above threshold"]
+      issues: [
+        "Portal verification overdue",
+        "SLA window under 12 hours requires close staffing coverage"
+      ]
     },
     {
       id: "cfg_cigna",
@@ -239,6 +298,9 @@ export function createSeedPayerConfigurations(
       lastVerifiedAt: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
       enabledWorkflows: ["Claim Status"],
       reviewThreshold: 0.82,
+      escalationThreshold: 0.56,
+      defaultSlaHours: 36,
+      autoAssignOwner: true,
       statusRules: ['Portal text "Processed" -> Resolved'],
       reviewRules: ["Low confidence threshold"],
       destinations: [

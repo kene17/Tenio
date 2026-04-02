@@ -1,4 +1,5 @@
 import type { ExecutionCandidate } from "@tenio/contracts";
+import { randomUUID } from "node:crypto";
 
 import { AiServiceClient } from "./ai-service-client.js";
 import { WorkflowApiClient } from "./api-client.js";
@@ -18,15 +19,17 @@ async function runRetrieval(claim: {
 }, job: {
   attempts: number;
   maxAttempts: number;
-}) {
+}, requestId: string) {
   const portalSnapshot = await runPayerRetrieval({
     claimId: claim.id,
+    claimNumber: claim.claimNumber,
+    patientName: claim.patientName,
     payerId: claim.payerId,
     payerName: claim.payerName,
-    sessionMode: "browser",
+    sessionMode: claim.payerId === "payer_aetna" ? "api" : "browser",
     attempt: job.attempts,
     maxAttempts: job.maxAttempts
-  });
+  }, requestId);
 
   const aiResponse = await aiClient.analyzeClaimStatus({
     claimId: portalSnapshot.claimId,
@@ -34,12 +37,17 @@ async function runRetrieval(claim: {
     payerName: portalSnapshot.payerName,
     portalText: portalSnapshot.portalText,
     screenshotUrls: portalSnapshot.screenshotUrls,
+    connectorId: portalSnapshot.connectorId,
+    connectorName: portalSnapshot.connectorName,
+    executionMode: portalSnapshot.executionMode,
+    connectorPayloadJson: portalSnapshot.connectorPayloadJson,
     metadata: {
       source: "worker",
       claimNumber: claim.claimNumber,
-      patientName: claim.patientName
+      patientName: claim.patientName,
+      requestId
     }
-  });
+  }, requestId);
 
   if (aiResponse) {
     return {
@@ -102,17 +110,20 @@ async function runRetrieval(claim: {
 }
 
 async function processOneJob() {
-  const reservation = await workflowApi.claimNextJob(workerName);
+  const idleRequestId = `${workerName}:poll:${randomUUID()}`;
+  const reservation = await workflowApi.claimNextJob(workerName, idleRequestId);
   const item = reservation.item;
 
   if (!item) {
-    console.log(JSON.stringify({ worker: workerName, status: "idle" }));
+    console.log(JSON.stringify({ worker: workerName, status: "idle", requestId: idleRequestId }));
     return;
   }
 
+  const requestId = `${workerName}:${item.job.id}:${randomUUID()}`;
+
   try {
-    const candidate = await runRetrieval(item.claim, item.job);
-    await workflowApi.completeJob(item.job.id, item.claim.id, candidate);
+    const candidate = await runRetrieval(item.claim, item.job, requestId);
+    await workflowApi.completeJob(item.job.id, item.claim.id, candidate, requestId);
 
     console.log(
       JSON.stringify({
@@ -120,7 +131,8 @@ async function processOneJob() {
         status: "completed",
         jobId: item.job.id,
         claimId: item.claim.id,
-        confidence: candidate.confidence
+        confidence: candidate.confidence,
+        requestId
       })
     );
   } catch (error) {
@@ -140,13 +152,14 @@ async function processOneJob() {
             error: message
           };
 
-    await workflowApi.failJob(item.job.id, failure);
+    await workflowApi.failJob(item.job.id, failure, requestId);
     console.error(
       JSON.stringify({
         worker: workerName,
         status: "failed",
         jobId: item.job.id,
         message,
+        requestId,
         failureCategory:
           error instanceof ConnectorExecutionError ? error.failureCategory : "unknown"
       })

@@ -2,15 +2,22 @@ import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
 import type { ExecutionCandidate } from "@tenio/contracts";
 
+import { canManagePayerConfiguration } from "./auth.js";
 import { checkDatabaseHealth } from "./database.js";
 import { initializeStore } from "./domain/store.js";
-import { appConfig } from "./config.js";
+import type { ClaimImportRowInput } from "./domain/imports.js";
+import { appConfig, getEvidenceStorageHealthMetadata } from "./config.js";
 import { ReviewPolicyService } from "./services/review-policy-service.js";
 import { WorkflowService } from "./services/workflow-service.js";
 
 export async function buildApp() {
   await initializeStore();
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    genReqId(request) {
+      return String(request.headers["x-request-id"] ?? randomUUID());
+    }
+  });
   const workflow = new WorkflowService();
   const reviewPolicy = new ReviewPolicyService();
 
@@ -46,10 +53,6 @@ export async function buildApp() {
     const apiKey = request.headers["x-tenio-api-key"];
     const serviceToken = request.headers["x-tenio-service-token"];
 
-    if (apiKey === appConfig.apiKey) {
-      return { kind: "api-key" as const };
-    }
-
     if (serviceToken === appConfig.webServiceToken) {
       return { kind: "web-service" as const };
     }
@@ -58,11 +61,15 @@ export async function buildApp() {
       return { kind: "worker-service" as const };
     }
 
+    if (apiKey === appConfig.apiKey) {
+      return { kind: "api-key" as const };
+    }
+
     return null;
   }
 
   app.addHook("onRequest", async (request, reply) => {
-    reply.header("x-request-id", request.headers["x-request-id"] ?? randomUUID());
+    reply.header("x-request-id", request.id);
 
     if (request.url === "/health" || request.url === "/ready") {
       return;
@@ -80,6 +87,7 @@ export async function buildApp() {
       ok: true,
       service: "api",
       database,
+      evidenceStorage: getEvidenceStorageHealthMetadata(),
       architecture: {
         apiLanguage: "TypeScript",
         productStateOwner: "workflow-layer",
@@ -106,7 +114,8 @@ export async function buildApp() {
     return {
       ok: true,
       service: "api",
-      database
+      database,
+      evidenceStorage: getEvidenceStorageHealthMetadata()
     };
   });
 
@@ -157,6 +166,20 @@ export async function buildApp() {
     items: await workflow.getResults()
   }));
 
+  app.post("/results/export", async (request, reply) => {
+    const auth = getRequestAuth(request);
+    const actor = await getSessionActor(request);
+
+    if (auth?.kind !== "web-service" || !actor) {
+      return reply.code(403).send({ message: "Authenticated user required" });
+    }
+
+    const exportBatch = await workflow.exportResults(actor);
+    reply.header("content-type", "text/csv; charset=utf-8");
+    reply.header("content-disposition", `attachment; filename="${exportBatch.fileName}"`);
+    return reply.send(exportBatch.body);
+  });
+
   app.get("/results/:resultId", async (request, reply) => {
     const { resultId } = request.params as { resultId: string };
     const result = await workflow.getResultDetail(resultId);
@@ -177,7 +200,10 @@ export async function buildApp() {
     }
 
     const { artifactId } = request.params as { artifactId: string };
-    const artifact = await workflow.getEvidenceArtifactContent(artifactId);
+    const artifact = await workflow.getEvidenceArtifactContent(
+      artifactId,
+      actor.organizationId
+    );
 
     if (!artifact) {
       return reply.code(404).send({ message: "Evidence artifact not found" });
@@ -195,9 +221,81 @@ export async function buildApp() {
     item: await workflow.getPerformanceMetrics()
   }));
 
-  app.get("/configuration/payers", async () => ({
-    items: await workflow.getPayerConfigurations()
-  }));
+  app.get("/configuration/payers", async (request, reply) => {
+    const auth = getRequestAuth(request);
+
+    if (auth?.kind !== "web-service") {
+      return reply.code(403).send({ message: "Web service token required" });
+    }
+
+    const actor = await getSessionActor(request);
+
+    return {
+      items: await workflow.getPayerConfigurations(actor?.organizationId)
+    };
+  });
+
+  app.post("/configuration/payers/:payerId/policy", async (request, reply) => {
+    const auth = getRequestAuth(request);
+    const actor = await getSessionActor(request);
+
+    if (auth?.kind !== "web-service" || !actor) {
+      return reply.code(403).send({ message: "Authenticated user required" });
+    }
+
+    if (!canManagePayerConfiguration(actor.role)) {
+      return reply.code(403).send({ message: "Manager or admin role required" });
+    }
+
+    const { payerId } = request.params as { payerId: string };
+    const body = request.body as {
+      owner?: string;
+      reviewThreshold: number;
+      escalationThreshold: number;
+      defaultSlaHours: number;
+      autoAssignOwner: boolean;
+    };
+
+    try {
+      return {
+        item: await workflow.updatePayerConfigurationPolicy(payerId, body, actor)
+      };
+    } catch (error) {
+      return reply.code(400).send({
+        message: error instanceof Error ? error.message : "Policy update failed"
+      });
+    }
+  });
+
+  app.post("/claims/import/preview", async (request, reply) => {
+    const auth = getRequestAuth(request);
+    const actor = await getSessionActor(request);
+
+    if (auth?.kind !== "web-service" || !actor) {
+      return reply.code(403).send({ message: "Authenticated user required" });
+    }
+
+    const body = request.body as { rows?: ClaimImportRowInput[] } | null;
+
+    return {
+      item: await workflow.previewClaimImport(body?.rows ?? [], actor)
+    };
+  });
+
+  app.post("/claims/import/commit", async (request, reply) => {
+    const auth = getRequestAuth(request);
+    const actor = await getSessionActor(request);
+
+    if (auth?.kind !== "web-service" || !actor) {
+      return reply.code(403).send({ message: "Authenticated user required" });
+    }
+
+    const body = request.body as { rows?: ClaimImportRowInput[] } | null;
+
+    return {
+      item: await workflow.commitClaimImport(body?.rows ?? [], actor)
+    };
+  });
 
   app.post("/claims/intake", async (request, reply) => {
     const auth = getRequestAuth(request);
@@ -213,6 +311,10 @@ export async function buildApp() {
       claimNumber: string;
       patientName: string;
       priority: "low" | "normal" | "high" | "urgent";
+      owner?: string | null;
+      notes?: string | null;
+      slaAt?: string | null;
+      sourceStatus?: string | null;
     };
     const claim = await workflow.createClaim(body, actor);
 
@@ -306,7 +408,8 @@ export async function buildApp() {
       claimId: string;
       candidate: ExecutionCandidate;
     };
-    const decision = reviewPolicy.decide(body.candidate);
+    const policy = await workflow.getReviewPolicyForClaim(body.claimId);
+    const decision = reviewPolicy.decide(body.candidate, policy);
     const item = await workflow.applyRetrievalOutcome(
       body.claimId,
       body.candidate,

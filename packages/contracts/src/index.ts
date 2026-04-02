@@ -9,7 +9,11 @@ export const evidenceArtifactSchema = z.object({
   mimeType: z.string().optional(),
   storageKind: z.enum(["external", "inline", "persisted"]).optional(),
   storageKey: z.string().nullable().optional(),
-  inlineContentBase64: z.string().nullable().optional()
+  inlineContentBase64: z.string().nullable().optional(),
+  storageBackend: z.string().optional(),
+  checksumSha256: z.string().nullable().optional(),
+  sizeBytes: z.number().int().nonnegative().optional(),
+  retentionUntil: z.string().nullable().optional()
 });
 
 export const executionFailureCategorySchema = z.enum([
@@ -53,6 +57,10 @@ export const aiClaimStatusAnalysisRequestSchema = z.object({
   payerName: z.string(),
   portalText: z.string(),
   screenshotUrls: z.array(z.string()),
+  connectorId: z.string().optional(),
+  connectorName: z.string().optional(),
+  executionMode: z.enum(["browser", "api"]).optional(),
+  connectorPayloadJson: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.string()).default({})
 });
 

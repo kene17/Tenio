@@ -18,7 +18,17 @@
 - `TENIO_AI_SERVICE_TOKEN`
 - `AI_SERVICE_URL`
 - `DATABASE_URL`
+- `TENIO_EVIDENCE_STORAGE_BACKEND` (optional; currently `filesystem`)
 - `TENIO_EVIDENCE_STORAGE_DIR` (optional; defaults to repo-local `.data/evidence`)
+- `TENIO_EVIDENCE_RETENTION_DAYS` (optional; defaults to `30`)
+- `TENIO_EVIDENCE_S3_BUCKET` (required when backend is `s3`)
+- `TENIO_EVIDENCE_S3_REGION` (required when backend is `s3`)
+- `TENIO_EVIDENCE_S3_ACCESS_KEY_ID` (required when backend is `s3`)
+- `TENIO_EVIDENCE_S3_SECRET_ACCESS_KEY` (required when backend is `s3`)
+- `TENIO_EVIDENCE_S3_ENDPOINT` (optional; for S3-compatible stores such as MinIO or R2)
+- `TENIO_EVIDENCE_S3_SESSION_TOKEN` (optional)
+- `TENIO_EVIDENCE_S3_PREFIX` (optional)
+- `TENIO_EVIDENCE_S3_FORCE_PATH_STYLE` (optional; defaults to `true`)
 
 ### Web
 
@@ -33,6 +43,8 @@
 - `TENIO_WORKER_SERVICE_TOKEN`
 - `TENIO_AI_SERVICE_TOKEN`
 - `AI_SERVICE_URL`
+- `TENIO_AETNA_API_BASE_URL` (required for the live Aetna connector; unset to use local fixture mode)
+- `TENIO_AETNA_API_TOKEN` (required for the live Aetna connector)
 
 ### AI
 
@@ -50,6 +62,17 @@
    `npm run dev:worker`
 5. Start the web app:
    `npm run dev:web`
+
+## Trusted Connector Mode
+
+- `payer_aetna` now uses the structured `aetna-claim-status-api` connector path.
+- When `TENIO_AETNA_API_BASE_URL` and `TENIO_AETNA_API_TOKEN` are both set, the worker calls the live upstream API.
+- When either variable is unset, the worker stays in local fixture mode for deterministic development and smoke tests.
+- Local fixture triggers:
+  - claim number containing `204938` or `review`: pending medical review
+  - claim number containing `204821` or `denied`: denied
+  - claim number containing `missing` or `retry`: incomplete payload that schedules retry
+  - any other Aetna claim number: paid in full
 
 ## Seed Credentials
 
@@ -70,9 +93,10 @@ Override these in `apps/api/.env` for non-demo environments.
 1. Sign in through `/login` with a seeded user.
 2. Create a claim from the Claims page intake form.
 3. Queue a retrieval from the queue or claim detail page.
-4. Confirm the worker picks up the job and the claim status changes.
-5. Add a note or assignment change and verify the audit log updates.
-6. Open Performance and Configuration to confirm they load live data.
+4. For Aetna smoke tests, use a claim number that matches the fixture triggers above.
+5. Confirm the worker picks up the job and the claim status changes.
+6. Add a note or assignment change and verify the audit log updates.
+7. Open Performance and Configuration to confirm they load live data.
 
 ## Operational Alerts
 

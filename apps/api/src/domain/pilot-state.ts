@@ -49,6 +49,7 @@ type AuditActorType = "human" | "system" | "admin";
 export type AuditEventRecord = {
   id: string;
   at: string;
+  organizationId?: string;
   actor: { name: string; type: AuditActorType; avatar: string };
   action: string;
   object: "Claim" | "Result" | "Configuration" | "Evidence";

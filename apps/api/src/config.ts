@@ -14,6 +14,21 @@ function readEnv(name: string, fallback?: string) {
   throw new Error(`Missing required environment variable: ${name}`);
 }
 
+function readOptionalEnv(name: string) {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
+function readBooleanEnv(name: string, fallback: boolean) {
+  const value = process.env[name]?.trim().toLowerCase();
+
+  if (!value) {
+    return fallback;
+  }
+
+  return value === "1" || value === "true" || value === "yes";
+}
+
 function requireProductionSecret(name: string, fallback: string) {
   const value = process.env[name]?.trim();
 
@@ -62,6 +77,17 @@ export const appConfig = {
     "TENIO_AI_SERVICE_TOKEN",
     "tenio-local-ai-service-token"
   ),
+  evidenceStorageBackend: readEnv("TENIO_EVIDENCE_STORAGE_BACKEND", "filesystem"),
+  evidenceStorageDir: readOptionalEnv("TENIO_EVIDENCE_STORAGE_DIR"),
+  evidenceRetentionDays: Number(process.env.TENIO_EVIDENCE_RETENTION_DAYS ?? 30),
+  evidenceS3Bucket: readOptionalEnv("TENIO_EVIDENCE_S3_BUCKET"),
+  evidenceS3Region: readOptionalEnv("TENIO_EVIDENCE_S3_REGION"),
+  evidenceS3Endpoint: readOptionalEnv("TENIO_EVIDENCE_S3_ENDPOINT"),
+  evidenceS3AccessKeyId: readOptionalEnv("TENIO_EVIDENCE_S3_ACCESS_KEY_ID"),
+  evidenceS3SecretAccessKey: readOptionalEnv("TENIO_EVIDENCE_S3_SECRET_ACCESS_KEY"),
+  evidenceS3SessionToken: readOptionalEnv("TENIO_EVIDENCE_S3_SESSION_TOKEN"),
+  evidenceS3Prefix: readOptionalEnv("TENIO_EVIDENCE_S3_PREFIX"),
+  evidenceS3ForcePathStyle: readBooleanEnv("TENIO_EVIDENCE_S3_FORCE_PATH_STYLE", true),
   sessionTtlHours: Number(process.env.TENIO_SESSION_TTL_HOURS ?? 12),
   migrationTable: "schema_migrations",
   seedOrgId: readEnv("TENIO_SEED_ORG_ID", "org_demo"),
@@ -84,6 +110,55 @@ export const appConfig = {
 export function getDatabaseHealthMetadata() {
   return {
     connection: redactConnectionString(appConfig.databaseUrl)
+  };
+}
+
+export function getEvidenceStorageHealthMetadata() {
+  if (appConfig.evidenceStorageBackend === "s3") {
+    return {
+      backend: appConfig.evidenceStorageBackend,
+      retentionDays: appConfig.evidenceRetentionDays,
+      bucket: appConfig.evidenceS3Bucket ? hashForDebug(appConfig.evidenceS3Bucket) : "missing",
+      endpoint: appConfig.evidenceS3Endpoint
+        ? hashForDebug(appConfig.evidenceS3Endpoint)
+        : "aws-default",
+      pathStyle: appConfig.evidenceS3ForcePathStyle
+    };
+  }
+
+  return {
+    backend: appConfig.evidenceStorageBackend,
+    retentionDays: appConfig.evidenceRetentionDays,
+    location:
+      appConfig.evidenceStorageDir ? hashForDebug(appConfig.evidenceStorageDir) : "default-local"
+  };
+}
+
+export function getS3EvidenceStorageConfig() {
+  if (appConfig.evidenceStorageBackend !== "s3") {
+    return null;
+  }
+
+  if (
+    !appConfig.evidenceS3Bucket ||
+    !appConfig.evidenceS3Region ||
+    !appConfig.evidenceS3AccessKeyId ||
+    !appConfig.evidenceS3SecretAccessKey
+  ) {
+    throw new Error(
+      "TENIO_EVIDENCE_S3_BUCKET, TENIO_EVIDENCE_S3_REGION, TENIO_EVIDENCE_S3_ACCESS_KEY_ID, and TENIO_EVIDENCE_S3_SECRET_ACCESS_KEY are required when TENIO_EVIDENCE_STORAGE_BACKEND=s3"
+    );
+  }
+
+  return {
+    bucket: appConfig.evidenceS3Bucket,
+    region: appConfig.evidenceS3Region,
+    endpoint: appConfig.evidenceS3Endpoint,
+    accessKeyId: appConfig.evidenceS3AccessKeyId,
+    secretAccessKey: appConfig.evidenceS3SecretAccessKey,
+    sessionToken: appConfig.evidenceS3SessionToken,
+    prefix: appConfig.evidenceS3Prefix?.replace(/^\/+|\/+$/g, "") ?? "",
+    forcePathStyle: appConfig.evidenceS3ForcePathStyle
   };
 }
 

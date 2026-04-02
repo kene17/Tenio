@@ -6,8 +6,21 @@ export type WorkflowDecision = {
   reason: string;
 };
 
+export type ReviewPolicyContext = {
+  payerName?: string;
+  reviewThreshold?: number;
+  escalationThreshold?: number;
+};
+
 export class ReviewPolicyService {
-  decide(candidate: ExecutionCandidate): WorkflowDecision {
+  decide(
+    candidate: ExecutionCandidate,
+    context?: ReviewPolicyContext | null
+  ): WorkflowDecision {
+    const reviewThreshold = context?.reviewThreshold ?? 0.85;
+    const escalationThreshold = context?.escalationThreshold ?? 0.55;
+    const payerLabel = context?.payerName ?? "this payer";
+
     if (candidate.recommendedAction === "retry") {
       return {
         nextStatus: "pending",
@@ -15,10 +28,21 @@ export class ReviewPolicyService {
       };
     }
 
-    if (candidate.recommendedAction === "review" || candidate.confidence < 0.85) {
+    if (candidate.confidence < escalationThreshold) {
+      return {
+        nextStatus: "blocked",
+        reason: `Workflow policy escalated the claim because confidence fell below the ${Math.round(
+          escalationThreshold * 100
+        )}% specialist threshold for ${payerLabel}.`
+      };
+    }
+
+    if (candidate.recommendedAction === "review" || candidate.confidence < reviewThreshold) {
       return {
         nextStatus: "needs_review",
-        reason: "Workflow layer routed the claim into human review after evaluating the candidate output."
+        reason: `Workflow policy routed the claim into human review because confidence did not clear the ${Math.round(
+          reviewThreshold * 100
+        )}% threshold for ${payerLabel}.`
       };
     }
 

@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle,
   ChevronRight,
   Circle,
   FileSearch,
+  Save,
   Send,
   Settings
 } from "lucide-react";
@@ -48,15 +50,82 @@ export function ConfigurationClient({
   payers: PayerConfigurationView[];
   auditEvents: AuditEventView[];
 }) {
+  const router = useRouter();
+  const [payerState, setPayerState] = useState(payers);
   const [selectedPayer, setSelectedPayer] = useState(payers[0]?.payerId ?? "");
-  const currentPayer = payers.find((payer) => payer.payerId === selectedPayer) ?? payers[0];
+  const [owner, setOwner] = useState("");
+  const [reviewThreshold, setReviewThreshold] = useState("85");
+  const [escalationThreshold, setEscalationThreshold] = useState("55");
+  const [defaultSlaHours, setDefaultSlaHours] = useState("24");
+  const [autoAssignOwner, setAutoAssignOwner] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const currentPayer = payerState.find((payer) => payer.payerId === selectedPayer) ?? payerState[0];
   const configurationEvents = useMemo(
     () => auditEvents.filter((event) => event.category === "Config Change").slice(0, 5),
     [auditEvents]
   );
 
+  useEffect(() => {
+    setPayerState(payers);
+  }, [payers]);
+
+  useEffect(() => {
+    if (!currentPayer) {
+      return;
+    }
+
+    setOwner(currentPayer.owner);
+    setReviewThreshold(String(Math.round(currentPayer.reviewThreshold * 100)));
+    setEscalationThreshold(String(Math.round(currentPayer.escalationThreshold * 100)));
+    setDefaultSlaHours(String(currentPayer.defaultSlaHours));
+    setAutoAssignOwner(currentPayer.autoAssignOwner);
+  }, [currentPayer]);
+
   if (!currentPayer) {
     return null;
+  }
+
+  function handleSave() {
+    startTransition(async () => {
+      setMessage(null);
+      setError(null);
+
+      const response = await fetch(
+        `/api/configuration/payers/${encodeURIComponent(currentPayer.payerId)}/policy`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            owner,
+            reviewThreshold: Number(reviewThreshold) / 100,
+            escalationThreshold: Number(escalationThreshold) / 100,
+            defaultSlaHours: Number(defaultSlaHours),
+            autoAssignOwner
+          })
+        }
+      );
+
+      const payload = (await response.json()) as {
+        item?: PayerConfigurationView;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.item) {
+        setError(payload.message ?? "Policy update failed.");
+        return;
+      }
+
+      setPayerState((existing) =>
+        existing.map((payer) => (payer.payerId === payload.item?.payerId ? payload.item : payer))
+      );
+      setMessage("Policy saved. New thresholds will apply to future intake and retrieval runs.");
+      router.refresh();
+    });
   }
 
   return (
@@ -67,10 +136,14 @@ export function ConfigurationClient({
           <p className="text-xs text-gray-600">Live payer configuration and rule ownership.</p>
         </div>
         <div className="p-2">
-          {payers.map((payer) => (
+          {payerState.map((payer) => (
             <button
               key={payer.payerId}
-              onClick={() => setSelectedPayer(payer.payerId)}
+              onClick={() => {
+                setSelectedPayer(payer.payerId);
+                setMessage(null);
+                setError(null);
+              }}
               className={cn(
                 "mb-2 w-full rounded-lg border p-3 text-left transition-colors",
                 selectedPayer === payer.payerId
@@ -103,7 +176,8 @@ export function ConfigurationClient({
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900">{currentPayer.payerName}</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                  Configure payer-specific review thresholds, mappings, and downstream delivery.
+                  Configure payer-specific thresholds, SLA defaults, assignment rules, and
+                  downstream delivery.
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -111,18 +185,119 @@ export function ConfigurationClient({
                 <span className="text-sm text-gray-600">Owner: {currentPayer.owner}</span>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
               <span>Last verified: {new Date(currentPayer.lastVerifiedAt).toLocaleString()}</span>
-              <span>Threshold: {Math.round(currentPayer.reviewThreshold * 100)}%</span>
+              <span>Review threshold: {Math.round(currentPayer.reviewThreshold * 100)}%</span>
+              <span>Escalation threshold: {Math.round(currentPayer.escalationThreshold * 100)}%</span>
+              <span>Default SLA: {currentPayer.defaultSlaHours}h</span>
             </div>
           </div>
+
+          <section className="mb-6 rounded-lg border border-gray-200 bg-white p-5">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-medium text-gray-900">Workflow Policy</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Future intake and retrieval decisions use these payer-level controls.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                <Save className="h-4 w-4" />
+                Save Policy
+              </button>
+            </div>
+
+            {message ? (
+              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                {message}
+              </div>
+            ) : null}
+            {error ? (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {error}
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  Default Owner
+                </span>
+                <input
+                  value={owner}
+                  onChange={(event) => setOwner(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  Default SLA Hours
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={defaultSlaHours}
+                  onChange={(event) => setDefaultSlaHours(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  Review Threshold %
+                </span>
+                <input
+                  type="number"
+                  min={50}
+                  max={99}
+                  value={reviewThreshold}
+                  onChange={(event) => setReviewThreshold(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  Escalation Threshold %
+                </span>
+                <input
+                  type="number"
+                  min={10}
+                  max={95}
+                  value={escalationThreshold}
+                  onChange={(event) => setEscalationThreshold(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+              </label>
+            </div>
+
+            <label className="mt-4 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={autoAssignOwner}
+                onChange={(event) => setAutoAssignOwner(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Auto-assign new intake and imported claims to the payer owner when no owner is supplied.
+            </label>
+          </section>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <section className="rounded-lg border border-gray-200 bg-white p-5">
               <h3 className="mb-4 text-sm font-medium text-gray-900">Status Mapping Rules</h3>
               <div className="space-y-2">
                 {currentPayer.statusRules.map((rule) => (
-                  <div key={rule} className="flex items-center justify-between rounded border border-gray-200 p-3">
+                  <div
+                    key={rule}
+                    className="flex items-center justify-between rounded border border-gray-200 p-3"
+                  >
                     <div className="text-sm text-gray-900">{rule}</div>
                     <Settings className="h-4 w-4 text-gray-500" />
                   </div>
@@ -145,7 +320,10 @@ export function ConfigurationClient({
               <h3 className="mb-4 text-sm font-medium text-gray-900">Destinations</h3>
               <div className="space-y-2">
                 {currentPayer.destinations.map((destination) => (
-                  <div key={destination.id} className="flex items-center justify-between rounded border border-gray-200 p-3">
+                  <div
+                    key={destination.id}
+                    className="flex items-center justify-between rounded border border-gray-200 p-3"
+                  >
                     <div className="flex items-center gap-3">
                       <Send className="h-4 w-4 text-gray-600" />
                       <div>
@@ -166,7 +344,10 @@ export function ConfigurationClient({
               <div className="space-y-2">
                 {currentPayer.issues.length > 0 ? (
                   currentPayer.issues.map((issue) => (
-                    <div key={issue} className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div
+                      key={issue}
+                      className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+                    >
                       {issue}
                     </div>
                   ))
@@ -182,11 +363,16 @@ export function ConfigurationClient({
           <section className="mt-6 rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-200 px-5 py-4">
               <h3 className="text-sm font-medium text-gray-900">Configuration Audit Trail</h3>
-              <p className="mt-1 text-xs text-gray-600">Recent configuration changes from the audit log.</p>
+              <p className="mt-1 text-xs text-gray-600">
+                Recent configuration changes from the audit log.
+              </p>
             </div>
             <div className="divide-y divide-gray-100">
               {configurationEvents.map((event) => (
-                <div key={event.id} className="flex items-start justify-between px-5 py-4 hover:bg-gray-50">
+                <div
+                  key={event.id}
+                  className="flex items-start justify-between px-5 py-4 hover:bg-gray-50"
+                >
                   <div className="flex items-start gap-3">
                     <FileSearch className="mt-0.5 h-4 w-4 text-gray-400" />
                     <div>

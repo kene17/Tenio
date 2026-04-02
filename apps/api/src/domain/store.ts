@@ -3,15 +3,26 @@ import type {
   ClaimDetail,
   ClaimSummary,
   IntakeClaim,
+  Priority,
   QueueItem
 } from "@tenio/domain";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { PoolClient } from "pg";
 
 import { appConfig } from "../config.js";
 import { getPool, withTransaction } from "../database.js";
-import { persistEvidenceArtifact, readStoredEvidence } from "../evidence-storage.js";
-import { type AppRole, type UserSession, verifyPassword } from "../auth.js";
+import {
+  InvalidEvidenceStoragePathError,
+  persistEvidenceArtifact,
+  readStoredEvidence
+} from "../evidence-storage.js";
+import {
+  canManagePayerConfiguration,
+  type AppRole,
+  type UserSession,
+  verifyPassword
+} from "../auth.js";
 import { runMigrations } from "../migrations.js";
 import type { WorkflowDecision } from "../services/review-policy-service.js";
 import {
@@ -19,6 +30,8 @@ import {
   buildClaimsList,
   buildPerformanceMetrics,
   createSeedPayerConfigurations,
+  derivePayerConfigurationIssues,
+  derivePayerConfigurationStatus,
   type AppUserRecord,
   type ClaimsListItemView,
   type PayerConfigurationRecord,
@@ -45,11 +58,21 @@ import {
   toClaimDetail,
   toClaimSummary
 } from "./pilot-state.js";
+import {
+  previewClaimImportRows,
+  type ClaimImportPreviewResult,
+  type ClaimImportRowInput
+} from "./imports.js";
 
 let initialized = false;
+type DbExecutor = PoolClient | ReturnType<typeof getPool>;
 
 function parsePayloadRow<T>(row: { payload: T }) {
   return row.payload;
+}
+
+function getDbExecutor(client?: PoolClient): DbExecutor {
+  return client ?? getPool();
 }
 
 function normalizeResultRecord(result: ResultRecord): ResultRecord {
@@ -83,6 +106,30 @@ function normalizeRetrievalJob(job: RetrievalJobRecord): RetrievalJobRecord {
     reviewReason: job.reviewReason ?? null,
     attemptHistory: job.attemptHistory ?? []
   };
+}
+
+function normalizePayerConfigurationRecord(
+  config: PayerConfigurationRecord
+): PayerConfigurationRecord {
+  const hydrated: PayerConfigurationRecord = {
+    ...config,
+    escalationThreshold:
+      config.escalationThreshold ?? Math.max(0.5, (config.reviewThreshold ?? 0.85) - 0.25),
+    defaultSlaHours: config.defaultSlaHours ?? 24,
+    autoAssignOwner: config.autoAssignOwner ?? false,
+    issues: config.issues ?? []
+  };
+
+  if (
+    config.escalationThreshold === undefined ||
+    config.defaultSlaHours === undefined ||
+    config.autoAssignOwner === undefined
+  ) {
+    hydrated.issues = hydrated.issues.length > 0 ? hydrated.issues : derivePayerConfigurationIssues(hydrated);
+    hydrated.status = derivePayerConfigurationStatus(hydrated);
+  }
+
+  return hydrated;
 }
 
 function initials(value: string) {
@@ -218,7 +265,7 @@ async function insertAuditEvent(client: PoolClient, event: AuditEventRecord) {
     `,
     [
       event.id,
-      event.claimId ? appConfig.seedOrgId : null,
+      event.organizationId ?? (event.claimId ? appConfig.seedOrgId : null),
       event.claimId ?? null,
       event.resultId ?? null,
       event.at,
@@ -455,20 +502,22 @@ async function loadAuditEvents() {
   return result.rows.map(parsePayloadRow);
 }
 
-async function loadEvidenceArtifactById(artifactId: string) {
+async function loadEvidenceArtifactById(artifactId: string, organizationId: string) {
   await initializeStore();
   const result = await getPool().query<{
     id: string;
+    organization_id: string;
     storage_key: string;
     external_url: string;
     payload: EvidenceArtifact;
   }>(
     `
-      SELECT id, storage_key, external_url, payload
+      SELECT id, organization_id, storage_key, external_url, payload
       FROM evidence_artifacts
       WHERE id = $1
+        AND organization_id = $2
     `,
-    [artifactId]
+    [artifactId, organizationId]
   );
 
   return result.rows[0] ?? null;
@@ -484,8 +533,28 @@ async function loadClaimById(claimId: string) {
   return result.rows[0]?.payload;
 }
 
-async function loadQueueByClaimId(claimId: string) {
-  const result = await getPool().query<{ payload: QueueItem }>(
+async function loadClaimByOrganizationAndClaimNumber(
+  organizationId: string,
+  claimNumber: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: ClaimRecord }>(
+    `
+      SELECT payload
+      FROM claims
+      WHERE organization_id = $1
+        AND claim_number = $2
+      LIMIT 1
+    `,
+    [organizationId, claimNumber]
+  );
+
+  return result.rows[0]?.payload;
+}
+
+async function loadQueueByClaimId(claimId: string, client?: PoolClient) {
+  const result = await getDbExecutor(client).query<{ payload: QueueItem }>(
     "SELECT payload FROM queue_items WHERE claim_id = $1",
     [claimId]
   );
@@ -568,7 +637,57 @@ async function loadPayerConfigurations() {
     "SELECT payload FROM payer_configurations ORDER BY payer_id"
   );
 
+  return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+}
+
+async function loadClaimsByOrganization(organizationId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: ClaimRecord }>(
+    `
+      SELECT payload
+      FROM claims
+      WHERE organization_id = $1
+      ORDER BY claim_number
+    `,
+    [organizationId]
+  );
+
   return result.rows.map(parsePayloadRow);
+}
+
+async function loadPayerConfigurationsByOrganization(organizationId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: PayerConfigurationRecord }>(
+    `
+      SELECT payload
+      FROM payer_configurations
+      WHERE organization_id = $1
+      ORDER BY payer_id
+    `,
+    [organizationId]
+  );
+
+  return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+}
+
+async function loadPayerConfigurationByOrganizationAndPayerId(
+  organizationId: string,
+  payerId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: PayerConfigurationRecord }>(
+    `
+      SELECT payload
+      FROM payer_configurations
+      WHERE organization_id = $1
+        AND payer_id = $2
+      LIMIT 1
+    `,
+    [organizationId, payerId]
+  );
+
+  return result.rows[0]?.payload ? normalizePayerConfigurationRecord(result.rows[0].payload) : null;
 }
 
 async function loadRetrievalJobs() {
@@ -749,14 +868,29 @@ export async function getResultDetail(
   return buildResultDetail(resultId, claims, results);
 }
 
-export async function getEvidenceArtifactContent(artifactId: string) {
-  const artifact = await loadEvidenceArtifactById(artifactId);
+export async function getEvidenceArtifactContent(
+  artifactId: string,
+  organizationId: string
+) {
+  const artifact = await loadEvidenceArtifactById(artifactId, organizationId);
 
   if (!artifact?.storage_key) {
     return null;
   }
 
-  const body = await readStoredEvidence(artifact.storage_key);
+  let body: Buffer;
+
+  try {
+    body = await readStoredEvidence(artifact.storage_key);
+  } catch (error) {
+    const errorCode = (error as NodeJS.ErrnoException | undefined)?.code;
+
+    if (error instanceof InvalidEvidenceStoragePathError || errorCode === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
 
   return {
     body,
@@ -776,7 +910,11 @@ export async function listAuditEvents(): Promise<AuditEventView[]> {
   return buildAuditLog(auditEvents);
 }
 
-export async function listPayerConfigurations() {
+export async function listPayerConfigurations(organizationId?: string) {
+  if (organizationId) {
+    return loadPayerConfigurationsByOrganization(organizationId);
+  }
+
   return loadPayerConfigurations();
 }
 
@@ -788,6 +926,73 @@ export async function getPerformanceMetrics(): Promise<PerformanceMetricsView> {
     loadRetrievalJobs()
   ]);
   return buildPerformanceMetrics({ claims, queue, results, jobs });
+}
+
+export async function previewResultsExport(actor: WorkflowActor) {
+  const [claims, results] = await Promise.all([
+    loadClaimsByOrganization(actor.organizationId),
+    loadResults()
+  ]);
+  const claimMap = new Map(claims.map((claim) => [claim.id, claim] as const));
+  const exportableResults = results.filter((result) => claimMap.has(result.claimId));
+  const exportedAt = new Date().toISOString();
+
+  return {
+    fileName: `tenio-results-export-${exportedAt.slice(0, 10)}.csv`,
+    body: buildResultsExportCsv({
+      claims,
+      results: exportableResults,
+      exportState: "Not Exported"
+    })
+  };
+}
+
+export async function exportResults(actor: WorkflowActor) {
+  const [claims, results] = await Promise.all([
+    loadClaimsByOrganization(actor.organizationId),
+    loadResults()
+  ]);
+  const claimMap = new Map(claims.map((claim) => [claim.id, claim] as const));
+  const exportableResults = results.filter((result) => claimMap.has(result.claimId));
+  const exportedAt = new Date().toISOString();
+
+  await withTransaction(async (client) => {
+    for (const result of exportableResults) {
+      await upsertResult(client, {
+        ...result,
+        exportState: "Exported"
+      });
+    }
+
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: exportedAt,
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: actor.role === "admin" ? "admin" : "human",
+        avatar: initials(actor.name)
+      },
+      action: "Exported",
+      object: "Result",
+      objectId: `export_${Date.now()}`,
+      source: "Human",
+      payer: "Mixed",
+      summary: `${actor.name} exported ${exportableResults.length} structured results for downstream delivery.`,
+      sensitivity: "normal",
+      category: "Result Export",
+      reason: "Batch export requested from the results workspace."
+    });
+  });
+
+  return {
+    fileName: `tenio-results-export-${exportedAt.slice(0, 10)}.csv`,
+    body: buildResultsExportCsv({
+      claims,
+      results: exportableResults,
+      exportState: "Exported"
+    })
+  };
 }
 
 export async function authenticateUser(email: string, password: string) {
@@ -818,6 +1023,7 @@ export async function authenticateUser(email: string, password: string) {
     await insertAuditEvent(client, {
       id: `AUD-${Date.now()}`,
       at: new Date().toISOString(),
+      organizationId: user.organizationId,
       actor: {
         name: user.fullName,
         type: user.role === "admin" ? "admin" : "human",
@@ -862,82 +1068,414 @@ export async function getValidatedSession(sessionId: string) {
   } satisfies UserSession;
 }
 
-export async function createClaim(input: IntakeClaim, actor: WorkflowActor) {
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeIntakePriority(priority: Priority | undefined) {
+  return priority ?? "normal";
+}
+
+function normalizeIntakeSlaAt(value: string | null | undefined) {
+  const normalized = normalizeOptionalText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function deriveDefaultSlaAt(defaultSlaHours: number | undefined) {
+  const safeHours = Math.max(1, Math.round(defaultSlaHours ?? 24));
+  return new Date(Date.now() + safeHours * 60 * 60 * 1000).toISOString();
+}
+
+function buildClaimId(claimNumber: string) {
+  return claimNumber.startsWith("CLM-")
+    ? claimNumber
+    : `CLM-${randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
+function escapeCsvCell(value: string | number | null | undefined) {
+  const normalized = value === null || value === undefined ? "" : String(value);
+  return `"${normalized.replaceAll('"', '""')}"`;
+}
+
+function buildResultsExportCsv(params: {
+  claims: ClaimRecord[];
+  results: ResultRecord[];
+  exportState: ResultRecord["exportState"];
+}) {
+  const { claims, results, exportState } = params;
+  const claimMap = new Map(claims.map((claim) => [claim.id, claim] as const));
+
+  return [
+    [
+      "resultId",
+      "claimId",
+      "claimNumber",
+      "payerName",
+      "patientName",
+      "verifiedStatus",
+      "confidence",
+      "lastVerifiedAt",
+      "exportState",
+      "nextAction",
+      "connectorName",
+      "executionMode",
+      "agentTraceId"
+    ].join(","),
+    ...results.map((result) => {
+      const claim = claimMap.get(result.claimId);
+
+      return [
+        escapeCsvCell(result.id),
+        escapeCsvCell(result.claimId),
+        escapeCsvCell(claim?.claimNumber ?? ""),
+        escapeCsvCell(claim?.payerName ?? ""),
+        escapeCsvCell(claim?.patientName ?? ""),
+        escapeCsvCell(result.verifiedStatus),
+        escapeCsvCell(claim ? Math.round(claim.confidence * 100) : ""),
+        escapeCsvCell(result.lastVerifiedAt),
+        escapeCsvCell(exportState),
+        escapeCsvCell(result.nextAction),
+        escapeCsvCell(result.connectorName),
+        escapeCsvCell(result.executionMode),
+        escapeCsvCell(result.agentTraceId)
+      ].join(",");
+    })
+  ].join("\n");
+}
+
+function assertCanEditPayerConfiguration(actor: WorkflowActor) {
+  if (!canManagePayerConfiguration(actor.role)) {
+    throw new Error("Only managers and admins can update payer workflow policy.");
+  }
+}
+
+async function createClaimRecord(
+  client: PoolClient,
+  input: IntakeClaim,
+  actor: WorkflowActor
+) {
+  if (input.organizationId !== actor.organizationId) {
+    throw new Error("Claim intake must stay within the authenticated organization.");
+  }
+
   const nowIso = new Date().toISOString();
-  const suffix = Date.now().toString().slice(-6);
-  const claimId = input.claimNumber.startsWith("CLM-")
-    ? input.claimNumber
-    : `CLM-${suffix}`;
-  const payerConfig =
-    (await loadPayerConfigurations()).find((config) => config.payerId === input.payerId) ?? null;
-  const claim: ClaimRecord = {
-    id: claimId,
-    organizationId: input.organizationId,
-    payerId: input.payerId,
-    payerName: payerConfig?.payerName ?? input.payerId,
-    claimNumber: input.claimNumber,
-    patientName: input.patientName,
-    status: "pending",
-    confidence: 0,
-    slaAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    owner: null,
-    priority: input.priority,
-    lastCheckedAt: null,
-    normalizedStatusText: "Pending initial retrieval",
-    amountCents: null,
-    notes: "Claim ingested into the workflow queue.",
-    evidence: [],
-    reviews: [],
-    serviceDate: new Date().toISOString().slice(0, 10),
-    claimType: "Professional",
-    allowedAmountCents: null,
-    paidAmountCents: null,
-    patientResponsibilityCents: null,
-    payerReferenceNumber: null,
-    currentPayerResponse: null,
-    currentQueue: "Pending Retrieval",
-    nextAction: "Queue Retrieval",
-    totalTouches: 0,
-    daysSinceLastFollowUp: 0,
-    escalationState: "Not escalated",
-    ageDays: 0
-  };
+  const claimNumber = input.claimNumber.trim();
+  const patientName = input.patientName.trim();
+  const owner = normalizeOptionalText(input.owner);
+  const notes = normalizeOptionalText(input.notes);
+  const sourceStatus = normalizeOptionalText(input.sourceStatus);
+  const providedSlaAt = normalizeIntakeSlaAt(input.slaAt);
+  const payerConfig = await loadPayerConfigurationByOrganizationAndPayerId(
+    input.organizationId,
+    input.payerId,
+    client
+  );
+  const existingClaim = await loadClaimByOrganizationAndClaimNumber(
+    input.organizationId,
+    claimNumber,
+    client
+  );
+  const existingQueueItem = existingClaim
+    ? await loadQueueByClaimId(existingClaim.id, client)
+    : undefined;
+  const claimId = existingClaim?.id ?? buildClaimId(claimNumber);
+  const claim: ClaimRecord = existingClaim
+    ? {
+        ...existingClaim,
+        payerId: input.payerId,
+        payerName: payerConfig?.payerName ?? input.payerId,
+        claimNumber,
+        patientName,
+        owner:
+          owner ??
+          existingClaim.owner ??
+          (payerConfig?.autoAssignOwner ? payerConfig.owner : null),
+        priority: normalizeIntakePriority(input.priority),
+        slaAt:
+          providedSlaAt ??
+          existingClaim.slaAt ??
+          deriveDefaultSlaAt(payerConfig?.defaultSlaHours),
+        normalizedStatusText: sourceStatus ?? existingClaim.normalizedStatusText,
+        notes: notes ?? existingClaim.notes
+      }
+    : {
+        id: claimId,
+        organizationId: input.organizationId,
+        payerId: input.payerId,
+        payerName: payerConfig?.payerName ?? input.payerId,
+        claimNumber,
+        patientName,
+        status: "pending",
+        confidence: 0,
+        slaAt: providedSlaAt ?? deriveDefaultSlaAt(payerConfig?.defaultSlaHours),
+        owner: owner ?? (payerConfig?.autoAssignOwner ? payerConfig.owner : null),
+        priority: normalizeIntakePriority(input.priority),
+        lastCheckedAt: null,
+        normalizedStatusText: sourceStatus ?? "Pending initial retrieval",
+        amountCents: null,
+        notes: notes ?? "Claim ingested into the workflow queue.",
+        evidence: [],
+        reviews: [],
+        serviceDate: new Date().toISOString().slice(0, 10),
+        claimType: "Professional",
+        allowedAmountCents: null,
+        paidAmountCents: null,
+        patientResponsibilityCents: null,
+        payerReferenceNumber: null,
+        currentPayerResponse: null,
+        currentQueue: owner ? "Assigned Intake" : "Pending Retrieval",
+        nextAction: "Queue Retrieval",
+        totalTouches: 0,
+        daysSinceLastFollowUp: 0,
+        escalationState: "Not escalated",
+        ageDays: 0
+      };
 
-  const queueItem: QueueItem = {
-    id: `queue_${claimId}`,
-    claimId,
-    status: "pending",
-    assignedTo: null,
-    reason: "New intake awaiting retrieval",
-    createdAt: nowIso,
-    slaAt: claim.slaAt
-  };
+  const queueItem =
+    claim.status === "resolved"
+      ? null
+      : ({
+          id: existingQueueItem?.id ?? `queue_${claimId}`,
+          claimId,
+          status: claim.status,
+          assignedTo: claim.owner,
+          reason: existingClaim
+            ? "Claim intake details were refreshed."
+            : sourceStatus
+              ? "Imported active inventory awaiting retrieval"
+              : "New intake awaiting retrieval",
+          createdAt: existingQueueItem?.createdAt ?? nowIso,
+          slaAt: claim.slaAt
+        } satisfies QueueItem);
 
-  await withTransaction(async (client) => {
-    await upsertClaim(client, claim);
+  await upsertClaim(client, claim);
+
+  if (queueItem) {
     await upsertQueueItem(client, queueItem);
+  } else {
+    await client.query("DELETE FROM queue_items WHERE claim_id = $1", [claim.id]);
+  }
+
+  await insertAuditEvent(client, {
+    id: `AUD-${Date.now()}`,
+    at: nowIso,
+    actor: {
+      name: actor.name,
+      type: actor.role === "admin" ? "admin" : "human",
+      avatar: initials(actor.name)
+    },
+    action: existingClaim ? "Updated Intake" : "Intaked",
+    object: "Claim",
+    objectId: claim.id,
+    source: "Human",
+    payer: claim.payerName,
+    summary: existingClaim
+      ? `${actor.name} refreshed intake details for ${claim.claimNumber}.`
+      : `${actor.name} added ${claim.claimNumber} to the claim-status queue.`,
+    sensitivity: "normal",
+    category: "Claim Intake",
+    reason: existingClaim
+      ? "Existing claim matched on organization and claim number."
+      : "Claim submitted through intake workflow.",
+    claimId: claim.id
+  });
+
+  return claim;
+}
+
+export async function createClaim(input: IntakeClaim, actor: WorkflowActor) {
+  await initializeStore();
+
+  const claim = await withTransaction((client) => createClaimRecord(client, input, actor));
+  return getPilotClaimDetail(claim.id);
+}
+
+export async function previewClaimImport(
+  rows: ClaimImportRowInput[],
+  actor: WorkflowActor
+): Promise<ClaimImportPreviewResult> {
+  const [existingClaims, payerConfigurations] = await Promise.all([
+    loadClaimsByOrganization(actor.organizationId),
+    loadPayerConfigurationsByOrganization(actor.organizationId)
+  ]);
+
+  return previewClaimImportRows({
+    rows,
+    existingClaims,
+    payerConfigurations
+  });
+}
+
+export async function commitClaimImport(
+  rows: ClaimImportRowInput[],
+  actor: WorkflowActor
+) {
+  await initializeStore();
+
+  const result = await withTransaction(async (client) => {
+    const [existingClaims, payerConfigurations] = await Promise.all([
+      loadClaimsByOrganization(actor.organizationId, client),
+      loadPayerConfigurationsByOrganization(actor.organizationId, client)
+    ]);
+    const preview = previewClaimImportRows({
+      rows,
+      existingClaims,
+      payerConfigurations
+    });
+    const actionableRows = preview.rows.filter(
+      (row) => row.action === "create" || row.action === "update"
+    );
+
+    for (const row of actionableRows) {
+      await createClaimRecord(
+        client,
+        {
+          organizationId: actor.organizationId,
+          payerId: row.payerId ?? "",
+          claimNumber: row.claimNumber ?? "",
+          patientName: row.patientName ?? "",
+          priority: row.priority ?? "normal",
+          owner: row.owner,
+          notes: row.notes,
+          slaAt: row.slaAt,
+          sourceStatus: row.sourceStatus
+        },
+        actor
+      );
+    }
+
     await insertAuditEvent(client, {
       id: `AUD-${Date.now()}`,
-      at: nowIso,
+      at: new Date().toISOString(),
+      organizationId: actor.organizationId,
       actor: {
         name: actor.name,
         type: actor.role === "admin" ? "admin" : "human",
         avatar: initials(actor.name)
       },
-      action: "Intaked",
-      object: "Claim",
-      objectId: claim.id,
+      action: "Imported",
+      object: "Configuration",
+      objectId: `import_${Date.now()}`,
       source: "Human",
-      payer: claim.payerName,
-      summary: `${actor.name} added ${claim.claimNumber} to the claim-status queue.`,
+      payer: "Mixed",
+      summary: `${actor.name} imported ${preview.summary.createCount} new claims and refreshed ${preview.summary.updateCount} existing claims.`,
       sensitivity: "normal",
       category: "Claim Intake",
-      reason: "Claim submitted through intake workflow.",
-      claimId: claim.id
+      reason: `${preview.summary.invalidCount} invalid rows and ${preview.summary.duplicateInFileCount} duplicate rows were excluded.`
+    });
+    return {
+      summary: {
+        ...preview.summary,
+        importedCount: actionableRows.length
+      },
+      rows: preview.rows
+    };
+  });
+
+  return result;
+}
+
+export type UpdatePayerPolicyInput = {
+  owner?: string;
+  reviewThreshold: number;
+  escalationThreshold: number;
+  defaultSlaHours: number;
+  autoAssignOwner: boolean;
+};
+
+export async function getReviewPolicyForClaim(claimId: string) {
+  const claim = await loadClaimById(claimId);
+
+  if (!claim) {
+    return null;
+  }
+
+  return loadPayerConfigurationByOrganizationAndPayerId(claim.organizationId, claim.payerId);
+}
+
+export async function updatePayerConfigurationPolicy(
+  payerId: string,
+  input: UpdatePayerPolicyInput,
+  actor: WorkflowActor
+) {
+  assertCanEditPayerConfiguration(actor);
+  const existing = await loadPayerConfigurationByOrganizationAndPayerId(actor.organizationId, payerId);
+
+  if (!existing) {
+    throw new Error("Payer configuration not found");
+  }
+
+  const owner = normalizeOptionalText(input.owner) ?? existing.owner;
+  const reviewThreshold = Math.min(0.99, Math.max(0.5, input.reviewThreshold));
+  const escalationThreshold = Math.min(0.95, Math.max(0.1, input.escalationThreshold));
+  const defaultSlaHours = Math.min(168, Math.max(1, Math.round(input.defaultSlaHours)));
+
+  if (escalationThreshold >= reviewThreshold) {
+    throw new Error("Escalation threshold must be lower than the review threshold.");
+  }
+
+  const updated: PayerConfigurationRecord = {
+    ...existing,
+    owner,
+    reviewThreshold,
+    escalationThreshold,
+    defaultSlaHours,
+    autoAssignOwner: input.autoAssignOwner,
+    issues: [],
+    status: existing.status
+  };
+  updated.issues = derivePayerConfigurationIssues(updated);
+  updated.status = derivePayerConfigurationStatus(updated);
+
+  await withTransaction(async (client) => {
+    await upsertPayerConfiguration(client, updated);
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: new Date().toISOString(),
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: actor.role === "admin" ? "admin" : "human",
+        avatar: initials(actor.name)
+      },
+      action: "Policy Updated",
+      object: "Configuration",
+      objectId: updated.id,
+      source: "Human",
+      payer: updated.payerName,
+      summary: `${actor.name} updated workflow policy for ${updated.payerName}.`,
+      sensitivity: "high-risk",
+      category: "Config Change",
+      beforeAfter: {
+        reviewThreshold: {
+          from: `${Math.round(existing.reviewThreshold * 100)}%`,
+          to: `${Math.round(updated.reviewThreshold * 100)}%`
+        },
+        escalationThreshold: {
+          from: `${Math.round(existing.escalationThreshold * 100)}%`,
+          to: `${Math.round(updated.escalationThreshold * 100)}%`
+        },
+        defaultSlaHours: {
+          from: `${existing.defaultSlaHours}h`,
+          to: `${updated.defaultSlaHours}h`
+        },
+        autoAssignOwner: {
+          from: existing.autoAssignOwner ? "Enabled" : "Disabled",
+          to: updated.autoAssignOwner ? "Enabled" : "Disabled"
+        }
+      },
+      reason: "Workflow policy settings changed from the configuration workspace."
     });
   });
 
-  return getPilotClaimDetail(claim.id);
+  return updated;
 }
 
 export async function applyClaimAction(

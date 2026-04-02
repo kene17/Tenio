@@ -17,6 +17,7 @@ import {
   Search,
   Settings,
   Shield,
+  Upload,
   X
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ import { cn } from "../lib/cn";
 const navigation = [
   { name: "Queue", href: "/app/queue", icon: ListChecks },
   { name: "Claims", href: "/app/claims", icon: FileText },
+  { name: "Onboarding", href: "/app/onboarding", icon: Upload },
   { name: "Results", href: "/app/results", icon: CheckSquare },
   { name: "Performance", href: "/app/performance", icon: BarChart3 },
   { name: "Configuration", href: "/app/configuration", icon: Settings }

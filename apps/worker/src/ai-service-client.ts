@@ -8,7 +8,8 @@ export class AiServiceClient {
   constructor(private readonly baseUrl = process.env.AI_SERVICE_URL ?? "http://127.0.0.1:8000") {}
 
   async analyzeClaimStatus(
-    payload: AiClaimStatusAnalysisRequest
+    payload: AiClaimStatusAnalysisRequest,
+    requestId?: string
   ): Promise<AiClaimStatusAnalysisResponse | null> {
     try {
       const response = await fetch(`${this.baseUrl}/v1/analyze-claim-status`, {
@@ -16,7 +17,8 @@ export class AiServiceClient {
         headers: {
           "content-type": "application/json",
           "x-tenio-ai-token":
-            process.env.TENIO_AI_SERVICE_TOKEN ?? "tenio-local-ai-service-token"
+            process.env.TENIO_AI_SERVICE_TOKEN ?? "tenio-local-ai-service-token",
+          ...(requestId ? { "x-request-id": requestId } : {})
         },
         body: JSON.stringify(payload)
       });
