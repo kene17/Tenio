@@ -16,3 +16,5 @@ __pycache__
 *.pyc
 *.tsbuildinfo
 *.egg-info
+.tools/gh/gh.zip
+.tools/gh/gh-install/
