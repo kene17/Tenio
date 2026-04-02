@@ -43,3 +43,7 @@ export function roleLabel(role: AppRole) {
   if (role === "operator") return "Operator";
   return "Viewer";
 }
+
+export function canManagePayerConfiguration(role: AppRole) {
+  return role === "admin" || role === "manager";
+}

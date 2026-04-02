@@ -9,12 +9,15 @@ import {
   applyRetrievalOutcome,
   authenticateUser,
   claimNextRetrievalJob,
+  commitClaimImport,
   createClaim,
+  exportResults,
   failRetrievalJob,
   getClaimDetail,
   getEvidenceArtifactContent,
   getPerformanceMetrics,
   getPilotClaimDetail,
+  getReviewPolicyForClaim,
   getResultDetail,
   getValidatedSession,
   listAuditEvents,
@@ -24,8 +27,11 @@ import {
   listPilotQueueItems,
   listQueue,
   listResultSummaries,
+  previewClaimImport,
+  updatePayerConfigurationPolicy,
   enqueueRetrievalJob
 } from "../domain/store.js";
+import type { ClaimImportRowInput } from "../domain/imports.js";
 
 export class WorkflowService {
   async getQueue() {
@@ -62,12 +68,16 @@ export class WorkflowService {
     return listResultSummaries();
   }
 
+  async exportResults(...args: Parameters<typeof exportResults>) {
+    return exportResults(...args);
+  }
+
   async getResultDetail(resultId: string) {
     return getResultDetail(resultId);
   }
 
-  async getEvidenceArtifactContent(artifactId: string) {
-    return getEvidenceArtifactContent(artifactId);
+  async getEvidenceArtifactContent(artifactId: string, organizationId: string) {
+    return getEvidenceArtifactContent(artifactId, organizationId);
   }
 
   async getAuditLog() {
@@ -78,8 +88,8 @@ export class WorkflowService {
     return getPerformanceMetrics();
   }
 
-  async getPayerConfigurations() {
-    return listPayerConfigurations();
+  async getPayerConfigurations(organizationId?: string) {
+    return listPayerConfigurations(organizationId);
   }
 
   async authenticateUser(email: string, password: string) {
@@ -92,6 +102,24 @@ export class WorkflowService {
 
   async createClaim(...args: Parameters<typeof createClaim>) {
     return createClaim(...args);
+  }
+
+  async getReviewPolicyForClaim(...args: Parameters<typeof getReviewPolicyForClaim>) {
+    return getReviewPolicyForClaim(...args);
+  }
+
+  async previewClaimImport(rows: ClaimImportRowInput[], actor: Parameters<typeof previewClaimImport>[1]) {
+    return previewClaimImport(rows, actor);
+  }
+
+  async commitClaimImport(rows: ClaimImportRowInput[], actor: Parameters<typeof commitClaimImport>[1]) {
+    return commitClaimImport(rows, actor);
+  }
+
+  async updatePayerConfigurationPolicy(
+    ...args: Parameters<typeof updatePayerConfigurationPolicy>
+  ) {
+    return updatePayerConfigurationPolicy(...args);
   }
 
   async applyClaimAction(...args: Parameters<typeof applyClaimAction>) {

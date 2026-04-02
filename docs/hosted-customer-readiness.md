@@ -49,6 +49,7 @@ Evidence:
 - store evidence files in managed object storage
 - store only metadata and signed access references in Postgres
 - enforce least-privilege access and expiration on evidence links
+- app-mediated evidence access is acceptable for early hosted deployments if direct signed links are not yet exposed
 
 Backups:
 

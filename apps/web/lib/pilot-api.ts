@@ -156,6 +156,9 @@ export type PayerConfigurationView = {
   lastVerifiedAt: string;
   enabledWorkflows: string[];
   reviewThreshold: number;
+  escalationThreshold: number;
+  defaultSlaHours: number;
+  autoAssignOwner: boolean;
   statusRules: string[];
   reviewRules: string[];
   destinations: Array<{

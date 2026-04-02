@@ -58,7 +58,11 @@ export const intakeClaimSchema = z.object({
   payerId: z.string(),
   claimNumber: z.string(),
   patientName: z.string(),
-  priority: prioritySchema.default("normal")
+  priority: prioritySchema.default("normal"),
+  owner: z.string().trim().min(1).nullable().optional(),
+  notes: z.string().trim().min(1).nullable().optional(),
+  slaAt: z.string().datetime().nullable().optional(),
+  sourceStatus: z.string().trim().min(1).nullable().optional()
 });
 
 export type ClaimStatus = z.infer<typeof claimStatusSchema>;

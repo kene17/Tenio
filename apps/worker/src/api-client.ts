@@ -21,17 +21,18 @@ export class WorkflowApiClient {
       process.env.TENIO_WORKER_SERVICE_TOKEN ?? "tenio-local-worker-service-token"
   ) {}
 
-  private getHeaders() {
+  private getHeaders(requestId?: string) {
     return {
       "content-type": "application/json",
-      "x-tenio-service-token": this.workerToken
+      "x-tenio-service-token": this.workerToken,
+      ...(requestId ? { "x-request-id": requestId } : {})
     };
   }
 
-  async claimNextJob(workerName: string) {
+  async claimNextJob(workerName: string, requestId?: string) {
     const response = await fetch(`${this.baseUrl}/internal/retrieval-jobs/claim`, {
       method: "POST",
-      headers: this.getHeaders(),
+      headers: this.getHeaders(requestId),
       body: JSON.stringify({ workerName })
     });
 
@@ -42,12 +43,17 @@ export class WorkflowApiClient {
     return (await response.json()) as ReservedJob;
   }
 
-  async completeJob(jobId: string, claimId: string, candidate: ExecutionCandidate) {
+  async completeJob(
+    jobId: string,
+    claimId: string,
+    candidate: ExecutionCandidate,
+    requestId?: string
+  ) {
     const response = await fetch(
       `${this.baseUrl}/internal/retrieval-jobs/${jobId}/complete`,
       {
         method: "POST",
-        headers: this.getHeaders(),
+        headers: this.getHeaders(requestId),
         body: JSON.stringify({ claimId, candidate })
       }
     );
@@ -69,11 +75,12 @@ export class WorkflowApiClient {
       connectorName?: string;
       observedAt?: string;
       durationMs?: number;
-    }
+    },
+    requestId?: string
   ) {
     const response = await fetch(`${this.baseUrl}/internal/retrieval-jobs/${jobId}/fail`, {
       method: "POST",
-      headers: this.getHeaders(),
+      headers: this.getHeaders(requestId),
       body: JSON.stringify(failure)
     });
 
