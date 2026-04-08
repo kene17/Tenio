@@ -45,14 +45,20 @@ export function DashboardShell({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const canMutateClaims = roleLabel !== "viewer";
+  const canManageConfiguration = roleLabel === "admin" || roleLabel === "manager";
 
   const navigation = [
     { name: messages.navigation.queue, href: "/app/queue", icon: ListChecks },
     { name: messages.navigation.claims, href: "/app/claims", icon: FileText },
-    { name: messages.navigation.onboarding, href: "/app/onboarding", icon: Upload },
+    ...(canMutateClaims
+      ? [{ name: messages.navigation.onboarding, href: "/app/onboarding", icon: Upload }]
+      : []),
     { name: messages.navigation.results, href: "/app/results", icon: CheckSquare },
     { name: messages.navigation.performance, href: "/app/performance", icon: BarChart3 },
-    { name: messages.navigation.configuration, href: "/app/configuration", icon: Settings }
+    ...(canManageConfiguration
+      ? [{ name: messages.navigation.configuration, href: "/app/configuration", icon: Settings }]
+      : [])
   ];
 
   const secondaryNavigation = [

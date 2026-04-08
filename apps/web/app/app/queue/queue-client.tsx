@@ -71,13 +71,47 @@ function ownerInitials(owner: string | null) {
     .join("");
 }
 
+function serviceSummary(claim: QueueItemView) {
+  return [claim.serviceProviderType?.replaceAll("_", " "), claim.serviceCode]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function sortQueueItems(items: QueueItemView[]) {
+  const priorityRank: Record<QueueItemView["priority"], number> = {
+    urgent: 0,
+    high: 1,
+    normal: 2,
+    low: 3
+  };
+  const slaRank: Record<QueueItemView["slaRisk"], number> = {
+    breached: 0,
+    "at-risk": 1,
+    healthy: 2
+  };
+
+  return [...items].sort((left, right) => {
+    const priorityDelta = priorityRank[left.priority] - priorityRank[right.priority];
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+
+    const slaDelta = slaRank[left.slaRisk] - slaRank[right.slaRisk];
+    if (slaDelta !== 0) {
+      return slaDelta;
+    }
+
+    return new Date(left.lastTouchedAt).getTime() - new Date(right.lastTouchedAt).getTime();
+  });
+}
+
 export function QueueClient({ items }: QueueClientProps) {
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(items[0]?.claimId ?? null);
-  const [activeFilters, setActiveFilters] = useState<string[]>(["SLA: At Risk"]);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    const matchingItems = items.filter((item) => {
       const matchesSearch =
         searchTerm.length === 0 ||
         [
@@ -85,6 +119,8 @@ export function QueueClient({ items }: QueueClientProps) {
           item.patientName,
           item.payerName,
           item.claimType ?? "",
+          item.serviceProviderType ?? "",
+          item.serviceCode ?? "",
           item.provinceOfService ?? "",
           item.countryCode ?? "",
           item.owner ?? "",
@@ -101,6 +137,8 @@ export function QueueClient({ items }: QueueClientProps) {
 
       return matchesSearch && matchesFilter;
     });
+
+    return sortQueueItems(matchingItems);
   }, [activeFilters, items, searchTerm]);
 
   const selectedClaim =
@@ -215,7 +253,7 @@ export function QueueClient({ items }: QueueClientProps) {
                       "Next Action",
                       "Queue / Reason",
                       "Owner",
-                      "Last Update",
+                      "Last Touched",
                       "Age / SLA",
                       "Confidence",
                       "Evidence",
@@ -250,6 +288,7 @@ export function QueueClient({ items }: QueueClientProps) {
                         </Link>
                         <div className="mt-1 text-xs text-gray-500">
                           {claim.claimType ?? "Unspecified"}
+                          {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{claim.patientName}</td>
@@ -328,6 +367,7 @@ export function QueueClient({ items }: QueueClientProps) {
                         </Link>
                         <div className="mt-1 text-xs text-gray-500">
                           {claim.claimType ?? "Unspecified"}
+                          {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
                         </div>
                       </div>
                     </div>
@@ -348,6 +388,9 @@ export function QueueClient({ items }: QueueClientProps) {
                       {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
                     </div>
                     <div className="text-sm text-gray-700">{claim.nextAction}</div>
+                    {serviceSummary(claim) ? (
+                      <div className="text-xs text-gray-500">{serviceSummary(claim)}</div>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-xs text-gray-600">
@@ -408,8 +451,16 @@ export function QueueClient({ items }: QueueClientProps) {
                 <div>{selectedClaim.payerName}</div>
               </div>
               <div>
+                <div className="mb-1 text-xs font-medium text-gray-600">Service</div>
+                <div>{serviceSummary(selectedClaim) || "Not captured"}</div>
+              </div>
+              <div>
                 <div className="mb-1 text-xs font-medium text-gray-600">Assigned Owner</div>
                 <div>{selectedClaim.owner ?? "Unassigned"}</div>
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-medium text-gray-600">Last Touched</div>
+                <div>{selectedClaim.lastUpdate}</div>
               </div>
               <div>
                 <div className="mb-1 text-xs font-medium text-gray-600">Evidence</div>

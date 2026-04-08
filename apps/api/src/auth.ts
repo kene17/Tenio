@@ -47,3 +47,15 @@ export function roleLabel(role: AppRole) {
 export function canManagePayerConfiguration(role: AppRole) {
   return role === "admin" || role === "manager";
 }
+
+export function canExportResults(role: AppRole) {
+  return role === "admin" || role === "manager";
+}
+
+export function canImportClaims(role: AppRole) {
+  return role === "admin" || role === "manager" || role === "operator";
+}
+
+export function canMutateClaims(role: AppRole) {
+  return role === "admin" || role === "manager" || role === "operator";
+}

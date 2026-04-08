@@ -2,7 +2,12 @@ import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
 import type { ExecutionCandidate } from "@tenio/contracts";
 
-import { canManagePayerConfiguration } from "./auth.js";
+import {
+  canExportResults,
+  canImportClaims,
+  canManagePayerConfiguration,
+  canMutateClaims
+} from "./auth.js";
 import { checkDatabaseHealth } from "./database.js";
 import { initializeStore } from "./domain/store.js";
 import { appConfig, getEvidenceStorageHealthMetadata } from "./config.js";
@@ -174,6 +179,10 @@ export async function buildApp() {
       return reply.code(403).send({ message: "Authenticated user required" });
     }
 
+    if (!canExportResults(actor.role)) {
+      return reply.code(403).send({ message: "Manager or admin role required" });
+    }
+
     const exportBatch = await workflow.exportResults(actor);
     reply.header("content-type", "text/csv; charset=utf-8");
     reply.header("content-disposition", `attachment; filename="${exportBatch.fileName}"`);
@@ -275,6 +284,10 @@ export async function buildApp() {
       return reply.code(403).send({ message: "Authenticated user required" });
     }
 
+    if (!canImportClaims(actor.role)) {
+      return reply.code(403).send({ message: "Operator, manager, or admin role required" });
+    }
+
     const body = request.body as {
       rows?: RawImportRow[];
       importProfile?: ImportProfileId;
@@ -295,6 +308,10 @@ export async function buildApp() {
 
     if (auth?.kind !== "web-service" || !actor) {
       return reply.code(403).send({ message: "Authenticated user required" });
+    }
+
+    if (!canImportClaims(actor.role)) {
+      return reply.code(403).send({ message: "Operator, manager, or admin role required" });
     }
 
     const body = request.body as {
@@ -319,6 +336,10 @@ export async function buildApp() {
       return reply.code(403).send({ message: "Authenticated user required" });
     }
 
+    if (!canMutateClaims(actor.role)) {
+      return reply.code(403).send({ message: "Operator, manager, or admin role required" });
+    }
+
     const body = request.body as {
       organizationId: string;
       payerId: string;
@@ -328,6 +349,18 @@ export async function buildApp() {
       countryCode?: "US" | "CA";
       provinceOfService?: string | null;
       claimType?: string | null;
+      serviceProviderType?:
+        | "physiotherapist"
+        | "chiropractor"
+        | "massage_therapist"
+        | "psychotherapist"
+        | "other"
+        | null;
+      serviceCode?: string | null;
+      planNumber?: string | null;
+      memberCertificate?: string | null;
+      serviceDate?: string | null;
+      billedAmountCents?: number | null;
       priority: "low" | "normal" | "high" | "urgent";
       owner?: string | null;
       notes?: string | null;
@@ -349,6 +382,10 @@ export async function buildApp() {
       return reply.code(403).send({ message: "Authenticated user required" });
     }
 
+    if (!canMutateClaims(actor.role)) {
+      return reply.code(403).send({ message: "Operator, manager, or admin role required" });
+    }
+
     const { claimId } = request.params as { claimId: string };
     const body = request.body as {
       action:
@@ -358,15 +395,28 @@ export async function buildApp() {
         | "resolve_claim"
         | "escalate_claim"
         | "reopen_claim"
-        | "mark_call_required";
+        | "mark_call_required"
+        | "log_follow_up";
       assignee?: string;
       note?: string;
+      outcome?:
+        | "status_checked"
+        | "pending_payer"
+        | "more_info_needed"
+        | "needs_review"
+        | "phone_call_required"
+        | "resolved";
+      nextAction?: string;
+      followUpAt?: string | null;
     };
 
     try {
       const item = await workflow.applyClaimAction(claimId, body.action, actor, {
         assignee: body.assignee,
-        note: body.note
+        note: body.note,
+        outcome: body.outcome,
+        nextAction: body.nextAction,
+        followUpAt: body.followUpAt
       });
 
       return { item };
@@ -383,6 +433,10 @@ export async function buildApp() {
 
     if (auth?.kind !== "web-service" || !actor) {
       return reply.code(403).send({ message: "Authenticated user required" });
+    }
+
+    if (!canMutateClaims(actor.role)) {
+      return reply.code(403).send({ message: "Operator, manager, or admin role required" });
     }
 
     const { claimId } = request.params as { claimId: string };

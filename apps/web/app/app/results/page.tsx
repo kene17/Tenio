@@ -13,7 +13,7 @@ import {
 import { ConfidenceBadge } from "../../../components/confidence-badge";
 import { KPICard } from "../../../components/kpi-card";
 import { PilotErrorState } from "../../../components/pilot-error-state";
-import { getResults } from "../../../lib/pilot-api";
+import { getCurrentSession, getResults } from "../../../lib/pilot-api";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +55,9 @@ function verifiedBadge(status: string) {
 
 export default async function ResultsPage() {
   try {
-    const { items } = await getResults();
+    const [{ items }, session] = await Promise.all([getResults(), getCurrentSession()]);
     const exportedCount = items.filter((item) => item.exportState === "Exported").length;
+    const canExport = session?.role === "admin" || session?.role === "manager";
 
     return (
     <div className="h-full overflow-auto">
@@ -99,15 +100,17 @@ export default async function ResultsPage() {
               Filters
               <ChevronDown className="h-4 w-4" />
             </button>
-            <form action="/api/results/export" method="post">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                <Download className="h-4 w-4" />
-                Export Batch
-              </button>
-            </form>
+            {canExport ? (
+              <form action="/api/results/export" method="post">
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  <Download className="h-4 w-4" />
+                  Export Batch
+                </button>
+              </form>
+            ) : null}
           </div>
         </div>
 

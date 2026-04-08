@@ -53,8 +53,17 @@ export default async function ClaimDetailPage({
   const claimOverview = [
     ["Service Date", claim.serviceDate],
     ["Claim Type", claim.claimType],
+    [
+      "Service Discipline",
+      claim.serviceProviderType
+        ? claim.serviceProviderType.replaceAll("_", " ")
+        : "—"
+    ],
+    ["Service Code", claim.serviceCode ?? "—"],
     ["Jurisdiction", `${claim.countryCode} / ${claim.jurisdiction.toUpperCase()}`],
     ["Province / State", claim.provinceOfService ?? "—"],
+    ["Plan Number", claim.planNumber ?? "—"],
+    ["Member Certificate", claim.memberCertificate ?? "—"],
     ["Billed Amount", claim.item.amountCents ? `$${(claim.item.amountCents / 100).toFixed(2)}` : "—"],
     [
       "Allowed Amount",
@@ -74,13 +83,14 @@ export default async function ClaimDetailPage({
   const operationalSummary = [
     ["Current Queue", claim.currentQueue],
     ["Next Recommended Action", claim.nextAction],
+    ["Last Touched", claim.lastUpdatedLabel],
     ["Assigned Owner", claim.item.owner ?? "Unassigned"],
     ["Total Touches", String(claim.totalTouches)],
     ["Phone Call Required", claim.requiresPhoneCall ? "Yes" : "No"],
     ["Days Since Last Follow-up", String(claim.daysSinceLastFollowUp)],
     ["Review State", claim.item.reviews[0]?.status ?? "No review required"],
     ["Escalation State", claim.escalationState],
-    ["Follow-up Reason", claim.item.notes ?? "No notes captured"]
+    ["Latest Structured Note", claim.item.notes ?? "No notes captured"]
   ];
 
   return (

@@ -135,7 +135,12 @@ function normalizeResultRecord(result: ResultRecord): ResultRecord {
 function normalizeClaimRecord(claim: ClaimRecord): ClaimRecord {
   return {
     ...claim,
+    serviceDate: claim.serviceDate ?? new Date().toISOString().slice(0, 10),
     claimType: claim.claimType ?? "Professional",
+    serviceProviderType: claim.serviceProviderType ?? null,
+    serviceCode: claim.serviceCode ?? null,
+    planNumber: claim.planNumber ?? null,
+    memberCertificate: claim.memberCertificate ?? null,
     jurisdiction: claim.jurisdiction ?? "us",
     countryCode: claim.countryCode ?? (claim.jurisdiction === "ca" ? "CA" : "US"),
     provinceOfService: claim.provinceOfService ?? null,
@@ -1490,6 +1495,25 @@ function normalizeProvinceOfService(value: string | null | undefined) {
   return normalized.slice(0, 3);
 }
 
+function normalizeServiceDate(value: string | null | undefined) {
+  const normalized = normalizeOptionalText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+function normalizeBilledAmountCents(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return Number.isFinite(value) ? Math.round(value) : null;
+}
+
 function deriveDefaultSlaAt(defaultSlaHours: number | undefined) {
   const safeHours = Math.max(1, Math.round(defaultSlaHours ?? 24));
   return new Date(Date.now() + safeHours * 60 * 60 * 1000).toISOString();
@@ -1595,6 +1619,14 @@ async function createClaimRecord(
   );
   const provinceOfService = normalizeProvinceOfService(input.provinceOfService);
   const claimType = normalizeOptionalText(input.claimType);
+  const serviceProviderType = normalizeOptionalText(input.serviceProviderType) as
+    | ClaimRecord["serviceProviderType"]
+    | null;
+  const serviceCode = normalizeOptionalText(input.serviceCode);
+  const planNumber = normalizeOptionalText(input.planNumber);
+  const memberCertificate = normalizeOptionalText(input.memberCertificate);
+  const serviceDate = normalizeServiceDate(input.serviceDate);
+  const billedAmountCents = normalizeBilledAmountCents(input.billedAmountCents);
   const claimId = existingClaim?.id ?? buildClaimId(claimNumber);
   const claim: ClaimRecord = existingClaim
     ? {
@@ -1606,7 +1638,15 @@ async function createClaimRecord(
         jurisdiction,
         countryCode,
         provinceOfService: provinceOfService ?? existingClaim.provinceOfService,
-        claimType: claimType ?? existingClaim.claimType,
+        claimType:
+          claimType ??
+          existingClaim.claimType ??
+          (jurisdiction === "ca" ? "paramedical" : "Professional"),
+        serviceProviderType: serviceProviderType ?? existingClaim.serviceProviderType ?? null,
+        serviceCode: serviceCode ?? existingClaim.serviceCode ?? null,
+        planNumber: planNumber ?? existingClaim.planNumber ?? null,
+        memberCertificate: memberCertificate ?? existingClaim.memberCertificate ?? null,
+        serviceDate: serviceDate ?? existingClaim.serviceDate,
         owner:
           owner ??
           existingClaim.owner ??
@@ -1617,7 +1657,8 @@ async function createClaimRecord(
           existingClaim.slaAt ??
           deriveDefaultSlaAt(payerConfig?.defaultSlaHours),
         normalizedStatusText: sourceStatus ?? existingClaim.normalizedStatusText,
-        notes: notes ?? existingClaim.notes
+        notes: notes ?? existingClaim.notes,
+        amountCents: billedAmountCents ?? existingClaim.amountCents
       }
     : {
         id: claimId,
@@ -1636,12 +1677,16 @@ async function createClaimRecord(
         priority: normalizeIntakePriority(input.priority),
         lastCheckedAt: null,
         normalizedStatusText: sourceStatus ?? "Pending initial retrieval",
-        amountCents: null,
+        amountCents: billedAmountCents,
         notes: notes ?? "Claim ingested into the workflow queue.",
         evidence: [],
         reviews: [],
-        serviceDate: new Date().toISOString().slice(0, 10),
-        claimType: claimType ?? "Professional",
+        serviceDate: serviceDate ?? new Date().toISOString().slice(0, 10),
+        claimType: claimType ?? (jurisdiction === "ca" ? "paramedical" : "Professional"),
+        serviceProviderType,
+        serviceCode,
+        planNumber,
+        memberCertificate,
         allowedAmountCents: null,
         paidAmountCents: null,
         patientResponsibilityCents: null,
@@ -1768,6 +1813,12 @@ export async function commitClaimImport(
           countryCode: row.countryCode ?? undefined,
           provinceOfService: row.provinceOfService,
           claimType: row.claimType,
+          serviceProviderType: row.serviceProviderType,
+          serviceCode: row.serviceCode,
+          planNumber: row.planNumber,
+          memberCertificate: row.memberCertificate,
+          serviceDate: row.serviceDate,
+          billedAmountCents: row.billedAmountCents,
           priority: row.priority ?? "normal",
           owner: row.owner,
           notes: row.notes,
@@ -1909,7 +1960,13 @@ export async function applyClaimAction(
   claimId: string,
   action: Parameters<typeof applyClaimWorkflowAction>[0]["action"],
   actor: WorkflowActor,
-  options?: { assignee?: string; note?: string }
+  options?: {
+    assignee?: string;
+    note?: string;
+    outcome?: Parameters<typeof applyClaimWorkflowAction>[0]["outcome"];
+    nextAction?: string;
+    followUpAt?: string | null;
+  }
 ) {
   const ensuredActor = ensureActor(actor);
 
@@ -1947,7 +2004,10 @@ export async function applyClaimAction(
       action,
       actor: ensuredActor,
       assignee: options?.assignee,
-      note: options?.note
+      note: options?.note,
+      outcome: options?.outcome,
+      nextAction: options?.nextAction,
+      followUpAt: options?.followUpAt
     });
 
     await upsertClaim(client, mutation.claim);

@@ -10,6 +10,18 @@ type RetrievalTask = {
   countryCode?: "US" | "CA";
   provinceOfService?: string | null;
   claimType?: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
+  planNumber?: string | null;
+  memberCertificate?: string | null;
+  serviceDate?: string | null;
+  billedAmountCents?: number | null;
   sessionMode: "browser" | "api";
   preferredConnectorId?: string;
   attempt: number;

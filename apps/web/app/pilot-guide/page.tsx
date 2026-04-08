@@ -42,8 +42,9 @@ export default function PilotGuidePage() {
           <h2 className="text-lg font-semibold text-gray-900">Access And Support Model</h2>
           <div className="mt-4 space-y-3 text-sm text-gray-700">
             <div>Supported roles: admin, manager, operator, viewer.</div>
-            <div>Manager and admin roles control payer workflow policy changes.</div>
-            <div>Result export and evidence access require an authenticated user session.</div>
+            <div>Role matrix: admin and manager can export results and update payer policy; operator can import, intake, retrieve, and log follow-up; viewer is read-only.</div>
+            <div>Evidence access requires an authenticated user session plus organization scope.</div>
+            <div>Hosted pilot environments should use environment-specific non-demo accounts. Seeded demo credentials are for local development only.</div>
             <div>
               Customer support email:{" "}
               <a className="text-blue-600 hover:text-blue-700" href={`mailto:${supportEmail}`}>
@@ -66,6 +67,15 @@ export default function PilotGuidePage() {
             <div>Active retrieval cards surface retrieval job ID and agent run ID for support follow-up.</div>
             <div>Audit log details expose request IDs for workflow and configuration actions.</div>
             <div>Result detail metadata shows the trace ID tied to the exported result.</div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Partner Handoff Acceptance</h2>
+          <div className="mt-4 space-y-3 text-sm text-gray-700">
+            <div>Tuesday-morning walkthrough: log in, upload a CSV, open the queue, open one claim, log a structured follow-up, confirm evidence and timeline, then return to the queue.</div>
+            <div>Cold-user criterion: someone who did not build the feature must complete that flow with no live guidance before a design partner gets access.</div>
+            <div>If that user gets stuck, treat it as a product bug or UX gap, not a training issue.</div>
           </div>
         </section>
 

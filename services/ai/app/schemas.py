@@ -53,6 +53,21 @@ class AiClaimStatusAnalysisRequest(BaseModel):
     country_code: Literal["US", "CA"] | None = Field(default=None, alias="countryCode")
     province_of_service: str | None = Field(default=None, alias="provinceOfService")
     claim_type: str | None = Field(default=None, alias="claimType")
+    service_provider_type: (
+        Literal[
+            "physiotherapist",
+            "chiropractor",
+            "massage_therapist",
+            "psychotherapist",
+            "other",
+        ]
+        | None
+    ) = Field(default=None, alias="serviceProviderType")
+    service_code: str | None = Field(default=None, alias="serviceCode")
+    plan_number: str | None = Field(default=None, alias="planNumber")
+    member_certificate: str | None = Field(default=None, alias="memberCertificate")
+    service_date: str | None = Field(default=None, alias="serviceDate")
+    billed_amount_cents: int | None = Field(default=None, alias="billedAmountCents")
     portal_text: str = Field(alias="portalText")
     screenshot_urls: list[str] = Field(alias="screenshotUrls")
     connector_id: str | None = Field(default=None, alias="connectorId")
@@ -206,6 +221,21 @@ class AgentRunContext(BaseModel):
     country_code: Literal["US", "CA"] | None = Field(default=None, alias="countryCode")
     province_of_service: str | None = Field(default=None, alias="provinceOfService")
     claim_type: str | None = Field(default=None, alias="claimType")
+    service_provider_type: (
+        Literal[
+            "physiotherapist",
+            "chiropractor",
+            "massage_therapist",
+            "psychotherapist",
+            "other",
+        ]
+        | None
+    ) = Field(default=None, alias="serviceProviderType")
+    service_code: str | None = Field(default=None, alias="serviceCode")
+    plan_number: str | None = Field(default=None, alias="planNumber")
+    member_certificate: str | None = Field(default=None, alias="memberCertificate")
+    service_date: str | None = Field(default=None, alias="serviceDate")
+    billed_amount_cents: int | None = Field(default=None, alias="billedAmountCents")
     current_attempt: int = Field(alias="currentAttempt")
     max_attempts: int = Field(alias="maxAttempts")
     started_at: str = Field(alias="startedAt")

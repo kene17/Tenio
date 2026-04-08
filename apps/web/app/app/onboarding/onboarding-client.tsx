@@ -17,7 +17,7 @@ import { parseCsvText } from "../../../lib/csv";
 
 type ClaimImportAction = "create" | "update" | "invalid" | "duplicate_in_file";
 type RawImportRow = Record<string, string>;
-type ImportProfileId = "generic_template" | "dentrix_csv_shell";
+type ImportProfileId = "generic_template" | "dentrix_csv_shell" | "jane_app_csv";
 
 type ClaimImportPreviewRow = {
   rowNumber: number;
@@ -31,6 +31,18 @@ type ClaimImportPreviewRow = {
   countryCode: "US" | "CA" | null;
   provinceOfService: string | null;
   claimType: string | null;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
+  planNumber: string | null;
+  memberCertificate: string | null;
+  serviceDate: string | null;
+  billedAmountCents: number | null;
   priority: "low" | "normal" | "high" | "urgent" | null;
   owner: string | null;
   notes: string | null;
@@ -60,6 +72,12 @@ const templateHeaders = [
   "countryCode",
   "provinceOfService",
   "claimType",
+  "serviceProviderType",
+  "serviceCode",
+  "planNumber",
+  "memberCertificate",
+  "serviceDate",
+  "billedAmountCents",
   "priority",
   "owner",
   "notes",
@@ -68,17 +86,23 @@ const templateHeaders = [
 ];
 
 const templateExample = [
-  "CLM-300001",
+  "JANE-300001",
   "Ava Johnson",
-  "payer_aetna",
   "",
-  "us",
-  "US",
-  "",
-  "medical",
+  "Sun Life / PSHCP",
+  "ca",
+  "CA",
+  "ON",
+  "paramedical",
+  "physiotherapist",
+  "97110",
+  "PSHCP-445",
+  "CERT-8812",
+  "2026-04-07",
+  "125.00",
   "high",
   "Sarah Chen",
-  "Imported from April active inventory extract",
+  "Imported from Jane active inventory extract",
   new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   "Pending payer review"
 ];
@@ -126,10 +150,12 @@ function downloadTemplate() {
 export function OnboardingClient({
   locale,
   messages,
+  currentRole,
   payers
 }: {
   locale: Locale;
   messages: TenioMessages["onboarding"];
+  currentRole: "admin" | "manager" | "operator" | "viewer";
   payers: Array<{
     payerId: string;
     payerName: string;
@@ -138,8 +164,9 @@ export function OnboardingClient({
   }>;
 }) {
   const router = useRouter();
+  const canImport = currentRole !== "viewer";
   const [rawRows, setRawRows] = useState<RawImportRow[]>([]);
-  const [importProfile, setImportProfile] = useState<ImportProfileId>("generic_template");
+  const [importProfile, setImportProfile] = useState<ImportProfileId>("jane_app_csv");
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<ClaimImportPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +174,11 @@ export function OnboardingClient({
   const [isPending, startTransition] = useTransition();
   const importProfiles = useMemo(
     () => [
+      {
+        id: "jane_app_csv" as const,
+        label: messages.profileJane,
+        description: messages.profileJaneDescription
+      },
       {
         id: "generic_template" as const,
         label: messages.profileGeneric,
@@ -268,18 +300,25 @@ export function OnboardingClient({
               <Download className="h-4 w-4" />
               {messages.downloadTemplate}
             </button>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
-              <Upload className="h-4 w-4" />
-              {messages.uploadCsv}
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </label>
+            {canImport ? (
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                <Upload className="h-4 w-4" />
+                {messages.uploadCsv}
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </label>
+            ) : null}
           </div>
         </div>
+        {!canImport ? (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Onboarding imports are limited to operator, manager, and admin roles.
+          </div>
+        ) : null}
 
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KPICard label={messages.configuredPayers} value={String(payers.length)} />
@@ -369,7 +408,7 @@ export function OnboardingClient({
               <button
                 type="button"
                 onClick={handlePreview}
-                disabled={isPending}
+                disabled={isPending || !canImport}
                 className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
               >
                 <RefreshCcw className="h-4 w-4" />
@@ -378,7 +417,7 @@ export function OnboardingClient({
               <button
                 type="button"
                 onClick={handleCommit}
-                disabled={isPending || readyRows === 0}
+                disabled={isPending || readyRows === 0 || !canImport}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 <Upload className="h-4 w-4" />
@@ -470,6 +509,7 @@ export function OnboardingClient({
                       messages.columnPayer,
                       messages.columnJurisdiction,
                       messages.columnClaimType,
+                      messages.columnService,
                       messages.columnPriority,
                       messages.columnMessages
                     ].map(
@@ -504,6 +544,10 @@ export function OnboardingClient({
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {row.claimType ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {[row.serviceProviderType, row.serviceCode].filter(Boolean).join(" · ") ||
+                          "—"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {row.priority ?? messages.invalid}

@@ -12,6 +12,16 @@ import type { WorkflowDecision } from "../services/review-policy-service.js";
 export type ClaimRecord = ClaimDetail & {
   serviceDate: string;
   claimType: string;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
+  planNumber: string | null;
+  memberCertificate: string | null;
   jurisdiction: "us" | "ca";
   countryCode: "US" | "CA";
   provinceOfService: string | null;
@@ -81,10 +91,19 @@ export type PilotQueueItem = {
   countryCode: "US" | "CA";
   provinceOfService: string | null;
   claimType: string | null;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
   claimStatus: string;
   nextAction: string;
   queueReason: string;
   owner: string | null;
+  lastTouchedAt: string;
   lastUpdate: string;
   age: string;
   slaRisk: "healthy" | "at-risk" | "breached";
@@ -115,9 +134,20 @@ export type PilotClaimDetail = {
   item: ClaimDetail;
   serviceDate: string;
   claimType: string;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
+  planNumber: string | null;
+  memberCertificate: string | null;
   jurisdiction: "us" | "ca";
   countryCode: "US" | "CA";
   provinceOfService: string | null;
+  lastTouchedAt: string;
   allowedAmountCents: number | null;
   paidAmountCents: number | null;
   patientResponsibilityCents: number | null;
@@ -185,6 +215,12 @@ export type ResultDetailView = {
 const now = Date.now();
 const hours = (value: number) => value * 60 * 60 * 1000;
 const days = (value: number) => value * 24 * 60 * 60 * 1000;
+const defaultServiceMetadata = {
+  serviceProviderType: null,
+  serviceCode: null,
+  planNumber: null,
+  memberCertificate: null
+} as const;
 
 const reviews: Record<string, ReviewDecision[]> = {
   "CLM-204938": [
@@ -257,6 +293,7 @@ export function createSeedState() {
       reviews: reviews["CLM-204938"] ?? [],
       serviceDate: "2026-03-15",
       claimType: "Professional",
+      ...defaultServiceMetadata,
       allowedAmountCents: 260000,
       paidAmountCents: 227750,
       patientResponsibilityCents: 32250,
@@ -303,6 +340,7 @@ export function createSeedState() {
       reviews: reviews["CLM-204821"] ?? [],
       serviceDate: "2026-03-10",
       claimType: "Facility",
+      ...defaultServiceMetadata,
       allowedAmountCents: 100000,
       paidAmountCents: null,
       patientResponsibilityCents: null,
@@ -348,6 +386,7 @@ export function createSeedState() {
       reviews: [],
       serviceDate: "2026-03-22",
       claimType: "Professional",
+      ...defaultServiceMetadata,
       allowedAmountCents: 76000,
       paidAmountCents: null,
       patientResponsibilityCents: null,
@@ -393,6 +432,7 @@ export function createSeedState() {
       reviews: reviews["CLM-204102"] ?? [],
       serviceDate: "2026-03-12",
       claimType: "Professional",
+      ...defaultServiceMetadata,
       allowedAmountCents: null,
       paidAmountCents: null,
       patientResponsibilityCents: null,
@@ -438,6 +478,7 @@ export function createSeedState() {
       reviews: [],
       serviceDate: "2026-03-20",
       claimType: "Facility",
+      ...defaultServiceMetadata,
       allowedAmountCents: 198300,
       paidAmountCents: 198300,
       patientResponsibilityCents: 0,
@@ -794,6 +835,11 @@ export function toClaimSummary(claim: ClaimRecord): ClaimSummary {
     countryCode: claim.countryCode,
     provinceOfService: claim.provinceOfService,
     claimType: claim.claimType,
+    serviceProviderType: claim.serviceProviderType,
+    serviceCode: claim.serviceCode,
+    planNumber: claim.planNumber,
+    memberCertificate: claim.memberCertificate,
+    serviceDate: claim.serviceDate,
     status: claim.status,
     confidence: claim.confidence,
     slaAt: claim.slaAt,
@@ -814,6 +860,11 @@ export function toClaimDetail(claim: ClaimRecord): ClaimDetail {
     countryCode: claim.countryCode,
     provinceOfService: claim.provinceOfService,
     claimType: claim.claimType,
+    serviceProviderType: claim.serviceProviderType,
+    serviceCode: claim.serviceCode,
+    planNumber: claim.planNumber,
+    memberCertificate: claim.memberCertificate,
+    serviceDate: claim.serviceDate,
     status: claim.status,
     confidence: claim.confidence,
     slaAt: claim.slaAt,
@@ -822,6 +873,7 @@ export function toClaimDetail(claim: ClaimRecord): ClaimDetail {
     lastCheckedAt: claim.lastCheckedAt,
     normalizedStatusText: claim.normalizedStatusText,
     amountCents: claim.amountCents,
+    billedAmountCents: claim.amountCents,
     notes: claim.notes,
     evidence: claim.evidence,
     reviews: claim.reviews
@@ -838,6 +890,7 @@ export function buildPilotQueueItems(
     .map((item) => {
       const claim = claimMap.get(item.claimId);
       if (!claim) return null;
+      const lastTouchedAt = claimActivityReference(claim, item);
 
       const queueItem: PilotQueueItem = {
         id: claim.id,
@@ -849,11 +902,14 @@ export function buildPilotQueueItems(
         countryCode: claim.countryCode,
         provinceOfService: claim.provinceOfService,
         claimType: claim.claimType ?? null,
+        serviceProviderType: claim.serviceProviderType,
+        serviceCode: claim.serviceCode,
         claimStatus: statusLabel(claim.status, claim.normalizedStatusText),
         nextAction: claim.nextAction,
         queueReason: item.reason,
         owner: claim.owner,
-        lastUpdate: formatRelativeTime(claim.lastCheckedAt ?? item.createdAt),
+        lastTouchedAt,
+        lastUpdate: formatRelativeTime(lastTouchedAt),
         age: `${claim.ageDays} days`,
         slaRisk: getSlaRisk(item.slaAt),
         confidence: Math.round(claim.confidence * 100),
@@ -863,7 +919,29 @@ export function buildPilotQueueItems(
 
       return queueItem;
     })
-    .filter((item): item is PilotQueueItem => item !== null);
+    .filter((item): item is PilotQueueItem => item !== null)
+    .sort((left, right) => {
+      const priorityRank: Record<PilotQueueItem["priority"], number> = {
+        urgent: 0,
+        high: 1,
+        normal: 2,
+        low: 3
+      };
+      const slaRank: Record<PilotQueueItem["slaRisk"], number> = {
+        breached: 0,
+        "at-risk": 1,
+        healthy: 2
+      };
+      const priorityDelta = priorityRank[left.priority] - priorityRank[right.priority];
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+      const slaDelta = slaRank[left.slaRisk] - slaRank[right.slaRisk];
+      if (slaDelta !== 0) {
+        return slaDelta;
+      }
+      return new Date(left.lastTouchedAt).getTime() - new Date(right.lastTouchedAt).getTime();
+    });
 }
 
 export function buildPilotClaimDetail(
@@ -889,9 +967,14 @@ export function buildPilotClaimDetail(
     item: toClaimDetail(claim),
     serviceDate: claim.serviceDate,
     claimType: claim.claimType,
+    serviceProviderType: claim.serviceProviderType,
+    serviceCode: claim.serviceCode,
+    planNumber: claim.planNumber,
+    memberCertificate: claim.memberCertificate,
     jurisdiction: claim.jurisdiction,
     countryCode: claim.countryCode,
     provinceOfService: claim.provinceOfService,
+    lastTouchedAt: activityRef,
     allowedAmountCents: claim.allowedAmountCents,
     paidAmountCents: claim.paidAmountCents,
     patientResponsibilityCents: claim.patientResponsibilityCents,

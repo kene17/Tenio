@@ -12,6 +12,12 @@ export type ClaimImportRowInput = {
   countryCode?: string | null;
   provinceOfService?: string | null;
   claimType?: string | null;
+  serviceProviderType?: string | null;
+  serviceCode?: string | null;
+  planNumber?: string | null;
+  memberCertificate?: string | null;
+  serviceDate?: string | null;
+  billedAmountCents?: string | number | null;
   priority?: string | null;
   owner?: string | null;
   notes?: string | null;
@@ -31,6 +37,18 @@ export type NormalizedClaimImportRow = {
   countryCode: "US" | "CA";
   provinceOfService: string | null;
   claimType: string | null;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
+  planNumber: string | null;
+  memberCertificate: string | null;
+  serviceDate: string | null;
+  billedAmountCents: number | null;
   priority: Priority;
   owner: string | null;
   notes: string | null;
@@ -51,6 +69,18 @@ export type ClaimImportPreviewRow = {
   countryCode: "US" | "CA" | null;
   provinceOfService: string | null;
   claimType: string | null;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
+  planNumber: string | null;
+  memberCertificate: string | null;
+  serviceDate: string | null;
+  billedAmountCents: number | null;
   priority: Priority | null;
   owner: string | null;
   notes: string | null;
@@ -71,6 +101,25 @@ export type ClaimImportPreviewResult = {
 };
 
 const allowedPriorities: Priority[] = ["low", "normal", "high", "urgent"];
+const serviceProviderTypeMap = new Map<
+  string,
+  "physiotherapist" | "chiropractor" | "massage_therapist" | "psychotherapist" | "other"
+>([
+  ["physiotherapist", "physiotherapist"],
+  ["physio", "physiotherapist"],
+  ["physiotherapy", "physiotherapist"],
+  ["chiropractor", "chiropractor"],
+  ["chiro", "chiropractor"],
+  ["chiropractic", "chiropractor"],
+  ["massage_therapist", "massage_therapist"],
+  ["massage therapist", "massage_therapist"],
+  ["massage", "massage_therapist"],
+  ["rmt", "massage_therapist"],
+  ["registered massage therapist", "massage_therapist"],
+  ["psychotherapist", "psychotherapist"],
+  ["psychotherapy", "psychotherapist"],
+  ["other", "other"]
+]);
 
 function normalizeText(value: string | null | undefined) {
   const normalized = value?.trim();
@@ -161,6 +210,91 @@ function normalizeClaimType(value: string | null | undefined) {
   return normalized ? normalized : null;
 }
 
+function normalizeServiceProviderType(value: string | null | undefined) {
+  const normalized = normalizeText(value)?.toLowerCase();
+
+  if (!normalized) {
+    return { serviceProviderType: null, error: null };
+  }
+
+  const providerType =
+    serviceProviderTypeMap.get(normalized) ??
+    [...serviceProviderTypeMap.entries()].find(([label]) => normalized.includes(label))?.[1] ??
+    null;
+
+  if (providerType) {
+    return { serviceProviderType: providerType, error: null };
+  }
+
+  return {
+    serviceProviderType: null,
+    error:
+      'Service provider type must be one of physiotherapist, chiropractor, massage_therapist, psychotherapist, or other.'
+  };
+}
+
+function normalizeServiceDate(value: string | null | undefined) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return { serviceDate: null, error: null };
+  }
+
+  const parsed = new Date(normalized);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return {
+      serviceDate: null,
+      error: `Service date "${value}" is not a valid date.`
+    };
+  }
+
+  return {
+    serviceDate: parsed.toISOString().slice(0, 10),
+    error: null
+  };
+}
+
+function normalizeBilledAmountCents(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return { billedAmountCents: null, error: null };
+  }
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return {
+        billedAmountCents: null,
+        error: "Billed amount must be a valid number."
+      };
+    }
+
+    return {
+      billedAmountCents: Math.round(value),
+      error: null
+    };
+  }
+
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return { billedAmountCents: null, error: null };
+  }
+
+  const numeric = Number(normalized.replace(/[^0-9.-]/g, ""));
+
+  if (Number.isNaN(numeric)) {
+    return {
+      billedAmountCents: null,
+      error: `Billed amount "${value}" is not a valid amount.`
+    };
+  }
+
+  return {
+    billedAmountCents: Math.round(numeric * 100),
+    error: null
+  };
+}
+
 function normalizeSlaAt(value: string | null | undefined) {
   const normalized = normalizeText(value);
 
@@ -234,6 +368,15 @@ export function previewClaimImportRows(params: {
       row.provinceOfService
     );
     const claimType = normalizeClaimType(row.claimType);
+    const { serviceProviderType, error: serviceProviderTypeError } =
+      normalizeServiceProviderType(row.serviceProviderType);
+    const serviceCode = normalizeText(row.serviceCode);
+    const planNumber = normalizeText(row.planNumber);
+    const memberCertificate = normalizeText(row.memberCertificate);
+    const { serviceDate, error: serviceDateError } = normalizeServiceDate(row.serviceDate);
+    const { billedAmountCents, error: billedAmountError } = normalizeBilledAmountCents(
+      row.billedAmountCents
+    );
     const { slaAt, error: slaAtError } = normalizeSlaAt(row.slaAt);
     const payer = resolvePayerConfiguration(row, payerConfigurations);
     const jurisdiction = inputJurisdiction ?? payer?.jurisdiction ?? "us";
@@ -279,6 +422,38 @@ export function previewClaimImportRows(params: {
       messages.push(slaAtError);
     }
 
+    if (serviceProviderTypeError) {
+      messages.push(serviceProviderTypeError);
+    }
+
+    if (serviceDateError) {
+      messages.push(serviceDateError);
+    }
+
+    if (billedAmountError) {
+      messages.push(billedAmountError);
+    }
+
+    const expectsStructuredServiceFields =
+      claimType === "paramedical" ||
+      Boolean(serviceProviderType) ||
+      Boolean(serviceCode) ||
+      Boolean(serviceDate);
+
+    if (expectsStructuredServiceFields) {
+      if (!serviceProviderType) {
+        messages.push("Service provider type is required for paramedical claims.");
+      }
+
+      if (!serviceCode) {
+        messages.push("Service code is required for paramedical claims.");
+      }
+
+      if (!serviceDate) {
+        messages.push("Service date is required for paramedical claims.");
+      }
+    }
+
     const claimKey = claimNumber?.toLowerCase() ?? null;
     const baseMessages = [...messages];
 
@@ -317,6 +492,12 @@ export function previewClaimImportRows(params: {
       countryCode,
       provinceOfService,
       claimType,
+      serviceProviderType,
+      serviceCode,
+      planNumber,
+      memberCertificate,
+      serviceDate,
+      billedAmountCents,
       priority,
       owner,
       notes,

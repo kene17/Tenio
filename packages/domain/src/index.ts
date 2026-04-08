@@ -13,6 +13,13 @@ export const claimStatusSchema = z.enum([
 export const prioritySchema = z.enum(["low", "normal", "high", "urgent"]);
 export const jurisdictionSchema = z.enum(["us", "ca"]);
 export const countryCodeSchema = z.enum(["US", "CA"]);
+export const serviceProviderTypeSchema = z.enum([
+  "physiotherapist",
+  "chiropractor",
+  "massage_therapist",
+  "psychotherapist",
+  "other"
+]);
 
 export const reviewDecisionSchema = z.object({
   id: z.string(),
@@ -32,6 +39,11 @@ export const claimSummarySchema = z.object({
   countryCode: countryCodeSchema.optional(),
   provinceOfService: z.string().trim().min(2).max(3).nullable().optional(),
   claimType: z.string().trim().min(1).nullable().optional(),
+  serviceProviderType: serviceProviderTypeSchema.nullable().optional(),
+  serviceCode: z.string().trim().min(1).nullable().optional(),
+  planNumber: z.string().trim().min(1).nullable().optional(),
+  memberCertificate: z.string().trim().min(1).nullable().optional(),
+  serviceDate: z.string().trim().min(1).nullable().optional(),
   status: claimStatusSchema,
   confidence: z.number().min(0).max(1),
   slaAt: z.string(),
@@ -44,6 +56,7 @@ export const claimDetailSchema = claimSummarySchema.extend({
   lastCheckedAt: z.string().nullable(),
   normalizedStatusText: z.string(),
   amountCents: z.number().nullable(),
+  billedAmountCents: z.number().nullable().optional(),
   notes: z.string().nullable(),
   evidence: z.array(evidenceArtifactSchema),
   reviews: z.array(reviewDecisionSchema)
@@ -68,6 +81,12 @@ export const intakeClaimSchema = z.object({
   countryCode: countryCodeSchema.optional(),
   provinceOfService: z.string().trim().min(2).max(3).nullable().optional(),
   claimType: z.string().trim().min(1).nullable().optional(),
+  serviceProviderType: serviceProviderTypeSchema.nullable().optional(),
+  serviceCode: z.string().trim().min(1).nullable().optional(),
+  planNumber: z.string().trim().min(1).nullable().optional(),
+  memberCertificate: z.string().trim().min(1).nullable().optional(),
+  serviceDate: z.string().trim().min(1).nullable().optional(),
+  billedAmountCents: z.number().int().nullable().optional(),
   priority: prioritySchema.default("normal"),
   owner: z.string().trim().min(1).nullable().optional(),
   notes: z.string().trim().min(1).nullable().optional(),
@@ -79,6 +98,7 @@ export type ClaimStatus = z.infer<typeof claimStatusSchema>;
 export type Priority = z.infer<typeof prioritySchema>;
 export type Jurisdiction = z.infer<typeof jurisdictionSchema>;
 export type CountryCode = z.infer<typeof countryCodeSchema>;
+export type ServiceProviderType = z.infer<typeof serviceProviderTypeSchema>;
 export type ReviewDecision = z.infer<typeof reviewDecisionSchema>;
 export type ClaimSummary = z.infer<typeof claimSummarySchema>;
 export type ClaimDetail = z.infer<typeof claimDetailSchema>;

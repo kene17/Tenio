@@ -15,10 +15,19 @@ export type QueueItemView = {
   countryCode?: "US" | "CA";
   provinceOfService?: string | null;
   claimType?: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
   claimStatus: string;
   nextAction: string;
   queueReason: string;
   owner: string | null;
+  lastTouchedAt: string;
   lastUpdate: string;
   age: string;
   slaRisk: "healthy" | "at-risk" | "breached";
@@ -31,9 +40,20 @@ export type ClaimDetailView = {
   item: ClaimDetail;
   serviceDate: string;
   claimType: string;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
+  planNumber?: string | null;
+  memberCertificate?: string | null;
   jurisdiction: "us" | "ca";
   countryCode: "US" | "CA";
   provinceOfService: string | null;
+  lastTouchedAt: string;
   allowedAmountCents: number | null;
   paidAmountCents: number | null;
   patientResponsibilityCents: number | null;
@@ -152,9 +172,18 @@ export type ClaimsListItemView = {
   countryCode: "US" | "CA";
   provinceOfService: string | null;
   claimType: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
   serviceDate: string;
   currentStatus: string;
   owner: string | null;
+  lastTouchedAt: string;
   lastUpdated: string;
   resolutionState: string;
   evidenceCount: number;
@@ -339,7 +368,27 @@ export async function createClaimIntake(input: {
   payerId: string;
   claimNumber: string;
   patientName: string;
+  jurisdiction?: "us" | "ca";
+  countryCode?: "US" | "CA";
+  provinceOfService?: string | null;
+  claimType?: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
+  planNumber?: string | null;
+  memberCertificate?: string | null;
+  serviceDate?: string | null;
+  billedAmountCents?: number | null;
   priority: "low" | "normal" | "high" | "urgent";
+  owner?: string | null;
+  notes?: string | null;
+  slaAt?: string | null;
+  sourceStatus?: string | null;
 }) {
   return apiFetch<{ item: ClaimDetailView | null }>("/claims/intake", {
     method: "POST",
@@ -356,9 +405,20 @@ export async function submitClaimWorkflowAction(
       | "approve_review"
       | "resolve_claim"
       | "escalate_claim"
-      | "reopen_claim";
+      | "reopen_claim"
+      | "mark_call_required"
+      | "log_follow_up";
     assignee?: string;
     note?: string;
+    outcome?:
+      | "status_checked"
+      | "pending_payer"
+      | "more_info_needed"
+      | "needs_review"
+      | "phone_call_required"
+      | "resolved";
+    nextAction?: string;
+    followUpAt?: string | null;
   }
 ) {
   return apiFetch<{ item: ClaimDetailView | null }>(`/claims/${claimId}/workflow-action`, {

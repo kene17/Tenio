@@ -20,6 +20,7 @@ export default async function ClaimsPage() {
       <ClaimsClient
         items={claimsResponse.items}
         organizationId={session?.organizationId ?? "org_demo"}
+        currentRole={session?.role ?? "viewer"}
         payerOptions={payerResponse.items.map((payer) => ({
           id: payer.payerId,
           label: payer.payerName,

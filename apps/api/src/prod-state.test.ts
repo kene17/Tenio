@@ -64,6 +64,38 @@ test("applyClaimWorkflowAction can mark a claim as requiring a phone call", () =
   assert.equal(mutation.auditEvent.action, "Phone Call Required");
 });
 
+test("applyClaimWorkflowAction logs a structured follow-up and updates next action", () => {
+  const seed = createSeedState();
+  const claim = seed.claims[2];
+  const queueItem = seed.queue.find((item) => item.claimId === claim.id);
+  const result = seed.results.find((item) => item.claimId === claim.id);
+
+  const mutation = applyClaimWorkflowAction({
+    claim,
+    queueItem,
+    existingResult: result,
+    action: "log_follow_up",
+    actor: {
+      id: "user_operator",
+      organizationId: claim.organizationId,
+      name: "Marcus Williams",
+      role: "operator",
+      type: "human"
+    },
+    outcome: "pending_payer",
+    note: "Confirmed portal still shows payer adjudication pending.",
+    nextAction: "Check again tomorrow",
+    followUpAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  });
+
+  assert.equal(mutation.claim.status, "in_review");
+  assert.equal(mutation.claim.nextAction, "Check again tomorrow");
+  assert.match(mutation.claim.notes ?? "", /Outcome: pending payer/i);
+  assert.equal(mutation.claim.totalTouches, claim.totalTouches + 1);
+  assert.equal(mutation.queueItem?.reason, "Waiting for payer response");
+  assert.equal(mutation.auditEvent.action, "Logged Follow-up");
+});
+
 test("buildPerformanceMetrics returns live-ready summary values", () => {
   const seed = createSeedState();
 

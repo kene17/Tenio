@@ -95,7 +95,13 @@ test("previewClaimImportRows preserves Canada metadata and derives jurisdiction 
         patientName: "Marie Tremblay",
         payerId: "payer_sun_life",
         provinceOfService: "on",
-        claimType: "Dental",
+        claimType: "paramedical",
+        serviceProviderType: "Physiotherapist",
+        serviceCode: "97110",
+        planNumber: "PSHCP-11",
+        memberCertificate: "CERT-22",
+        serviceDate: "2026-04-07",
+        billedAmountCents: "145.50",
         priority: "high"
       }
     ],
@@ -108,7 +114,13 @@ test("previewClaimImportRows preserves Canada metadata and derives jurisdiction 
   assert.equal(preview.rows[0]?.jurisdiction, "ca");
   assert.equal(preview.rows[0]?.countryCode, "CA");
   assert.equal(preview.rows[0]?.provinceOfService, "ON");
-  assert.equal(preview.rows[0]?.claimType, "dental");
+  assert.equal(preview.rows[0]?.claimType, "paramedical");
+  assert.equal(preview.rows[0]?.serviceProviderType, "physiotherapist");
+  assert.equal(preview.rows[0]?.serviceCode, "97110");
+  assert.equal(preview.rows[0]?.planNumber, "PSHCP-11");
+  assert.equal(preview.rows[0]?.memberCertificate, "CERT-22");
+  assert.equal(preview.rows[0]?.serviceDate, "2026-04-07");
+  assert.equal(preview.rows[0]?.billedAmountCents, 14550);
 });
 
 test("adaptImportRows maps the Dentrix shell headers into Tenio import rows", () => {
@@ -134,4 +146,37 @@ test("adaptImportRows maps the Dentrix shell headers into Tenio import rows", ()
   assert.equal(row?.claimType, "dental");
   assert.equal(row?.owner, "Ottawa Pilot");
   assert.equal(row?.sourceStatus, "Pending coordination review");
+});
+
+test("adaptImportRows maps Jane App headers into paramedical claim rows", () => {
+  const [row] = adaptImportRows(
+    [
+      {
+        "Claim Number": "JANE-1001",
+        "Patient Name": "Noah Carter",
+        Insurer: "Sun Life / PSHCP",
+        Discipline: "Physio",
+        "Service Code": "97110",
+        "Plan Number": "PSHCP-44",
+        "Member Certificate": "CERT-7788",
+        "Service Date": "2026-04-07",
+        "Billed Amount": "125.00",
+        Status: "Pending payer review"
+      }
+    ],
+    "jane_app_csv"
+  );
+
+  assert.equal(row?.claimNumber, "JANE-1001");
+  assert.equal(row?.patientName, "Noah Carter");
+  assert.equal(row?.payerName, "Sun Life / PSHCP");
+  assert.equal(row?.jurisdiction, "ca");
+  assert.equal(row?.countryCode, "CA");
+  assert.equal(row?.claimType, "paramedical");
+  assert.equal(row?.serviceProviderType, "Physio");
+  assert.equal(row?.serviceCode, "97110");
+  assert.equal(row?.planNumber, "PSHCP-44");
+  assert.equal(row?.memberCertificate, "CERT-7788");
+  assert.equal(row?.serviceDate, "2026-04-07");
+  assert.equal(row?.billedAmountCents, "125.00");
 });

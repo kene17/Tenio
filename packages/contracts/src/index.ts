@@ -59,6 +59,23 @@ export const aiClaimStatusAnalysisRequestSchema = z.object({
   countryCode: z.enum(["US", "CA"]).optional(),
   portalText: z.string(),
   screenshotUrls: z.array(z.string()),
+  provinceOfService: z.string().trim().min(2).max(3).nullable().optional(),
+  claimType: z.string().trim().min(1).nullable().optional(),
+  serviceProviderType: z
+    .enum([
+      "physiotherapist",
+      "chiropractor",
+      "massage_therapist",
+      "psychotherapist",
+      "other"
+    ])
+    .nullable()
+    .optional(),
+  serviceCode: z.string().trim().min(1).nullable().optional(),
+  planNumber: z.string().trim().min(1).nullable().optional(),
+  memberCertificate: z.string().trim().min(1).nullable().optional(),
+  serviceDate: z.string().trim().min(1).nullable().optional(),
+  billedAmountCents: z.number().int().nullable().optional(),
   connectorId: z.string().optional(),
   connectorName: z.string().optional(),
   executionMode: z.enum(["browser", "api"]).optional(),
@@ -174,6 +191,21 @@ export const agentRunContextSchema = z.object({
   countryCode: z.enum(["US", "CA"]).optional(),
   provinceOfService: z.string().trim().min(2).max(3).nullable().optional(),
   claimType: z.string().trim().min(1).nullable().optional(),
+  serviceProviderType: z
+    .enum([
+      "physiotherapist",
+      "chiropractor",
+      "massage_therapist",
+      "psychotherapist",
+      "other"
+    ])
+    .nullable()
+    .optional(),
+  serviceCode: z.string().trim().min(1).nullable().optional(),
+  planNumber: z.string().trim().min(1).nullable().optional(),
+  memberCertificate: z.string().trim().min(1).nullable().optional(),
+  serviceDate: z.string().trim().min(1).nullable().optional(),
+  billedAmountCents: z.number().int().nullable().optional(),
   currentAttempt: z.number().int().positive(),
   maxAttempts: z.number().int().positive(),
   startedAt: z.string(),

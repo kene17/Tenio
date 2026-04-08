@@ -64,8 +64,11 @@ Tenio currently supports four product roles:
 Verified sensitive access control in the current product:
 
 - payer workflow policy updates require `manager` or `admin`
+- result export requires `manager` or `admin`
+- claim import, claim intake, retrieval requests, and workflow actions require `operator`, `manager`, or `admin`
 - evidence download requires an authenticated user session plus organization scope
-- result export requires an authenticated user session
+
+Seeded demo credentials should be treated as local-development-only. Hosted partner environments should use environment-specific named accounts.
 
 ## Security And Data Handling
 
@@ -120,6 +123,11 @@ Support and operations rely on:
 - trace IDs and request IDs
 - retrieval job and agent run tracing
 - documented rollback and restore steps
+
+Pre-handoff usability bar for a design partner:
+
+- a non-builder must be able to log in, import a file, open the queue, open a claim, record a structured follow-up, inspect evidence, and return to the queue without live guidance
+- if that user gets stuck, treat it as a product bug or UX gap before partner handoff
 
 ## Support Model
 

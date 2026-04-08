@@ -237,9 +237,18 @@ export type ClaimsListItemView = {
   countryCode: "US" | "CA";
   provinceOfService: string | null;
   claimType: string | null;
+  serviceProviderType:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode: string | null;
   serviceDate: string;
   currentStatus: string;
   owner: string | null;
+  lastTouchedAt: string;
   lastUpdated: string;
   resolutionState: string;
   evidenceCount: number;
@@ -526,6 +535,7 @@ export function buildClaimsList(claims: ClaimRecord[], queue: QueueItem[]): Clai
       return left.claimNumber.localeCompare(right.claimNumber);
     })
     .map((claim) => ({
+      lastTouchedAt: claimActivityReference(claim, queueByClaimId.get(claim.id)),
       id: claim.id,
       claimId: claim.id,
       claimNumber: claim.claimNumber,
@@ -535,6 +545,8 @@ export function buildClaimsList(claims: ClaimRecord[], queue: QueueItem[]): Clai
       countryCode: claim.countryCode,
       provinceOfService: claim.provinceOfService,
       claimType: claim.claimType,
+      serviceProviderType: claim.serviceProviderType,
+      serviceCode: claim.serviceCode,
       serviceDate: claim.serviceDate,
       currentStatus: statusLabel(claim.status, claim.normalizedStatusText),
       owner: claim.owner,
@@ -859,17 +871,43 @@ export function applyClaimWorkflowAction(params: {
     | "resolve_claim"
     | "escalate_claim"
     | "reopen_claim"
-    | "mark_call_required";
+    | "mark_call_required"
+    | "log_follow_up";
   actor: WorkflowActor;
   assignee?: string;
   note?: string;
+  outcome?:
+    | "status_checked"
+    | "pending_payer"
+    | "more_info_needed"
+    | "needs_review"
+    | "phone_call_required"
+    | "resolved";
+  nextAction?: string;
+  followUpAt?: string | null;
 }) {
-  const { claim, queueItem, existingResult, action, actor, assignee, note } = params;
+  const {
+    claim,
+    queueItem,
+    existingResult,
+    action,
+    actor,
+    assignee,
+    note,
+    outcome,
+    nextAction: explicitNextAction,
+    followUpAt
+  } = params;
   const nowIso = new Date().toISOString();
   let nextStatus = claim.status;
   let nextAction = claim.nextAction;
   let reviewReason = note ?? claim.notes ?? "Manual workflow update";
   let queueReason = queueItem?.reason ?? reviewReason;
+  let reviewStatus: "pending" | "approved" | "corrected" | "escalated" = "approved";
+  let requiresPhoneCall = claim.requiresPhoneCall;
+  let phoneCallRequiredAt = claim.phoneCallRequiredAt;
+  let totalTouches = claim.totalTouches;
+  let nextSlaAt = claim.slaAt;
 
   if (action === "assign_owner") {
     queueReason = `Assigned to ${assignee ?? "new owner"}`;
@@ -878,26 +916,72 @@ export function applyClaimWorkflowAction(params: {
     nextAction = "Monitor payer response";
     queueReason = "Approved for active monitoring";
     reviewReason = note ?? "Review approved by operator.";
+    reviewStatus = "approved";
   } else if (action === "resolve_claim") {
     nextStatus = "resolved";
     nextAction = "Export Result";
     queueReason = "Resolved by reviewer";
     reviewReason = note ?? "Claim resolved by reviewer.";
+    reviewStatus = "approved";
   } else if (action === "escalate_claim") {
     nextStatus = "blocked";
     nextAction = "Escalate to Specialist";
     queueReason = "Escalated for specialist handling";
     reviewReason = note ?? "Escalated by reviewer.";
+    reviewStatus = "escalated";
   } else if (action === "reopen_claim") {
     nextStatus = "needs_review";
     nextAction = "Review Evidence";
     queueReason = "Reopened for manual review";
     reviewReason = note ?? "Claim reopened.";
+    reviewStatus = "corrected";
   } else if (action === "mark_call_required") {
     nextStatus = "blocked";
     nextAction = "Call Payer";
     queueReason = "Manual payer phone call required";
     reviewReason = note ?? "Portal retrieval could not resolve status. Manual phone call required.";
+    reviewStatus = "escalated";
+  } else if (action === "log_follow_up") {
+    totalTouches += 1;
+    nextAction = explicitNextAction?.trim() || claim.nextAction;
+    if (followUpAt) {
+      nextSlaAt = followUpAt;
+    }
+    if (outcome === "status_checked") {
+      nextStatus = claim.status === "resolved" ? "resolved" : "in_review";
+      queueReason = "Status checked and documented";
+      reviewReason = note ?? "Claim status checked and documented.";
+      reviewStatus = "approved";
+    } else if (outcome === "pending_payer") {
+      nextStatus = "in_review";
+      queueReason = "Waiting for payer response";
+      reviewReason = note ?? "Claim is pending payer response.";
+      reviewStatus = "approved";
+    } else if (outcome === "more_info_needed") {
+      nextStatus = "needs_review";
+      queueReason = "Additional information required";
+      reviewReason = note ?? "Additional information is required to continue follow-up.";
+      reviewStatus = "pending";
+    } else if (outcome === "needs_review") {
+      nextStatus = "needs_review";
+      queueReason = "Needs manual review";
+      reviewReason = note ?? "Claim requires manual review.";
+      reviewStatus = "pending";
+    } else if (outcome === "phone_call_required") {
+      nextStatus = "blocked";
+      nextAction = explicitNextAction?.trim() || "Call Payer";
+      queueReason = "Manual payer phone call required";
+      reviewReason = note ?? "Manual payer phone call required.";
+      reviewStatus = "escalated";
+    } else if (outcome === "resolved") {
+      nextStatus = "resolved";
+      nextAction = explicitNextAction?.trim() || "Export Result";
+      queueReason = "Resolved during follow-up";
+      reviewReason = note ?? "Claim resolved during follow-up.";
+      reviewStatus = "approved";
+    }
+    requiresPhoneCall = outcome === "phone_call_required";
+    phoneCallRequiredAt = outcome === "phone_call_required" ? nowIso : null;
   }
 
   const updatedClaim: ClaimRecord = {
@@ -908,44 +992,54 @@ export function applyClaimWorkflowAction(params: {
     requiresPhoneCall:
       action === "mark_call_required"
         ? true
-        : action === "approve_review" || action === "resolve_claim" || action === "reopen_claim"
-          ? false
+        : action === "approve_review" ||
+            action === "resolve_claim" ||
+            action === "reopen_claim" ||
+            action === "log_follow_up"
+          ? requiresPhoneCall
           : claim.requiresPhoneCall,
     phoneCallRequiredAt:
       action === "mark_call_required"
         ? nowIso
         : action === "approve_review" || action === "resolve_claim" || action === "reopen_claim"
           ? null
+          : action === "log_follow_up"
+            ? phoneCallRequiredAt
           : claim.phoneCallRequiredAt,
     notes:
       action === "add_note"
         ? [note?.trim(), claim.notes].filter(Boolean).join("\n\n")
-        : reviewReason,
+        : action === "log_follow_up"
+          ? [
+              `Outcome: ${outcome?.replaceAll("_", " ") ?? "follow up"}`,
+              reviewReason,
+              nextAction ? `Next action: ${nextAction}` : null,
+              nextSlaAt ? `Follow up by: ${new Date(nextSlaAt).toLocaleString()}` : null
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : reviewReason,
     nextAction,
+    slaAt: nextSlaAt,
     currentQueue:
       nextStatus === "resolved"
         ? "Resolved"
         : nextStatus === "blocked"
-          ? "Escalation Required"
+          ? action === "log_follow_up" && outcome === "phone_call_required"
+            ? "Manual Follow-up"
+            : "Escalation Required"
           : nextStatus === "in_review"
             ? "In Review"
             : "Needs Review",
+    totalTouches,
+    daysSinceLastFollowUp: 0,
     reviews:
       action === "add_note" || action === "assign_owner"
         ? claim.reviews
         : [
             {
               id: `review_${claim.id}_${Date.now()}`,
-              status:
-                action === "approve_review"
-                  ? "approved"
-                  : action === "escalate_claim"
-                    ? "escalated"
-                    : action === "mark_call_required"
-                      ? "escalated"
-                    : action === "reopen_claim"
-                      ? "corrected"
-                      : "approved",
+              status: reviewStatus,
               reason: reviewReason,
               reviewer: actor.name,
               createdAt: nowIso
@@ -999,6 +1093,8 @@ export function applyClaimWorkflowAction(params: {
         ? "Assigned"
         : action === "add_note"
           ? "Commented"
+          : action === "log_follow_up"
+            ? "Logged Follow-up"
           : action === "approve_review"
             ? "Approved"
             : action === "resolve_claim"
@@ -1015,6 +1111,8 @@ export function applyClaimWorkflowAction(params: {
     summary:
       action === "assign_owner"
         ? `${actor.name} assigned ${claim.claimNumber} to ${assignee ?? claim.owner ?? "the current owner"}.`
+        : action === "log_follow_up"
+          ? `${actor.name} logged follow-up on ${claim.claimNumber}: ${reviewReason}${nextAction ? ` Next action: ${nextAction}.` : ""}`
         : `${actor.name} updated ${claim.claimNumber}: ${reviewReason}`,
     sensitivity: "normal",
     category:
@@ -1022,6 +1120,8 @@ export function applyClaimWorkflowAction(params: {
         ? "Comment"
         : action === "assign_owner"
           ? "Assignment"
+          : action === "log_follow_up"
+            ? "Follow-up"
           : action === "mark_call_required"
             ? "Manual Follow-up"
             : "Claim Workflow",
@@ -1039,7 +1139,15 @@ export function applyClaimWorkflowAction(params: {
               status: {
                 from: statusLabel(claim.status, claim.normalizedStatusText),
                 to: statusLabel(updatedClaim.status, updatedClaim.normalizedStatusText)
-              }
+              },
+              ...(claim.nextAction !== updatedClaim.nextAction
+                ? {
+                    nextAction: {
+                      from: claim.nextAction,
+                      to: updatedClaim.nextAction
+                    }
+                  }
+                : {})
             },
     reason: reviewReason,
     claimId: claim.id,

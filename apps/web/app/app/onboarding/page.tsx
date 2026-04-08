@@ -1,19 +1,23 @@
 import { PilotErrorState } from "../../../components/pilot-error-state";
 import { getLocaleMessages } from "../../../lib/locale";
-import { getPayerConfigurations } from "../../../lib/pilot-api";
+import { getCurrentSession, getPayerConfigurations } from "../../../lib/pilot-api";
 import { OnboardingClient } from "./onboarding-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function OnboardingPage() {
   try {
-    const { items } = await getPayerConfigurations();
-    const { locale, messages } = await getLocaleMessages();
+    const [{ items }, { locale, messages }, session] = await Promise.all([
+      getPayerConfigurations(),
+      getLocaleMessages(),
+      getCurrentSession()
+    ]);
 
     return (
         <OnboardingClient
           locale={locale}
           messages={messages.onboarding}
+          currentRole={session?.role ?? "viewer"}
           payers={items.map((payer) => ({
             payerId: payer.payerId,
             payerName: payer.payerName,
