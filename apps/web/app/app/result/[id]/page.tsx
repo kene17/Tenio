@@ -1,3 +1,4 @@
+import { hasPermission } from "@tenio/domain";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -10,9 +11,10 @@ import {
 
 import { ConfidenceBadge } from "../../../../components/confidence-badge";
 import { PilotErrorState } from "../../../../components/pilot-error-state";
-import { getResultDetail } from "../../../../lib/pilot-api";
+import { getCurrentSession, getResultDetail } from "../../../../lib/pilot-api";
 
 export const dynamic = "force-dynamic";
+const RESULT_ACTIONS_ENABLED = false;
 
 export default async function ResultDetailPage({
   params
@@ -20,6 +22,10 @@ export default async function ResultDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const session = await getCurrentSession();
+  const canDownloadEvidence = session
+    ? hasPermission(session.role, "evidence:download")
+    : false;
   let result;
 
   try {
@@ -43,7 +49,7 @@ export default async function ResultDetailPage({
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back to Results
+            Back to Resolved
           </Link>
         </div>
 
@@ -55,16 +61,18 @@ export default async function ResultDetailPage({
                 Structured claim-status result with evidence and provenance
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">
-                <Download className="h-4 w-4" />
-                Export PDF
-              </button>
-              <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                <Send className="h-4 w-4" />
-                Send to Downstream
-              </button>
-            </div>
+            {RESULT_ACTIONS_ENABLED ? (
+              <div className="flex items-center gap-2">
+                <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">
+                  <Download className="h-4 w-4" />
+                  Export PDF
+                </button>
+                <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  <Send className="h-4 w-4" />
+                  Send to Downstream
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
@@ -93,11 +101,18 @@ export default async function ResultDetailPage({
             { label: "Last Verified", value: result.lastVerified },
             { label: "Source Payer", value: result.payerName },
             { label: "Evidence Count", value: `${result.evidence.length} items` },
-            { label: "Next Action", value: result.nextAction }
+            { label: "Next Action", value: result.nextAction },
+            { label: "Trace ID", value: result.agentTraceId ?? "Not captured" }
           ].map(({ label, value }) => (
             <div key={label} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="mb-1 text-xs text-gray-600">{label}</div>
-              <div className="text-lg font-semibold text-gray-900">{value}</div>
+              <div
+                className={`text-lg font-semibold text-gray-900 ${
+                  label === "Trace ID" ? "font-mono text-sm" : ""
+                }`}
+              >
+                {value}
+              </div>
             </div>
           ))}
         </div>
@@ -199,14 +214,20 @@ export default async function ResultDetailPage({
                         <div className="mt-1 text-xs text-gray-600">
                           Captured {new Date(artifact.createdAt).toLocaleString()}
                         </div>
-                        <a
-                          href={artifact.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700"
-                        >
-                          Open artifact
-                        </a>
+                        {canDownloadEvidence ? (
+                          <a
+                            href={`/api/evidence/${encodeURIComponent(artifact.id)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700"
+                          >
+                            Open artifact
+                          </a>
+                        ) : (
+                          <div className="mt-2 text-xs text-gray-500">
+                            Evidence download is limited to owner, manager, and operator roles.
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -227,30 +248,32 @@ export default async function ResultDetailPage({
               </div>
             </section>
 
-            <section className="rounded-lg border border-gray-200 bg-white p-5">
-              <h3 className="mb-4 text-sm font-medium text-gray-900">Actions</h3>
-              <div className="space-y-2">
-                {[
-                  "Send to Downstream System",
-                  "Export JSON",
-                  "Export PDF",
-                  "Flag for Review",
-                  "Re-check Status"
-                ].map((label, index) => (
-                  <button
-                    key={label}
-                    className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
-                      index === 0
-                        ? "bg-blue-600 text-white hover:bg-blue-700"
-                        : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    {index < 3 ? <Download className="h-4 w-4" /> : null}
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </section>
+            {RESULT_ACTIONS_ENABLED ? (
+              <section className="rounded-lg border border-gray-200 bg-white p-5">
+                <h3 className="mb-4 text-sm font-medium text-gray-900">Actions</h3>
+                <div className="space-y-2">
+                  {[
+                    "Send to Downstream System",
+                    "Export JSON",
+                    "Export PDF",
+                    "Flag for Review",
+                    "Re-check Status"
+                  ].map((label, index) => (
+                    <button
+                      key={label}
+                      className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
+                        index === 0
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {index < 3 ? <Download className="h-4 w-4" /> : null}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         </div>
       </div>

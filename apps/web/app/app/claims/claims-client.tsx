@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { hasPermission, type UserRole } from "@tenio/domain";
 import { ChevronDown, Download, FileText, Search } from "lucide-react";
 
 import { IntakeClaimForm } from "../../../components/intake-claim-form";
@@ -12,7 +13,13 @@ import type { ClaimsListItemView } from "../../../lib/pilot-api";
 type ClaimsClientProps = {
   items: ClaimsListItemView[];
   organizationId: string;
-  payerOptions: Array<{ id: string; label: string }>;
+  currentRole: UserRole;
+  payerOptions: Array<{
+    id: string;
+    label: string;
+    jurisdiction: "us" | "ca";
+    countryCode: "US" | "CA";
+  }>;
 };
 
 type SortOption =
@@ -74,7 +81,7 @@ function sortItems(items: ClaimsListItemView[], sortBy: SortOption) {
     }
 
     if (sortBy === "updated_desc") {
-      return left.lastUpdated.localeCompare(right.lastUpdated);
+      return new Date(right.lastTouchedAt).getTime() - new Date(left.lastTouchedAt).getTime();
     }
 
     if (sortBy === "priority_desc") {
@@ -105,10 +112,13 @@ function sortItems(items: ClaimsListItemView[], sortBy: SortOption) {
 export function ClaimsClient({
   items,
   organizationId,
+  currentRole,
   payerOptions
 }: ClaimsClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("ops_default");
+  const canExport = hasPermission(currentRole, "claims:export");
+  const canMutate = hasPermission(currentRole, "claims:write");
 
   const filteredItems = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -120,6 +130,11 @@ export function ClaimsClient({
               item.claimNumber,
               item.payerName,
               item.patientName,
+              item.claimType ?? "",
+              item.serviceProviderType ?? "",
+              item.serviceCode ?? "",
+              item.provinceOfService ?? "",
+              item.countryCode,
               item.owner ?? "",
               item.followUpReason,
               item.serviceDate
@@ -157,15 +172,17 @@ export function ClaimsClient({
           <KPICard label="Visible Claims" value={String(filteredItems.length)} />
         </div>
 
-        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Intake New Claim</h2>
-            <p className="mt-1 text-xs text-gray-600">
-              Create a live claim record and place it into the retrieval queue.
-            </p>
+        {canMutate ? (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-gray-900">Intake New Claim</h2>
+              <p className="mt-1 text-xs text-gray-600">
+                Create a live claim record and place it into the retrieval queue.
+              </p>
+            </div>
+            <IntakeClaimForm organizationId={organizationId} payerOptions={payerOptions} />
           </div>
-          <IntakeClaimForm organizationId={organizationId} payerOptions={payerOptions} />
-        </div>
+        ) : null}
 
         <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -197,10 +214,12 @@ export function ClaimsClient({
                   <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 </div>
               </div>
-              <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                <Download className="h-4 w-4" />
-                Export
-              </button>
+              {canExport ? (
+                <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  <Download className="h-4 w-4" />
+                  Export
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -244,9 +263,27 @@ export function ClaimsClient({
                       >
                         {item.claimNumber}
                       </Link>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {item.claimType ?? "Unspecified"}
+                        {item.serviceProviderType
+                          ? ` · ${item.serviceProviderType.replaceAll("_", " ")}`
+                          : ""}
+                        {item.serviceCode ? ` · ${item.serviceCode}` : ""}
+                        {item.provinceOfService ? ` · ${item.provinceOfService}` : ""}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.payerName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{item.serviceDate}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div>{item.payerName}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {item.countryCode} / {item.jurisdiction.toUpperCase()}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      <div>{item.serviceDate}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {item.serviceCode ?? "No service code"}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <StatusPill variant={statusVariantFromText(item.currentStatus)}>
                         {item.currentStatus}

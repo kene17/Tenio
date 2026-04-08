@@ -1,12 +1,17 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-
-export type AppRole = "admin" | "manager" | "operator" | "viewer";
+import {
+  hasPermission,
+  normalizeUserRole,
+  roleLabel as formatRoleLabel,
+  type UserRole
+} from "@tenio/domain";
 
 export type UserSession = {
   id: string;
   userId: string;
   organizationId: string;
-  role: AppRole;
+  organizationName?: string;
+  role: UserRole;
   fullName: string;
   email: string;
   expiresAt: string;
@@ -37,13 +42,26 @@ export function verifyPassword(password: string, storedHash: string) {
   return timingSafeEqual(derived, stored);
 }
 
-export function roleLabel(role: AppRole) {
-  if (role === "admin") return "Admin";
-  if (role === "manager") return "Manager";
-  if (role === "operator") return "Operator";
-  return "Viewer";
+export function normalizeRole(value: string | null | undefined) {
+  return normalizeUserRole(value);
 }
 
-export function canManagePayerConfiguration(role: AppRole) {
-  return role === "admin" || role === "manager";
+export function roleLabel(role: UserRole) {
+  return formatRoleLabel(role);
+}
+
+export function canManagePayerConfiguration(role: UserRole) {
+  return hasPermission(role, "payer:read");
+}
+
+export function canExportResults(role: UserRole) {
+  return hasPermission(role, "claims:export");
+}
+
+export function canImportClaims(role: UserRole) {
+  return hasPermission(role, "claims:import");
+}
+
+export function canMutateClaims(role: UserRole) {
+  return hasPermission(role, "claims:write");
 }

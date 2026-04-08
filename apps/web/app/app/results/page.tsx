@@ -1,3 +1,4 @@
+import { hasPermission } from "@tenio/domain";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -13,7 +14,7 @@ import {
 import { ConfidenceBadge } from "../../../components/confidence-badge";
 import { KPICard } from "../../../components/kpi-card";
 import { PilotErrorState } from "../../../components/pilot-error-state";
-import { getResults } from "../../../lib/pilot-api";
+import { getCurrentSession, getResults } from "../../../lib/pilot-api";
 
 export const dynamic = "force-dynamic";
 
@@ -55,14 +56,15 @@ function verifiedBadge(status: string) {
 
 export default async function ResultsPage() {
   try {
-    const { items } = await getResults();
+    const [{ items }, session] = await Promise.all([getResults(), getCurrentSession()]);
     const exportedCount = items.filter((item) => item.exportState === "Exported").length;
+    const canExport = session ? hasPermission(session.role, "claims:export") : false;
 
     return (
     <div className="h-full overflow-auto">
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Results</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Resolved</h1>
           <p className="mt-1 text-sm text-gray-600">
             Structured claim-status outputs with evidence, provenance, and export-ready
             formatting.
@@ -99,15 +101,17 @@ export default async function ResultsPage() {
               Filters
               <ChevronDown className="h-4 w-4" />
             </button>
-            <form action="/api/results/export" method="post">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                <Download className="h-4 w-4" />
-                Export Batch
-              </button>
-            </form>
+            {canExport ? (
+              <form action="/api/results/export" method="post">
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  <Download className="h-4 w-4" />
+                  Export Batch
+                </button>
+              </form>
+            ) : null}
           </div>
         </div>
 

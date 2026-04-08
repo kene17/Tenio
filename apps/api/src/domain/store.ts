@@ -1,12 +1,28 @@
-import type { EvidenceArtifact, ExecutionCandidate } from "@tenio/contracts";
 import type {
-  ClaimDetail,
-  ClaimSummary,
-  IntakeClaim,
-  Priority,
-  QueueItem
+  AgentDirectiveKind,
+  AgentRunBudget,
+  AgentRunTerminalReason,
+  AgentStepHistoryItem,
+  AgentStepResult,
+  AgentToolName,
+  ConnectorMode,
+  EvidenceArtifact,
+  ExecutionCandidate,
+  ExecutionFailureCategory
+} from "@tenio/contracts";
+import {
+  hasPermission,
+  normalizeUserRole,
+  type ClaimDetail,
+  type ClaimSummary,
+  type CountryCode,
+  type IntakeClaim,
+  type Jurisdiction,
+  type Priority,
+  type QueueItem,
+  type UserRole
 } from "@tenio/domain";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import type { PoolClient } from "pg";
 
@@ -18,8 +34,7 @@ import {
   readStoredEvidence
 } from "../evidence-storage.js";
 import {
-  canManagePayerConfiguration,
-  type AppRole,
+  hashPassword,
   type UserSession,
   verifyPassword
 } from "../auth.js";
@@ -30,9 +45,13 @@ import {
   buildClaimsList,
   buildPerformanceMetrics,
   createSeedPayerConfigurations,
+  findMissingSeedPayerConfigurations,
   derivePayerConfigurationIssues,
   derivePayerConfigurationStatus,
   type AppUserRecord,
+  type AgentRunRecord,
+  type AgentRunStatus,
+  type AgentStepRecord,
   type ClaimsListItemView,
   type PayerConfigurationRecord,
   type PerformanceMetricsView,
@@ -55,17 +74,121 @@ import {
   type ResultDetailView,
   type ResultRecord,
   type ResultSummaryView,
+  statusLabel,
   toClaimDetail,
   toClaimSummary
 } from "./pilot-state.js";
 import {
   previewClaimImportRows,
-  type ClaimImportPreviewResult,
-  type ClaimImportRowInput
+  type ClaimImportPreviewResult
 } from "./imports.js";
+import { adaptImportRows, type ImportProfileId, type RawImportRow } from "../import/pms/index.js";
 
 let initialized = false;
 type DbExecutor = PoolClient | ReturnType<typeof getPool>;
+
+export type AgentRunView = {
+  id: string;
+  status: AgentRunStatus;
+  protocolVersion: 1;
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
+  heartbeatAt: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  modelProvider: string | null;
+  modelName: string | null;
+  modelCallsUsed: number;
+  inputTokensUsed: number;
+  outputTokensUsed: number;
+  totalTokensUsed: number;
+  connectorSwitchCount: number;
+  budget: AgentRunBudget;
+  terminalReason: AgentRunTerminalReason | null;
+  lastError: string | null;
+  steps: AgentStepHistoryItem[];
+};
+
+export type UserSummaryView = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+};
+
+export type InvitedUserView = {
+  user: UserSummaryView;
+  temporaryPassword: string;
+};
+
+export type AccountSummaryView = {
+  organizationId: string;
+  organizationName: string;
+  billingMode: "pilot_managed";
+};
+
+export type StatusSummaryView = {
+  lastImportAt: string | null;
+  lastImportOutcome: "success" | "failure" | null;
+  lastImportRowCount: number | null;
+  lastQueueSyncAt: string | null;
+  failedActionsLast24h: number;
+  openClaimsCount: number;
+};
+
+export type OnboardingStepId =
+  | "team_members"
+  | "first_import"
+  | "configure_payers"
+  | "review_first_queue";
+
+export type OnboardingStepStatus = "complete" | "current" | "pending";
+
+export type OnboardingStateView = {
+  startedAt: string;
+  steps: Array<{
+    id: OnboardingStepId;
+    status: OnboardingStepStatus;
+  }>;
+  welcome: {
+    shouldShow: boolean;
+    dismissible: boolean;
+    dismissedAt: string | null;
+  };
+  queueTour: {
+    shouldShow: boolean;
+    completedAt: string | null;
+    firstClaimDetailOpenedAt: string | null;
+  };
+  progress: {
+    completedCount: number;
+    totalSteps: number;
+    nextStepId: OnboardingStepId | null;
+  };
+};
+
+type OrganizationOnboardingStateRecord = {
+  organizationId: string;
+  startedAt: string;
+  baselineActiveUserCount: number;
+  baselineOpenClaimCount: number;
+};
+
+type UserOnboardingStateRecord = {
+  organizationId: string;
+  userId: string;
+  welcomeDismissedAt: string | null;
+  queueTourCompletedAt: string | null;
+  firstClaimDetailOpenedAt: string | null;
+};
+
+const onboardingStepOrder: OnboardingStepId[] = [
+  "team_members",
+  "first_import",
+  "configure_payers",
+  "review_first_queue"
+];
 
 function parsePayloadRow<T>(row: { payload: T }) {
   return row.payload;
@@ -93,6 +216,23 @@ function normalizeResultRecord(result: ResultRecord): ResultRecord {
   };
 }
 
+function normalizeClaimRecord(claim: ClaimRecord): ClaimRecord {
+  return {
+    ...claim,
+    serviceDate: claim.serviceDate ?? new Date().toISOString().slice(0, 10),
+    claimType: claim.claimType ?? "Professional",
+    serviceProviderType: claim.serviceProviderType ?? null,
+    serviceCode: claim.serviceCode ?? null,
+    planNumber: claim.planNumber ?? null,
+    memberCertificate: claim.memberCertificate ?? null,
+    jurisdiction: claim.jurisdiction ?? "us",
+    countryCode: claim.countryCode ?? (claim.jurisdiction === "ca" ? "CA" : "US"),
+    provinceOfService: claim.provinceOfService ?? null,
+    requiresPhoneCall: claim.requiresPhoneCall ?? false,
+    phoneCallRequiredAt: claim.phoneCallRequiredAt ?? null
+  };
+}
+
 function normalizeRetrievalJob(job: RetrievalJobRecord): RetrievalJobRecord {
   return {
     ...job,
@@ -108,11 +248,57 @@ function normalizeRetrievalJob(job: RetrievalJobRecord): RetrievalJobRecord {
   };
 }
 
+const agentRunBudgetDefaults: AgentRunBudget = {
+  maxToolSteps: 5,
+  maxModelCalls: 6,
+  maxWallTimeMs: 90_000,
+  maxTotalTokens: 25_000,
+  maxConnectorSwitches: 1
+};
+const agentRunLeaseDurationMs = 120_000;
+
+function normalizeAgentRun(run: AgentRunRecord): AgentRunRecord {
+  return {
+    ...run,
+    leaseOwner: run.leaseOwner ?? null,
+    leaseExpiresAt: run.leaseExpiresAt ?? null,
+    heartbeatAt: run.heartbeatAt ?? null,
+    completedAt: run.completedAt ?? null,
+    modelProvider: run.modelProvider ?? null,
+    modelName: run.modelName ?? null,
+    modelCallsUsed: run.modelCallsUsed ?? 0,
+    inputTokensUsed: run.inputTokensUsed ?? 0,
+    outputTokensUsed: run.outputTokensUsed ?? 0,
+    totalTokensUsed: run.totalTokensUsed ?? 0,
+    connectorSwitchCount: run.connectorSwitchCount ?? 0,
+    terminalReason: run.terminalReason ?? null,
+    finalCandidate: run.finalCandidate ?? null,
+    lastError: run.lastError ?? null,
+    budget: run.budget ?? agentRunBudgetDefaults
+  };
+}
+
+function normalizeAgentStep(step: AgentStepRecord): AgentStepRecord {
+  return {
+    ...step,
+    toolName: step.toolName ?? null,
+    toolArgs: step.toolArgs ?? null,
+    plannerProvider: step.plannerProvider ?? null,
+    plannerModel: step.plannerModel ?? null,
+    plannerInputTokens: step.plannerInputTokens ?? 0,
+    plannerOutputTokens: step.plannerOutputTokens ?? 0,
+    result: step.result ?? null,
+    completedAt: step.completedAt ?? null
+  };
+}
+
 function normalizePayerConfigurationRecord(
   config: PayerConfigurationRecord
 ): PayerConfigurationRecord {
   const hydrated: PayerConfigurationRecord = {
     ...config,
+    jurisdiction: config.jurisdiction ?? "us",
+    countryCode: config.countryCode ?? (config.jurisdiction === "ca" ? "CA" : "US"),
     escalationThreshold:
       config.escalationThreshold ?? Math.max(0.5, (config.reviewThreshold ?? 0.85) - 0.25),
     defaultSlaHours: config.defaultSlaHours ?? 24,
@@ -132,6 +318,85 @@ function normalizePayerConfigurationRecord(
   return hydrated;
 }
 
+function toAgentStepHistoryItem(step: AgentStepRecord): AgentStepHistoryItem {
+  return {
+    stepNumber: step.stepNumber,
+    directiveKind: step.directiveKind,
+    toolName: step.toolName,
+    status: step.status,
+    idempotencyKey: step.idempotencyKey,
+    publicReason: step.publicReason,
+    toolArgs: step.toolArgs,
+    plannerUsage:
+      step.plannerProvider && step.plannerModel
+        ? {
+            provider: step.plannerProvider,
+            model: step.plannerModel,
+            inputTokens: step.plannerInputTokens,
+            outputTokens: step.plannerOutputTokens
+          }
+        : null,
+    result: step.result,
+    startedAt: step.startedAt,
+    completedAt: step.completedAt
+  };
+}
+
+function buildAgentRunView(run: AgentRunRecord, steps: AgentStepRecord[]): AgentRunView {
+  return {
+    id: run.id,
+    status: run.status,
+    protocolVersion: run.protocolVersion,
+    leaseOwner: run.leaseOwner,
+    leaseExpiresAt: run.leaseExpiresAt,
+    heartbeatAt: run.heartbeatAt,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    modelProvider: run.modelProvider,
+    modelName: run.modelName,
+    modelCallsUsed: run.modelCallsUsed,
+    inputTokensUsed: run.inputTokensUsed,
+    outputTokensUsed: run.outputTokensUsed,
+    totalTokensUsed: run.totalTokensUsed,
+    connectorSwitchCount: run.connectorSwitchCount,
+    budget: run.budget,
+    terminalReason: run.terminalReason,
+    lastError: run.lastError,
+    steps: steps.map(toAgentStepHistoryItem)
+  };
+}
+
+function buildNewAgentRun(job: RetrievalJobRecord, workerName: string): AgentRunRecord {
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: `run_${job.id}_${randomUUID().slice(0, 8)}`,
+    organizationId: job.organizationId,
+    retrievalJobId: job.id,
+    claimId: job.claimId,
+    status: "running",
+    protocolVersion: 1,
+    leaseOwner: workerName,
+    leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+    heartbeatAt: nowIso,
+    startedAt: nowIso,
+    completedAt: null,
+    modelProvider: null,
+    modelName: null,
+    modelCallsUsed: 0,
+    inputTokensUsed: 0,
+    outputTokensUsed: 0,
+    totalTokensUsed: 0,
+    connectorSwitchCount: 0,
+    terminalReason: null,
+    finalCandidate: null,
+    budget: agentRunBudgetDefaults,
+    lastError: null,
+    createdAt: nowIso,
+    updatedAt: nowIso
+  };
+}
+
 function initials(value: string) {
   return value
     .split(" ")
@@ -139,6 +404,18 @@ function initials(value: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function auditActorType(role: UserRole): WorkflowActor["type"] {
+  return role === "owner" ? "owner" : "human";
+}
+
+function auditSourceForRole(role: UserRole) {
+  return role === "owner" ? "Owner" : "Human";
+}
+
+function generateTemporaryPassword() {
+  return randomBytes(12).toString("base64url");
 }
 
 async function upsertOrganization(client: PoolClient, id: string, name: string) {
@@ -360,6 +637,93 @@ async function upsertRetrievalJob(client: PoolClient, job: RetrievalJobRecord) {
   );
 }
 
+async function upsertAgentRun(client: PoolClient, run: AgentRunRecord) {
+  await client.query(
+    `
+      INSERT INTO agent_runs (
+        id,
+        organization_id,
+        retrieval_job_id,
+        claim_id,
+        status,
+        lease_owner,
+        lease_expires_at,
+        heartbeat_at,
+        started_at,
+        completed_at,
+        updated_at,
+        payload
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz,
+        $9::timestamptz, $10::timestamptz, $11::timestamptz, $12::jsonb
+      )
+      ON CONFLICT (id)
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        lease_owner = EXCLUDED.lease_owner,
+        lease_expires_at = EXCLUDED.lease_expires_at,
+        heartbeat_at = EXCLUDED.heartbeat_at,
+        completed_at = EXCLUDED.completed_at,
+        updated_at = EXCLUDED.updated_at,
+        payload = EXCLUDED.payload
+    `,
+    [
+      run.id,
+      run.organizationId,
+      run.retrievalJobId,
+      run.claimId,
+      run.status,
+      run.leaseOwner,
+      run.leaseExpiresAt,
+      run.heartbeatAt,
+      run.startedAt,
+      run.completedAt,
+      run.updatedAt,
+      JSON.stringify(run)
+    ]
+  );
+}
+
+async function upsertAgentStep(client: PoolClient, step: AgentStepRecord) {
+  await client.query(
+    `
+      INSERT INTO agent_steps (
+        id,
+        agent_run_id,
+        step_number,
+        directive_kind,
+        tool_name,
+        status,
+        idempotency_key,
+        started_at,
+        completed_at,
+        payload
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10::jsonb
+      )
+      ON CONFLICT (id)
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        completed_at = EXCLUDED.completed_at,
+        payload = EXCLUDED.payload
+    `,
+    [
+      step.id,
+      step.agentRunId,
+      step.stepNumber,
+      step.directiveKind,
+      step.toolName,
+      step.status,
+      step.idempotencyKey,
+      step.startedAt,
+      step.completedAt,
+      JSON.stringify(step)
+    ]
+  );
+}
+
 async function syncEvidenceArtifacts(
   client: PoolClient,
   claim: ClaimRecord,
@@ -434,14 +798,76 @@ async function createSession(
   );
 }
 
+async function upsertOrganizationOnboardingState(
+  client: PoolClient,
+  state: OrganizationOnboardingStateRecord
+) {
+  await client.query(
+    `
+      INSERT INTO organization_onboarding_state (
+        organization_id,
+        started_at,
+        baseline_active_user_count,
+        baseline_open_claim_count,
+        updated_at
+      )
+      VALUES ($1, $2::timestamptz, $3, $4, NOW())
+      ON CONFLICT (organization_id)
+      DO UPDATE SET
+        started_at = EXCLUDED.started_at,
+        baseline_active_user_count = EXCLUDED.baseline_active_user_count,
+        baseline_open_claim_count = EXCLUDED.baseline_open_claim_count,
+        updated_at = NOW()
+    `,
+    [
+      state.organizationId,
+      state.startedAt,
+      state.baselineActiveUserCount,
+      state.baselineOpenClaimCount
+    ]
+  );
+}
+
+async function upsertUserOnboardingState(
+  client: PoolClient,
+  state: UserOnboardingStateRecord
+) {
+  await client.query(
+    `
+      INSERT INTO user_onboarding_state (
+        organization_id,
+        user_id,
+        welcome_dismissed_at,
+        queue_tour_completed_at,
+        first_claim_detail_opened_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5::timestamptz, NOW())
+      ON CONFLICT (organization_id, user_id)
+      DO UPDATE SET
+        welcome_dismissed_at = EXCLUDED.welcome_dismissed_at,
+        queue_tour_completed_at = EXCLUDED.queue_tour_completed_at,
+        first_claim_detail_opened_at = EXCLUDED.first_claim_detail_opened_at,
+        updated_at = NOW()
+    `,
+    [
+      state.organizationId,
+      state.userId,
+      state.welcomeDismissedAt,
+      state.queueTourCompletedAt,
+      state.firstClaimDetailOpenedAt
+    ]
+  );
+}
+
 function createSeedUsers() {
   return [
     {
-      id: "user_admin",
+      id: "user_owner",
       organizationId: appConfig.seedOrgId,
-      email: appConfig.seedAdminEmail,
-      fullName: appConfig.seedAdminName,
-      role: "admin",
+      email: appConfig.seedOwnerEmail,
+      fullName: appConfig.seedOwnerName,
+      role: "owner",
       passwordHash: "",
       isActive: true
     },
@@ -466,13 +892,25 @@ function createSeedUsers() {
   ] satisfies Array<Omit<AppUserRecord, "passwordHash"> & { passwordHash: string }>;
 }
 
+function passwordForSeedRole(role: UserRole) {
+  if (role === "owner") {
+    return appConfig.seedOwnerPassword;
+  }
+
+  if (role === "manager") {
+    return appConfig.seedManagerPassword;
+  }
+
+  return appConfig.seedOperatorPassword;
+}
+
 async function loadClaims() {
   await initializeStore();
   const result = await getPool().query<{ payload: ClaimRecord }>(
     "SELECT payload FROM claims ORDER BY claim_number"
   );
 
-  return result.rows.map(parsePayloadRow);
+  return result.rows.map(parsePayloadRow).map(normalizeClaimRecord);
 }
 
 async function loadQueue() {
@@ -507,12 +945,13 @@ async function loadEvidenceArtifactById(artifactId: string, organizationId: stri
   const result = await getPool().query<{
     id: string;
     organization_id: string;
+    claim_id: string;
     storage_key: string;
     external_url: string;
     payload: EvidenceArtifact;
   }>(
     `
-      SELECT id, organization_id, storage_key, external_url, payload
+      SELECT id, organization_id, claim_id, storage_key, external_url, payload
       FROM evidence_artifacts
       WHERE id = $1
         AND organization_id = $2
@@ -530,7 +969,23 @@ async function loadClaimById(claimId: string) {
     [claimId]
   );
 
-  return result.rows[0]?.payload;
+  return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
+}
+
+async function loadClaimByIdForOrganization(claimId: string, organizationId: string) {
+  await initializeStore();
+  const result = await getPool().query<{ payload: ClaimRecord }>(
+    `
+      SELECT payload
+      FROM claims
+      WHERE id = $1
+        AND organization_id = $2
+      LIMIT 1
+    `,
+    [claimId, organizationId]
+  );
+
+  return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
 }
 
 async function loadClaimByOrganizationAndClaimNumber(
@@ -550,7 +1005,7 @@ async function loadClaimByOrganizationAndClaimNumber(
     [organizationId, claimNumber]
   );
 
-  return result.rows[0]?.payload;
+  return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
 }
 
 async function loadQueueByClaimId(claimId: string, client?: PoolClient) {
@@ -571,17 +1026,36 @@ async function loadResultByClaimId(claimId: string) {
   return result.rows[0]?.payload;
 }
 
-async function loadUsers() {
-  await initializeStore();
-  const result = await getPool().query<{
-    id: string;
-    organization_id: string;
-    email: string;
-    full_name: string;
-    role: AppRole;
-    password_hash: string;
-    is_active: boolean;
-  }>(
+type UserRow = {
+  id: string;
+  organization_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  password_hash: string;
+  is_active: boolean;
+};
+
+function toUserRecord(row: UserRow): AppUserRecord | null {
+  const role = normalizeUserRole(row.role);
+
+  if (!role) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    email: row.email,
+    fullName: row.full_name,
+    role,
+    passwordHash: row.password_hash,
+    isActive: row.is_active
+  };
+}
+
+async function loadUsersInternal(client?: PoolClient) {
+  const result = await getDbExecutor(client).query<UserRow>(
     `
       SELECT id, organization_id, email, full_name, role, password_hash, is_active
       FROM users
@@ -589,15 +1063,353 @@ async function loadUsers() {
     `
   );
 
-  return result.rows.map((row) => ({
+  return result.rows.flatMap((row) => {
+    const user = toUserRecord(row);
+    return user ? [user] : [];
+  });
+}
+
+async function loadUsers() {
+  await initializeStore();
+  return loadUsersInternal();
+}
+
+async function loadOrganizationById(organizationId: string) {
+  await initializeStore();
+  const result = await getPool().query<{ id: string; name: string }>(
+    "SELECT id, name FROM organizations WHERE id = $1 LIMIT 1",
+    [organizationId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+async function loadOrganizationOnboardingState(
+  organizationId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{
+    organization_id: string;
+    started_at: string;
+    baseline_active_user_count: number;
+    baseline_open_claim_count: number;
+  }>(
+    `
+      SELECT
+        organization_id,
+        started_at::text,
+        baseline_active_user_count,
+        baseline_open_claim_count
+      FROM organization_onboarding_state
+      WHERE organization_id = $1
+      LIMIT 1
+    `,
+    [organizationId]
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    organizationId: row.organization_id,
+    startedAt: row.started_at,
+    baselineActiveUserCount: row.baseline_active_user_count,
+    baselineOpenClaimCount: row.baseline_open_claim_count
+  } satisfies OrganizationOnboardingStateRecord;
+}
+
+async function loadUsersByOrganizationInternal(organizationId: string, client?: PoolClient) {
+  const result = await getDbExecutor(client).query<UserRow>(
+    `
+      SELECT id, organization_id, email, full_name, role, password_hash, is_active
+      FROM users
+      WHERE organization_id = $1
+      ORDER BY full_name
+    `,
+    [organizationId]
+  );
+
+  return result.rows.flatMap((row) => {
+    const user = toUserRecord(row);
+    return user ? [user] : [];
+  });
+}
+
+async function loadUsersByOrganization(organizationId: string) {
+  await initializeStore();
+  return loadUsersByOrganizationInternal(organizationId);
+}
+
+async function loadUserOnboardingState(
+  organizationId: string,
+  userId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{
+    organization_id: string;
+    user_id: string;
+    welcome_dismissed_at: string | null;
+    queue_tour_completed_at: string | null;
+    first_claim_detail_opened_at: string | null;
+  }>(
+    `
+      SELECT
+        organization_id,
+        user_id,
+        welcome_dismissed_at::text,
+        queue_tour_completed_at::text,
+        first_claim_detail_opened_at::text
+      FROM user_onboarding_state
+      WHERE organization_id = $1
+        AND user_id = $2
+      LIMIT 1
+    `,
+    [organizationId, userId]
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    organizationId: row.organization_id,
+    userId: row.user_id,
+    welcomeDismissedAt: row.welcome_dismissed_at,
+    queueTourCompletedAt: row.queue_tour_completed_at,
+    firstClaimDetailOpenedAt: row.first_claim_detail_opened_at
+  } satisfies UserOnboardingStateRecord;
+}
+
+async function loadUserById(userId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{
+    id: string;
+    organization_id: string;
+    email: string;
+    full_name: string;
+    role: string;
+    password_hash: string;
+    is_active: boolean;
+  }>(
+    `
+      SELECT id, organization_id, email, full_name, role, password_hash, is_active
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [userId]
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  const role = normalizeUserRole(row.role);
+
+  if (!role) {
+    return null;
+  }
+
+  return {
     id: row.id,
     organizationId: row.organization_id,
     email: row.email,
     fullName: row.full_name,
-    role: row.role,
+    role,
     passwordHash: row.password_hash,
     isActive: row.is_active
-  }));
+  } satisfies AppUserRecord;
+}
+
+async function loadAuditEventsByOrganization(organizationId: string) {
+  await initializeStore();
+  const result = await getPool().query<{ payload: AuditEventRecord }>(
+    `
+      SELECT payload
+      FROM audit_events
+      WHERE organization_id = $1
+      ORDER BY occurred_at DESC
+    `,
+    [organizationId]
+  );
+
+  return result.rows.map(parsePayloadRow);
+}
+
+function countActiveUsers(users: AppUserRecord[]) {
+  return users.filter((user) => user.isActive).length;
+}
+
+function countOpenClaims(claims: ClaimRecord[]) {
+  return claims.filter((claim) => claim.status !== "resolved").length;
+}
+
+function eventOccurredOnOrAfter(eventAt: string, boundaryAt: string) {
+  return new Date(eventAt).getTime() >= new Date(boundaryAt).getTime();
+}
+
+function detailNumber(detail: Record<string, unknown> | undefined, key: string) {
+  const value = detail?.[key];
+  return typeof value === "number" ? value : null;
+}
+
+async function ensureOrganizationOnboardingState(
+  organizationId: string,
+  client: PoolClient
+) {
+  const existing = await loadOrganizationOnboardingState(organizationId, client);
+
+  if (existing) {
+    return existing;
+  }
+
+  const [users, claims] = await Promise.all([
+    loadUsersByOrganizationInternal(organizationId, client),
+    loadClaimsByOrganization(organizationId, client)
+  ]);
+  const created: OrganizationOnboardingStateRecord = {
+    organizationId,
+    startedAt: new Date().toISOString(),
+    baselineActiveUserCount: countActiveUsers(users),
+    baselineOpenClaimCount: countOpenClaims(claims)
+  };
+
+  await upsertOrganizationOnboardingState(client, created);
+  return created;
+}
+
+async function ensureUserOnboardingState(
+  organizationId: string,
+  userId: string,
+  client: PoolClient
+) {
+  const existing = await loadUserOnboardingState(organizationId, userId, client);
+
+  if (existing) {
+    return existing;
+  }
+
+  const created: UserOnboardingStateRecord = {
+    organizationId,
+    userId,
+    welcomeDismissedAt: null,
+    queueTourCompletedAt: null,
+    firstClaimDetailOpenedAt: null
+  };
+
+  await upsertUserOnboardingState(client, created);
+  return created;
+}
+
+async function buildOnboardingStateInternal(
+  actor: WorkflowActor,
+  client: PoolClient
+) {
+  const [organizationState, userState, users, claims, auditEvents] = await Promise.all([
+    ensureOrganizationOnboardingState(actor.organizationId, client),
+    ensureUserOnboardingState(actor.organizationId, actor.id, client),
+    loadUsersByOrganizationInternal(actor.organizationId, client),
+    loadClaimsByOrganization(actor.organizationId, client),
+    loadAuditEventsByOrganization(actor.organizationId)
+  ]);
+
+  const activeUserCount = countActiveUsers(users);
+  const openClaimCount = countOpenClaims(claims);
+  const firstImportComplete =
+    auditEvents.some((event) => {
+      if (
+        event.eventType !== "import.commit" ||
+        event.outcome !== "success" ||
+        !eventOccurredOnOrAfter(event.at, organizationState.startedAt)
+      ) {
+        return false;
+      }
+
+      return (
+        (detailNumber(event.detail, "rowsImported") ?? 0) > 0 ||
+        (detailNumber(event.detail, "rowsCreated") ?? 0) > 0 ||
+        (detailNumber(event.detail, "rowCount") ?? 0) > 0
+      );
+    }) || openClaimCount > organizationState.baselineOpenClaimCount;
+  const configurePayersComplete = auditEvents.some(
+    (event) =>
+      event.eventType === "payer.policy_updated" &&
+      event.outcome === "success" &&
+      eventOccurredOnOrAfter(event.at, organizationState.startedAt)
+  );
+  const teamMembersComplete =
+    activeUserCount > organizationState.baselineActiveUserCount;
+  const reviewFirstQueueComplete = Boolean(
+    userState.queueTourCompletedAt || userState.firstClaimDetailOpenedAt
+  );
+
+  const completion = {
+    team_members: teamMembersComplete,
+    first_import: firstImportComplete,
+    configure_payers: configurePayersComplete,
+    review_first_queue: reviewFirstQueueComplete
+  } satisfies Record<OnboardingStepId, boolean>;
+
+  let currentAssigned = false;
+  const steps = onboardingStepOrder.map((id) => {
+    if (completion[id]) {
+      return { id, status: "complete" } satisfies OnboardingStateView["steps"][number];
+    }
+
+    if (!currentAssigned) {
+      currentAssigned = true;
+      return { id, status: "current" } satisfies OnboardingStateView["steps"][number];
+    }
+
+    return { id, status: "pending" } satisfies OnboardingStateView["steps"][number];
+  });
+  const completedCount = steps.filter((step) => step.status === "complete").length;
+  const nextStepId = steps.find((step) => step.status !== "complete")?.id ?? null;
+  const welcomeShouldShow =
+    completedCount < onboardingStepOrder.length && !userState.welcomeDismissedAt;
+
+  return {
+    state: {
+      startedAt: organizationState.startedAt,
+      steps,
+      welcome: {
+        shouldShow: welcomeShouldShow,
+        dismissible: firstImportComplete,
+        dismissedAt: userState.welcomeDismissedAt
+      },
+      queueTour: {
+        shouldShow:
+          firstImportComplete && !welcomeShouldShow && !reviewFirstQueueComplete,
+        completedAt: userState.queueTourCompletedAt,
+        firstClaimDetailOpenedAt: userState.firstClaimDetailOpenedAt
+      },
+      progress: {
+        completedCount,
+        totalSteps: onboardingStepOrder.length,
+        nextStepId
+      }
+    } satisfies OnboardingStateView,
+    completion,
+    userState
+  };
+}
+
+async function revokeSessionsByUserId(userId: string, client: PoolClient) {
+  await client.query(
+    `
+      UPDATE user_sessions
+      SET revoked_at = NOW()
+      WHERE user_id = $1
+        AND revoked_at IS NULL
+    `,
+    [userId]
+  );
 }
 
 async function loadSessionById(sessionId: string) {
@@ -640,6 +1452,61 @@ async function loadPayerConfigurations() {
   return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
 }
 
+function toUserSummary(user: AppUserRecord): UserSummaryView {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive
+  };
+}
+
+async function loadLatestQueueSyncAt(organizationId: string) {
+  await initializeStore();
+  const queueResult = await getPool().query<{ updated_at: string | null }>(
+    `
+      SELECT MAX(queue_items.updated_at)::text AS updated_at
+      FROM queue_items
+      INNER JOIN claims ON claims.id = queue_items.claim_id
+      WHERE claims.organization_id = $1
+    `,
+    [organizationId]
+  );
+
+  if (queueResult.rows[0]?.updated_at) {
+    return queueResult.rows[0].updated_at;
+  }
+
+  const claimResult = await getPool().query<{ updated_at: string | null }>(
+    `
+      SELECT MAX(updated_at)::text AS updated_at
+      FROM claims
+      WHERE organization_id = $1
+    `,
+    [organizationId]
+  );
+
+  return claimResult.rows[0]?.updated_at ?? null;
+}
+
+async function loadPayerConfigurationsByOrganizationInternal(
+  organizationId: string,
+  client?: PoolClient
+) {
+  const result = await getDbExecutor(client).query<{ payload: PayerConfigurationRecord }>(
+    `
+      SELECT payload
+      FROM payer_configurations
+      WHERE organization_id = $1
+      ORDER BY payer_id
+    `,
+    [organizationId]
+  );
+
+  return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+}
+
 async function loadClaimsByOrganization(organizationId: string, client?: PoolClient) {
   await initializeStore();
   const result = await getDbExecutor(client).query<{ payload: ClaimRecord }>(
@@ -652,22 +1519,12 @@ async function loadClaimsByOrganization(organizationId: string, client?: PoolCli
     [organizationId]
   );
 
-  return result.rows.map(parsePayloadRow);
+  return result.rows.map(parsePayloadRow).map(normalizeClaimRecord);
 }
 
 async function loadPayerConfigurationsByOrganization(organizationId: string, client?: PoolClient) {
   await initializeStore();
-  const result = await getDbExecutor(client).query<{ payload: PayerConfigurationRecord }>(
-    `
-      SELECT payload
-      FROM payer_configurations
-      WHERE organization_id = $1
-      ORDER BY payer_id
-    `,
-    [organizationId]
-  );
-
-  return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+  return loadPayerConfigurationsByOrganizationInternal(organizationId, client);
 }
 
 async function loadPayerConfigurationByOrganizationAndPayerId(
@@ -699,10 +1556,74 @@ async function loadRetrievalJobs() {
   return result.rows.map(parsePayloadRow).map(normalizeRetrievalJob);
 }
 
+async function loadAgentStepsByRunId(agentRunId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentStepRecord }>(
+    `
+      SELECT payload
+      FROM agent_steps
+      WHERE agent_run_id = $1
+      ORDER BY step_number ASC
+    `,
+    [agentRunId]
+  );
+
+  return result.rows.map(parsePayloadRow).map(normalizeAgentStep);
+}
+
+async function loadLatestActiveAgentRunByJobId(
+  retrievalJobId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentRunRecord }>(
+    `
+      SELECT payload
+      FROM agent_runs
+      WHERE retrieval_job_id = $1
+        AND status = 'running'
+      ORDER BY started_at DESC
+      LIMIT 1
+    `,
+    [retrievalJobId]
+  );
+
+  return result.rows[0]?.payload ? normalizeAgentRun(result.rows[0].payload) : null;
+}
+
+async function loadLatestAgentRunByJobId(
+  retrievalJobId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentRunRecord }>(
+    `
+      SELECT payload
+      FROM agent_runs
+      WHERE retrieval_job_id = $1
+      ORDER BY started_at DESC
+      LIMIT 1
+    `,
+    [retrievalJobId]
+  );
+
+  return result.rows[0]?.payload ? normalizeAgentRun(result.rows[0].payload) : null;
+}
+
+async function loadAgentRunById(runId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentRunRecord }>(
+    "SELECT payload FROM agent_runs WHERE id = $1 LIMIT 1",
+    [runId]
+  );
+
+  return result.rows[0]?.payload ? normalizeAgentRun(result.rows[0].payload) : null;
+}
+
 function ensureActor(actor: WorkflowActor) {
   return {
     ...actor,
-    type: actor.role === "admin" ? "admin" : actor.type
+    type: actor.role === "owner" ? "owner" : actor.type
   };
 }
 
@@ -730,15 +1651,9 @@ export async function initializeStore() {
     existingConfigs.rows[0]?.count === "0"
   ) {
     const seed = createSeedState();
-    const { hashPassword } = await import("../auth.js");
     const seedUsers = createSeedUsers().map((user) => ({
       ...user,
-      passwordHash:
-        user.role === "admin"
-          ? hashPassword(appConfig.seedAdminPassword)
-          : user.role === "manager"
-            ? hashPassword(appConfig.seedManagerPassword)
-            : hashPassword(appConfig.seedOperatorPassword)
+      passwordHash: hashPassword(passwordForSeedRole(user.role))
     }));
     const payerConfigurations = createSeedPayerConfigurations(appConfig.seedOrgId);
 
@@ -782,52 +1697,162 @@ export async function initializeStore() {
     });
   }
 
+  await withTransaction(async (client) => {
+    const seedOrganization = await client.query<{ id: string }>(
+      "SELECT id FROM organizations WHERE id = $1 LIMIT 1",
+      [appConfig.seedOrgId]
+    );
+
+    if (seedOrganization.rowCount === 0) {
+      return;
+    }
+
+    const desiredSeedUsers = createSeedUsers().map((user) => ({
+      ...user,
+      passwordHash: hashPassword(passwordForSeedRole(user.role))
+    }));
+    const existingSeedUsers = await loadUsersByOrganizationInternal(
+      appConfig.seedOrgId,
+      client
+    );
+    const seedConfigs = createSeedPayerConfigurations(appConfig.seedOrgId);
+    const existingSeedConfigs = await loadPayerConfigurationsByOrganizationInternal(
+      appConfig.seedOrgId,
+      client
+    );
+    const missingSeedConfigs = findMissingSeedPayerConfigurations(
+      existingSeedConfigs,
+      seedConfigs
+    );
+
+    for (const config of missingSeedConfigs) {
+      await upsertPayerConfiguration(client, config);
+    }
+
+    const activeOwner =
+      existingSeedUsers.find((user) => user.isActive && user.role === "owner") ?? null;
+    const ownerSeed = desiredSeedUsers.find((user) => user.role === "owner");
+
+    if (ownerSeed) {
+      if (activeOwner) {
+        await upsertUser(client, {
+          ...activeOwner,
+          email: ownerSeed.email,
+          fullName: ownerSeed.fullName,
+          passwordHash: ownerSeed.passwordHash,
+          isActive: true
+        });
+      } else {
+        await upsertUser(client, ownerSeed);
+      }
+    }
+
+    for (const seedUser of desiredSeedUsers.filter((user) => user.role !== "owner")) {
+      const existingUser =
+        existingSeedUsers.find((user) => user.id === seedUser.id) ??
+        existingSeedUsers.find(
+          (user) => user.email.toLowerCase() === seedUser.email.toLowerCase()
+        );
+
+      if (existingUser) {
+        await upsertUser(client, {
+          ...existingUser,
+          email: seedUser.email,
+          fullName: seedUser.fullName,
+          role: seedUser.role,
+          passwordHash: seedUser.passwordHash,
+          isActive: true
+        });
+      } else {
+        await upsertUser(client, seedUser);
+      }
+    }
+  });
+
   initialized = true;
 }
 
-export async function listClaims(): Promise<ClaimSummary[]> {
-  const claims = await loadClaims();
+export async function listClaims(organizationId?: string): Promise<ClaimSummary[]> {
+  const claims = organizationId
+    ? await loadClaimsByOrganization(organizationId)
+    : await loadClaims();
   return claims.map(toClaimSummary);
 }
 
-export async function listClaimsList(): Promise<ClaimsListItemView[]> {
-  const claims = await loadClaims();
-  return buildClaimsList(claims);
+export async function listClaimsList(
+  organizationId?: string
+): Promise<ClaimsListItemView[]> {
+  const [claims, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadQueue()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildClaimsList(
+    claims,
+    queue.filter((item) => claimIds.has(item.claimId))
+  );
 }
 
-export async function listQueue(): Promise<QueueItem[]> {
-  return loadQueue();
+export async function listQueue(organizationId?: string): Promise<QueueItem[]> {
+  const [claims, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadQueue()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return queue.filter((item) => claimIds.has(item.claimId));
 }
 
 export async function getClaimDetail(
-  claimId: string
+  claimId: string,
+  organizationId?: string
 ): Promise<ClaimDetail | undefined> {
-  const claim = await loadClaimById(claimId);
+  const claim = organizationId
+    ? await loadClaimByIdForOrganization(claimId, organizationId)
+    : await loadClaimById(claimId);
   return claim ? toClaimDetail(claim) : undefined;
 }
 
-export async function listPilotQueueItems(): Promise<PilotQueueItem[]> {
-  const [claims, queue] = await Promise.all([loadClaims(), loadQueue()]);
-  return buildPilotQueueItems(claims, queue);
+export async function listPilotQueueItems(
+  organizationId?: string
+): Promise<PilotQueueItem[]> {
+  const [claims, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadQueue()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  const visibleQueue = queue.filter((item) => claimIds.has(item.claimId));
+  return buildPilotQueueItems(claims, visibleQueue);
 }
 
 export async function getPilotClaimDetail(
-  claimId: string
+  claimId: string,
+  organizationId?: string
 ): Promise<PilotClaimDetail | null> {
-  const [claims, results, auditEvents, jobs] = await Promise.all([
-    loadClaims(),
+  const [claims, results, auditEvents, jobs, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
     loadResults(),
-    loadAuditEvents(),
-    loadRetrievalJobs()
+    organizationId ? loadAuditEventsByOrganization(organizationId) : loadAuditEvents(),
+    loadRetrievalJobs(),
+    loadQueue()
   ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  const visibleQueue = queue.filter((item) => claimIds.has(item.claimId));
+  const visibleResults = results.filter((result) => claimIds.has(result.claimId));
+  const visibleJobs = jobs.filter((job) => claimIds.has(job.claimId));
 
-  const detail = buildPilotClaimDetail(claimId, claims, results, auditEvents);
+  const detail = buildPilotClaimDetail(
+    claimId,
+    claims,
+    visibleResults,
+    auditEvents,
+    visibleQueue
+  );
 
   if (!detail) {
     return null;
   }
 
-  const activeJob = jobs.find(
+  const activeJob = visibleJobs.find(
     (job) =>
       job.claimId === claimId &&
       (job.status === "queued" ||
@@ -835,17 +1860,20 @@ export async function getPilotClaimDetail(
         job.status === "retrying" ||
         job.status === "failed")
   );
+  const activeRun = activeJob ? await loadLatestAgentRunByJobId(activeJob.id) : null;
 
   return {
     ...detail,
     activeRetrievalJob: activeJob
       ? {
           id: activeJob.id,
+          agentRunId: activeRun?.id ?? null,
           status: activeJob.status,
           attempts: activeJob.attempts,
           lastError: activeJob.lastError,
           updatedAt: activeJob.updatedAt,
           connectorName: activeJob.connectorName,
+          traceId: activeJob.agentTraceId,
           failureCategory: activeJob.failureCategory,
           retryable: activeJob.retryable,
           reviewReason: activeJob.reviewReason,
@@ -856,21 +1884,40 @@ export async function getPilotClaimDetail(
   } as PilotClaimDetail;
 }
 
-export async function listResultSummaries(): Promise<ResultSummaryView[]> {
-  const [claims, results] = await Promise.all([loadClaims(), loadResults()]);
-  return buildResultSummaries(claims, results);
+export async function listResultSummaries(
+  organizationId?: string
+): Promise<ResultSummaryView[]> {
+  const [claims, results] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadResults()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildResultSummaries(
+    claims,
+    results.filter((result) => claimIds.has(result.claimId))
+  );
 }
 
 export async function getResultDetail(
-  resultId: string
+  resultId: string,
+  organizationId?: string
 ): Promise<ResultDetailView | null> {
-  const [claims, results] = await Promise.all([loadClaims(), loadResults()]);
-  return buildResultDetail(resultId, claims, results);
+  const [claims, results] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadResults()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildResultDetail(
+    resultId,
+    claims,
+    results.filter((result) => claimIds.has(result.claimId))
+  );
 }
 
 export async function getEvidenceArtifactContent(
   artifactId: string,
-  organizationId: string
+  organizationId: string,
+  actor?: WorkflowActor
 ) {
   const artifact = await loadEvidenceArtifactById(artifactId, organizationId);
 
@@ -892,6 +1939,37 @@ export async function getEvidenceArtifactContent(
     throw error;
   }
 
+  if (actor) {
+    await withTransaction(async (client) => {
+      await insertAuditEvent(client, {
+        id: `AUD-${Date.now()}`,
+        at: new Date().toISOString(),
+        organizationId,
+        actor: {
+          name: actor.name,
+          type: auditActorType(actor.role),
+          avatar: initials(actor.name)
+        },
+        eventType: "evidence.downloaded",
+        userId: actor.id,
+        action: "Downloaded Evidence",
+        object: "Evidence",
+        objectId: artifactId,
+        source: auditSourceForRole(actor.role),
+        payer: "Evidence Artifact",
+        summary: `${actor.name} downloaded evidence artifact ${artifact.payload.label}.`,
+        sensitivity: "high-risk",
+        category: "Evidence Access",
+        outcome: "success",
+        detail: {
+          claimId: artifact.claim_id,
+          fileName: path.basename(artifact.storage_key)
+        },
+        claimId: artifact.claim_id
+      });
+    });
+  }
+
   return {
     body,
     mimeType:
@@ -905,8 +1983,12 @@ export async function getEvidenceArtifactContent(
   };
 }
 
-export async function listAuditEvents(): Promise<AuditEventView[]> {
-  const auditEvents = await loadAuditEvents();
+export async function listAuditEvents(
+  organizationId?: string
+): Promise<AuditEventView[]> {
+  const auditEvents = organizationId
+    ? await loadAuditEventsByOrganization(organizationId)
+    : await loadAuditEvents();
   return buildAuditLog(auditEvents);
 }
 
@@ -918,14 +2000,285 @@ export async function listPayerConfigurations(organizationId?: string) {
   return loadPayerConfigurations();
 }
 
-export async function getPerformanceMetrics(): Promise<PerformanceMetricsView> {
+export async function listUsersByOrganization(
+  organizationId: string
+): Promise<UserSummaryView[]> {
+  const users = await loadUsersByOrganization(organizationId);
+  return users.map(toUserSummary);
+}
+
+export async function inviteUserToOrganization(
+  actor: WorkflowActor,
+  input: {
+    email: string;
+    fullName: string;
+    role: UserRole;
+    temporaryPassword?: string | null;
+  }
+): Promise<InvitedUserView> {
+  const email = input.email.trim().toLowerCase();
+  const fullName = input.fullName.trim();
+
+  if (!email || !fullName) {
+    throw new Error("Email and full name are required.");
+  }
+
+  if (input.role === "owner") {
+    throw new Error("Owner invites are not supported in the pilot workflow.");
+  }
+
+  const existingUsers = await loadUsers();
+  const existingUser = existingUsers.find(
+    (user) => user.email.toLowerCase() === email
+  );
+
+  if (existingUser?.organizationId && existingUser.organizationId !== actor.organizationId) {
+    throw new Error("That email already belongs to another organization.");
+  }
+
+  if (existingUser?.isActive) {
+    throw new Error("That user already has workspace access.");
+  }
+
+  const temporaryPassword =
+    input.temporaryPassword?.trim() || generateTemporaryPassword();
+  const user: AppUserRecord = {
+    id: existingUser?.id ?? `user_${randomUUID().slice(0, 10)}`,
+    organizationId: actor.organizationId,
+    email,
+    fullName,
+    role: input.role,
+    passwordHash: hashPassword(temporaryPassword),
+    isActive: true
+  };
+  const nowIso = new Date().toISOString();
+
+  await withTransaction(async (client) => {
+    await upsertUser(client, user);
+    await revokeSessionsByUserId(user.id, client);
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: nowIso,
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: auditActorType(actor.role),
+        avatar: initials(actor.name)
+      },
+      eventType: "user.invited",
+      userId: actor.id,
+      action: "Invited User",
+      object: "User",
+      objectId: user.id,
+      source: auditSourceForRole(actor.role),
+      payer: "All Payers",
+      summary: `${actor.name} invited ${user.fullName} as ${user.role}.`,
+      sensitivity: "high-risk",
+      category: "Access Control",
+      outcome: "success",
+      detail: {
+        invitedRole: user.role,
+        invitedEmail: user.email
+      },
+      reason: "Workspace access granted by owner."
+    });
+  });
+
+  return {
+    user: toUserSummary(user),
+    temporaryPassword
+  };
+}
+
+export async function removeUserFromOrganization(
+  actor: WorkflowActor,
+  userId: string
+): Promise<UserSummaryView> {
+  if (actor.id === userId) {
+    throw new Error("Owners cannot remove themselves.");
+  }
+
+  const existingUser = await loadUserById(userId);
+
+  if (!existingUser || existingUser.organizationId !== actor.organizationId) {
+    throw new Error("User not found.");
+  }
+
+  const organizationUsers = await loadUsersByOrganization(actor.organizationId);
+  const activeOwners = organizationUsers.filter(
+    (user) => user.isActive && user.role === "owner"
+  );
+
+  if (existingUser.role === "owner" && activeOwners.length <= 1) {
+    throw new Error("Each organization must retain one active owner.");
+  }
+
+  const deactivatedUser: AppUserRecord = {
+    ...existingUser,
+    isActive: false
+  };
+  const nowIso = new Date().toISOString();
+
+  await withTransaction(async (client) => {
+    await upsertUser(client, deactivatedUser);
+    await revokeSessionsByUserId(existingUser.id, client);
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: nowIso,
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: auditActorType(actor.role),
+        avatar: initials(actor.name)
+      },
+      eventType: "user.removed",
+      userId: actor.id,
+      action: "Removed User",
+      object: "User",
+      objectId: existingUser.id,
+      source: auditSourceForRole(actor.role),
+      payer: "All Payers",
+      summary: `${actor.name} removed ${existingUser.fullName} from the workspace.`,
+      sensitivity: "high-risk",
+      category: "Access Control",
+      outcome: "success",
+      detail: {
+        removedRole: existingUser.role,
+        removedEmail: existingUser.email
+      },
+      reason: "Workspace access revoked by owner."
+    });
+  });
+
+  return toUserSummary(deactivatedUser);
+}
+
+export async function getAccountSummary(
+  organizationId: string
+): Promise<AccountSummaryView | null> {
+  const organization = await loadOrganizationById(organizationId);
+
+  if (!organization) {
+    return null;
+  }
+
+  return {
+    organizationId: organization.id,
+    organizationName: organization.name,
+    billingMode: "pilot_managed"
+  };
+}
+
+export async function getStatusSummary(
+  organizationId: string
+): Promise<StatusSummaryView> {
+  const [auditEvents, claims, lastQueueSyncAt] = await Promise.all([
+    loadAuditEventsByOrganization(organizationId),
+    loadClaimsByOrganization(organizationId),
+    loadLatestQueueSyncAt(organizationId)
+  ]);
+
+  const lastImportEvent = auditEvents.find((event) => event.eventType === "import.commit");
+  const failedActionsLast24h = auditEvents.filter((event) => {
+    if (event.outcome !== "failure") {
+      return false;
+    }
+
+    return Date.now() - new Date(event.at).getTime() <= 24 * 60 * 60 * 1000;
+  }).length;
+  const importRowCount =
+    typeof lastImportEvent?.detail?.rowCount === "number"
+      ? lastImportEvent.detail.rowCount
+      : typeof lastImportEvent?.detail?.rowsCreated === "number"
+        ? lastImportEvent.detail.rowsCreated
+        : null;
+
+  return {
+    lastImportAt: lastImportEvent?.at ?? null,
+    lastImportOutcome: lastImportEvent?.outcome ?? null,
+    lastImportRowCount: importRowCount,
+    lastQueueSyncAt,
+    failedActionsLast24h,
+    openClaimsCount: claims.filter((claim) => claim.status !== "resolved").length
+  };
+}
+
+export async function getOnboardingState(actor: WorkflowActor): Promise<OnboardingStateView> {
+  return withTransaction(async (client) => {
+    const { state } = await buildOnboardingStateInternal(actor, client);
+    return state;
+  });
+}
+
+export async function updateOnboardingState(
+  actor: WorkflowActor,
+  action: "dismiss_welcome" | "complete_queue_tour"
+): Promise<OnboardingStateView> {
+  await withTransaction(async (client) => {
+    const { completion, userState } = await buildOnboardingStateInternal(actor, client);
+    const nowIso = new Date().toISOString();
+
+    if (action === "dismiss_welcome") {
+      if (!completion.first_import) {
+        throw new Error("Complete your first import before dismissing the setup checklist.");
+      }
+
+      if (!userState.welcomeDismissedAt) {
+        await upsertUserOnboardingState(client, {
+          ...userState,
+          welcomeDismissedAt: nowIso
+        });
+      }
+
+      return;
+    }
+
+    if (!userState.queueTourCompletedAt) {
+      await upsertUserOnboardingState(client, {
+        ...userState,
+        queueTourCompletedAt: nowIso
+      });
+    }
+  });
+
+  return getOnboardingState(actor);
+}
+
+export async function markClaimDetailOpenedForOnboarding(actor: WorkflowActor) {
+  if (actor.role !== "owner" && actor.role !== "manager") {
+    return;
+  }
+
+  await withTransaction(async (client) => {
+    const userState = await ensureUserOnboardingState(actor.organizationId, actor.id, client);
+
+    if (userState.firstClaimDetailOpenedAt) {
+      return;
+    }
+
+    await upsertUserOnboardingState(client, {
+      ...userState,
+      firstClaimDetailOpenedAt: new Date().toISOString()
+    });
+  });
+}
+
+export async function getPerformanceMetrics(
+  organizationId?: string
+): Promise<PerformanceMetricsView> {
   const [claims, queue, results, jobs] = await Promise.all([
-    loadClaims(),
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
     loadQueue(),
     loadResults(),
     loadRetrievalJobs()
   ]);
-  return buildPerformanceMetrics({ claims, queue, results, jobs });
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildPerformanceMetrics({
+    claims,
+    queue: queue.filter((item) => claimIds.has(item.claimId)),
+    results: results.filter((result) => claimIds.has(result.claimId)),
+    jobs: jobs.filter((job) => claimIds.has(job.claimId))
+  });
 }
 
 export async function previewResultsExport(actor: WorkflowActor) {
@@ -970,17 +2323,24 @@ export async function exportResults(actor: WorkflowActor) {
       organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "export.requested",
+      userId: actor.id,
       action: "Exported",
       object: "Result",
       objectId: `export_${Date.now()}`,
-      source: "Human",
+      source: auditSourceForRole(actor.role),
       payer: "Mixed",
       summary: `${actor.name} exported ${exportableResults.length} structured results for downstream delivery.`,
       sensitivity: "normal",
       category: "Result Export",
+      outcome: "success",
+      detail: {
+        rowCount: exportableResults.length,
+        exportedAt
+      },
       reason: "Batch export requested from the results workspace."
     });
   });
@@ -1006,10 +2366,13 @@ export async function authenticateUser(email: string, password: string) {
     return null;
   }
 
+  const organization = await loadOrganizationById(user.organizationId);
+
   const session: UserSession = {
     id: `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     userId: user.id,
     organizationId: user.organizationId,
+    organizationName: organization?.name,
     role: user.role,
     fullName: user.fullName,
     email: user.email,
@@ -1026,17 +2389,24 @@ export async function authenticateUser(email: string, password: string) {
       organizationId: user.organizationId,
       actor: {
         name: user.fullName,
-        type: user.role === "admin" ? "admin" : "human",
+        type: auditActorType(user.role),
         avatar: initials(user.fullName)
       },
+      eventType: "session.signed_in",
+      userId: user.id,
       action: "Signed In",
       object: "Configuration",
       objectId: session.id,
-      source: "Human",
+      source: auditSourceForRole(user.role),
       payer: "All Payers",
       summary: `${user.fullName} signed in to the Tenio workspace.`,
       sensitivity: "high-risk",
       category: "Access Control",
+      outcome: "success",
+      detail: {
+        sessionId: session.id,
+        email: user.email
+      },
       reason: "Authenticated user session created."
     });
   });
@@ -1086,6 +2456,64 @@ function normalizeIntakeSlaAt(value: string | null | undefined) {
 
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function normalizeIntakeJurisdiction(
+  value: Jurisdiction | null | undefined,
+  fallback?: Jurisdiction | null
+): Jurisdiction {
+  return value ?? fallback ?? "us";
+}
+
+function deriveCountryCodeFromJurisdiction(jurisdiction: Jurisdiction): CountryCode {
+  return jurisdiction === "ca" ? "CA" : "US";
+}
+
+function normalizeIntakeCountryCode(
+  value: CountryCode | null | undefined,
+  jurisdiction: Jurisdiction,
+  fallback?: CountryCode | null
+): CountryCode {
+  const candidate = value ?? fallback;
+
+  if (
+    candidate &&
+    ((jurisdiction === "ca" && candidate === "CA") ||
+      (jurisdiction === "us" && candidate === "US"))
+  ) {
+    return candidate;
+  }
+
+  return deriveCountryCodeFromJurisdiction(jurisdiction);
+}
+
+function normalizeProvinceOfService(value: string | null | undefined) {
+  const normalized = normalizeOptionalText(value)?.toUpperCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.slice(0, 3);
+}
+
+function normalizeServiceDate(value: string | null | undefined) {
+  const normalized = normalizeOptionalText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+function normalizeBilledAmountCents(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return Number.isFinite(value) ? Math.round(value) : null;
 }
 
 function deriveDefaultSlaAt(defaultSlaHours: number | undefined) {
@@ -1151,15 +2579,21 @@ function buildResultsExportCsv(params: {
 }
 
 function assertCanEditPayerConfiguration(actor: WorkflowActor) {
-  if (!canManagePayerConfiguration(actor.role)) {
-    throw new Error("Only managers and admins can update payer workflow policy.");
+  if (!hasPermission(actor.role, "payer:write")) {
+    throw new Error("Only owners can update payer workflow policy.");
   }
 }
 
 async function createClaimRecord(
   client: PoolClient,
   input: IntakeClaim,
-  actor: WorkflowActor
+  actor: WorkflowActor,
+  auditContext?: {
+    eventType?: string;
+    importBatchId?: string | null;
+    rowNumber?: number;
+    source?: "Human" | "Import";
+  }
 ) {
   if (input.organizationId !== actor.organizationId) {
     throw new Error("Claim intake must stay within the authenticated organization.");
@@ -1185,6 +2619,22 @@ async function createClaimRecord(
   const existingQueueItem = existingClaim
     ? await loadQueueByClaimId(existingClaim.id, client)
     : undefined;
+  const jurisdiction = normalizeIntakeJurisdiction(input.jurisdiction, payerConfig?.jurisdiction);
+  const countryCode = normalizeIntakeCountryCode(
+    input.countryCode,
+    jurisdiction,
+    payerConfig?.countryCode
+  );
+  const provinceOfService = normalizeProvinceOfService(input.provinceOfService);
+  const claimType = normalizeOptionalText(input.claimType);
+  const serviceProviderType = normalizeOptionalText(input.serviceProviderType) as
+    | ClaimRecord["serviceProviderType"]
+    | null;
+  const serviceCode = normalizeOptionalText(input.serviceCode);
+  const planNumber = normalizeOptionalText(input.planNumber);
+  const memberCertificate = normalizeOptionalText(input.memberCertificate);
+  const serviceDate = normalizeServiceDate(input.serviceDate);
+  const billedAmountCents = normalizeBilledAmountCents(input.billedAmountCents);
   const claimId = existingClaim?.id ?? buildClaimId(claimNumber);
   const claim: ClaimRecord = existingClaim
     ? {
@@ -1193,6 +2643,18 @@ async function createClaimRecord(
         payerName: payerConfig?.payerName ?? input.payerId,
         claimNumber,
         patientName,
+        jurisdiction,
+        countryCode,
+        provinceOfService: provinceOfService ?? existingClaim.provinceOfService,
+        claimType:
+          claimType ??
+          existingClaim.claimType ??
+          (jurisdiction === "ca" ? "paramedical" : "Professional"),
+        serviceProviderType: serviceProviderType ?? existingClaim.serviceProviderType ?? null,
+        serviceCode: serviceCode ?? existingClaim.serviceCode ?? null,
+        planNumber: planNumber ?? existingClaim.planNumber ?? null,
+        memberCertificate: memberCertificate ?? existingClaim.memberCertificate ?? null,
+        serviceDate: serviceDate ?? existingClaim.serviceDate,
         owner:
           owner ??
           existingClaim.owner ??
@@ -1203,7 +2665,8 @@ async function createClaimRecord(
           existingClaim.slaAt ??
           deriveDefaultSlaAt(payerConfig?.defaultSlaHours),
         normalizedStatusText: sourceStatus ?? existingClaim.normalizedStatusText,
-        notes: notes ?? existingClaim.notes
+        notes: notes ?? existingClaim.notes,
+        amountCents: billedAmountCents ?? existingClaim.amountCents
       }
     : {
         id: claimId,
@@ -1212,6 +2675,9 @@ async function createClaimRecord(
         payerName: payerConfig?.payerName ?? input.payerId,
         claimNumber,
         patientName,
+        jurisdiction,
+        countryCode,
+        provinceOfService,
         status: "pending",
         confidence: 0,
         slaAt: providedSlaAt ?? deriveDefaultSlaAt(payerConfig?.defaultSlaHours),
@@ -1219,12 +2685,16 @@ async function createClaimRecord(
         priority: normalizeIntakePriority(input.priority),
         lastCheckedAt: null,
         normalizedStatusText: sourceStatus ?? "Pending initial retrieval",
-        amountCents: null,
+        amountCents: billedAmountCents,
         notes: notes ?? "Claim ingested into the workflow queue.",
         evidence: [],
         reviews: [],
-        serviceDate: new Date().toISOString().slice(0, 10),
-        claimType: "Professional",
+        serviceDate: serviceDate ?? new Date().toISOString().slice(0, 10),
+        claimType: claimType ?? (jurisdiction === "ca" ? "paramedical" : "Professional"),
+        serviceProviderType,
+        serviceCode,
+        planNumber,
+        memberCertificate,
         allowedAmountCents: null,
         paidAmountCents: null,
         patientResponsibilityCents: null,
@@ -1233,6 +2703,8 @@ async function createClaimRecord(
         currentQueue: owner ? "Assigned Intake" : "Pending Retrieval",
         nextAction: "Queue Retrieval",
         totalTouches: 0,
+        requiresPhoneCall: false,
+        phoneCallRequiredAt: null,
         daysSinceLastFollowUp: 0,
         escalationState: "Not escalated",
         ageDays: 0
@@ -1266,21 +2738,39 @@ async function createClaimRecord(
   await insertAuditEvent(client, {
     id: `AUD-${Date.now()}`,
     at: nowIso,
+    organizationId: claim.organizationId,
     actor: {
       name: actor.name,
-      type: actor.role === "admin" ? "admin" : "human",
+      type: auditActorType(actor.role),
       avatar: initials(actor.name)
     },
+    eventType: auditContext?.eventType ?? (existingClaim ? "claim.intake_updated" : "claim.intaked"),
+    userId: actor.id,
     action: existingClaim ? "Updated Intake" : "Intaked",
     object: "Claim",
     objectId: claim.id,
-    source: "Human",
+    source: auditContext?.source ?? auditSourceForRole(actor.role),
     payer: claim.payerName,
     summary: existingClaim
       ? `${actor.name} refreshed intake details for ${claim.claimNumber}.`
       : `${actor.name} added ${claim.claimNumber} to the claim-status queue.`,
     sensitivity: "normal",
     category: "Claim Intake",
+    outcome: "success",
+    importBatchId: auditContext?.importBatchId ?? null,
+    detail: {
+      rowNumber: auditContext?.rowNumber ?? null,
+      claimNumber: claim.claimNumber,
+      patientName: claim.patientName,
+      payerId: claim.payerId,
+      claimType: claim.claimType,
+      serviceProviderType: claim.serviceProviderType,
+      serviceCode: claim.serviceCode,
+      planNumber: claim.planNumber,
+      memberCertificate: claim.memberCertificate,
+      serviceDate: claim.serviceDate,
+      billedAmountCents: claim.amountCents
+    },
     reason: existingClaim
       ? "Existing claim matched on organization and claim number."
       : "Claim submitted through intake workflow.",
@@ -1298,34 +2788,74 @@ export async function createClaim(input: IntakeClaim, actor: WorkflowActor) {
 }
 
 export async function previewClaimImport(
-  rows: ClaimImportRowInput[],
-  actor: WorkflowActor
+  rows: RawImportRow[],
+  actor: WorkflowActor,
+  importProfile: ImportProfileId = "generic_template"
 ): Promise<ClaimImportPreviewResult> {
+  await initializeStore();
   const [existingClaims, payerConfigurations] = await Promise.all([
     loadClaimsByOrganization(actor.organizationId),
     loadPayerConfigurationsByOrganization(actor.organizationId)
   ]);
-
-  return previewClaimImportRows({
-    rows,
+  const normalizedRows = adaptImportRows(rows, importProfile);
+  const preview = previewClaimImportRows({
+    rows: normalizedRows,
     existingClaims,
     payerConfigurations
   });
+
+  await withTransaction(async (client) => {
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: new Date().toISOString(),
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: auditActorType(actor.role),
+        avatar: initials(actor.name)
+      },
+      eventType: "import.preview",
+      userId: actor.id,
+      action: "Previewed Import",
+      object: "Configuration",
+      objectId: `preview_${Date.now()}`,
+      source: auditSourceForRole(actor.role),
+      payer: "Mixed",
+      summary: `${actor.name} previewed ${preview.summary.totalRows} import rows with the ${importProfile} profile.`,
+      sensitivity: "normal",
+      category: "Claim Intake",
+      outcome: "success",
+      detail: {
+        importProfile,
+        rowCount: preview.summary.totalRows,
+        createCount: preview.summary.createCount,
+        updateCount: preview.summary.updateCount,
+        invalidCount: preview.summary.invalidCount,
+        duplicateInFileCount: preview.summary.duplicateInFileCount
+      },
+      reason: "Import preview requested from onboarding."
+    });
+  });
+
+  return preview;
 }
 
 export async function commitClaimImport(
-  rows: ClaimImportRowInput[],
-  actor: WorkflowActor
+  rows: RawImportRow[],
+  actor: WorkflowActor,
+  importProfile: ImportProfileId = "generic_template"
 ) {
   await initializeStore();
+  const importBatchId = `import_${Date.now()}`;
 
   const result = await withTransaction(async (client) => {
     const [existingClaims, payerConfigurations] = await Promise.all([
       loadClaimsByOrganization(actor.organizationId, client),
       loadPayerConfigurationsByOrganization(actor.organizationId, client)
     ]);
+    const normalizedRows = adaptImportRows(rows, importProfile);
     const preview = previewClaimImportRows({
-      rows,
+      rows: normalizedRows,
       existingClaims,
       payerConfigurations
     });
@@ -1341,33 +2871,62 @@ export async function commitClaimImport(
           payerId: row.payerId ?? "",
           claimNumber: row.claimNumber ?? "",
           patientName: row.patientName ?? "",
+          jurisdiction: row.jurisdiction ?? undefined,
+          countryCode: row.countryCode ?? undefined,
+          provinceOfService: row.provinceOfService,
+          claimType: row.claimType,
+          serviceProviderType: row.serviceProviderType,
+          serviceCode: row.serviceCode,
+          planNumber: row.planNumber,
+          memberCertificate: row.memberCertificate,
+          serviceDate: row.serviceDate,
+          billedAmountCents: row.billedAmountCents,
           priority: row.priority ?? "normal",
           owner: row.owner,
           notes: row.notes,
           slaAt: row.slaAt,
           sourceStatus: row.sourceStatus
         },
-        actor
+        actor,
+        {
+          eventType: "claim.imported",
+          importBatchId,
+          rowNumber: row.rowNumber,
+          source: "Import"
+        }
       );
     }
 
     await insertAuditEvent(client, {
-      id: `AUD-${Date.now()}`,
+      id: `AUD-${Date.now()}_commit`,
       at: new Date().toISOString(),
       organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "import.commit",
+      userId: actor.id,
       action: "Imported",
       object: "Configuration",
-      objectId: `import_${Date.now()}`,
-      source: "Human",
+      objectId: importBatchId,
+      source: auditSourceForRole(actor.role),
       payer: "Mixed",
       summary: `${actor.name} imported ${preview.summary.createCount} new claims and refreshed ${preview.summary.updateCount} existing claims.`,
       sensitivity: "normal",
       category: "Claim Intake",
+      outcome: "success",
+      importBatchId,
+      detail: {
+        importProfile,
+        rowCount: preview.summary.totalRows,
+        rowsCreated: preview.summary.createCount,
+        rowsUpdated: preview.summary.updateCount,
+        rowsInvalid: preview.summary.invalidCount,
+        rowsDuplicateInFile: preview.summary.duplicateInFileCount,
+        rowsImported: actionableRows.length
+      },
       reason: `${preview.summary.invalidCount} invalid rows and ${preview.summary.duplicateInFileCount} duplicate rows were excluded.`
     });
     return {
@@ -1442,17 +3001,28 @@ export async function updatePayerConfigurationPolicy(
       organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "payer.policy_updated",
+      userId: actor.id,
       action: "Policy Updated",
       object: "Configuration",
       objectId: updated.id,
-      source: "Human",
+      source: auditSourceForRole(actor.role),
       payer: updated.payerName,
       summary: `${actor.name} updated workflow policy for ${updated.payerName}.`,
       sensitivity: "high-risk",
       category: "Config Change",
+      outcome: "success",
+      detail: {
+        payerId: updated.payerId,
+        reviewThreshold: updated.reviewThreshold,
+        escalationThreshold: updated.escalationThreshold,
+        defaultSlaHours: updated.defaultSlaHours,
+        autoAssignOwner: updated.autoAssignOwner,
+        owner: updated.owner
+      },
       beforeAfter: {
         reviewThreshold: {
           from: `${Math.round(existing.reviewThreshold * 100)}%`,
@@ -1482,7 +3052,13 @@ export async function applyClaimAction(
   claimId: string,
   action: Parameters<typeof applyClaimWorkflowAction>[0]["action"],
   actor: WorkflowActor,
-  options?: { assignee?: string; note?: string }
+  options?: {
+    assignee?: string;
+    note?: string;
+    outcome?: Parameters<typeof applyClaimWorkflowAction>[0]["outcome"];
+    nextAction?: string;
+    followUpAt?: string | null;
+  }
 ) {
   const ensuredActor = ensureActor(actor);
 
@@ -1493,7 +3069,9 @@ export async function applyClaimAction(
       "SELECT payload FROM claims WHERE id = $1 FOR UPDATE",
       [claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (!claim) {
       throw new Error("Claim not found");
@@ -1518,7 +3096,10 @@ export async function applyClaimAction(
       action,
       actor: ensuredActor,
       assignee: options?.assignee,
-      note: options?.note
+      note: options?.note,
+      outcome: options?.outcome,
+      nextAction: options?.nextAction,
+      followUpAt: options?.followUpAt
     });
 
     await upsertClaim(client, mutation.claim);
@@ -1535,6 +3116,43 @@ export async function applyClaimAction(
     }
 
     await insertAuditEvent(client, mutation.auditEvent);
+
+    if (claim.status !== mutation.claim.status) {
+      await insertAuditEvent(client, {
+        id: `AUD-${Date.now()}_status`,
+        at: new Date().toISOString(),
+        organizationId: actor.organizationId,
+        actor: {
+          name: actor.name,
+          type: auditActorType(actor.role),
+          avatar: initials(actor.name)
+        },
+        eventType: "claim.status_updated",
+        userId: actor.id,
+        action: "Status Updated",
+        object: "Claim",
+        objectId: claim.id,
+        source: auditSourceForRole(actor.role),
+        payer: claim.payerName,
+        summary: `${actor.name} changed ${claim.claimNumber} from ${claim.status} to ${mutation.claim.status}.`,
+        sensitivity: "normal",
+        category: "Claim Workflow",
+        outcome: "success",
+        detail: {
+          statusFrom: claim.status,
+          statusTo: mutation.claim.status,
+          normalizedStatusText: mutation.claim.normalizedStatusText
+        },
+        beforeAfter: {
+          status: {
+            from: statusLabel(claim.status, claim.normalizedStatusText),
+            to: statusLabel(mutation.claim.status, mutation.claim.normalizedStatusText)
+          }
+        },
+        claimId: claim.id,
+        resultId: mutation.result?.id
+      });
+    }
   });
 
   return getPilotClaimDetail(claimId);
@@ -1580,19 +3198,27 @@ export async function enqueueRetrievalJob(claimId: string, actor: WorkflowActor)
     await insertAuditEvent(client, {
       id: `AUD-${Date.now()}`,
       at: nowIso,
+      organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "retrieval.queued",
+      userId: actor.id,
       action: "Queued Retrieval",
       object: "Claim",
       objectId: claim.id,
-      source: "Human",
+      source: auditSourceForRole(actor.role),
       payer: claim.payerName,
       summary: `${actor.name} queued a retrieval job for ${claim.claimNumber}.`,
       sensitivity: "normal",
       category: "Retrieval Queue",
+      outcome: "success",
+      detail: {
+        jobId: job.id,
+        claimNumber: claim.claimNumber
+      },
       reason: "Manual re-check requested.",
       claimId: claim.id
     });
@@ -1605,7 +3231,12 @@ export async function claimNextRetrievalJob(workerName: string) {
   await initializeStore();
 
   return withTransaction(async (client) => {
-    const jobResult = await client.query<{
+    const nowIso = new Date().toISOString();
+    const nextLeaseExpiresAt = new Date(Date.now() + agentRunLeaseDurationMs).toISOString();
+    let job: RetrievalJobRecord | null = null;
+    let agentRun: AgentRunRecord | null = null;
+
+    const queuedJobResult = await client.query<{
       id: string;
       payload: RetrievalJobRecord;
     }>(
@@ -1618,39 +3249,460 @@ export async function claimNextRetrievalJob(workerName: string) {
         FOR UPDATE SKIP LOCKED
       `
     );
-    const row = jobResult.rows[0];
+    const queuedRow = queuedJobResult.rows[0];
 
-    if (!row) {
-      return null;
+    if (queuedRow) {
+      job = {
+        ...normalizeRetrievalJob(queuedRow.payload),
+        status: "processing",
+        reservedBy: workerName,
+        attempts: queuedRow.payload.attempts + 1,
+        startedAt: nowIso,
+        lastAttemptedAt: nowIso,
+        updatedAt: nowIso
+      };
+      agentRun = buildNewAgentRun(job, workerName);
+      await upsertRetrievalJob(client, job);
+      await upsertAgentRun(client, agentRun);
+    } else {
+      const expiredRunResult = await client.query<{ payload: AgentRunRecord }>(
+        `
+          SELECT payload
+          FROM agent_runs
+          WHERE status = 'running'
+            AND lease_expires_at <= NOW()
+          ORDER BY lease_expires_at ASC
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        `
+      );
+      const expiredRunRow = expiredRunResult.rows[0];
+
+      if (!expiredRunRow?.payload) {
+        return null;
+      }
+
+      const existingRun = normalizeAgentRun(expiredRunRow.payload);
+      const jobResult = await client.query<{ payload: RetrievalJobRecord }>(
+        "SELECT payload FROM retrieval_jobs WHERE id = $1 FOR UPDATE",
+        [existingRun.retrievalJobId]
+      );
+      const existingJob = jobResult.rows[0]?.payload
+        ? normalizeRetrievalJob(jobResult.rows[0].payload)
+        : null;
+
+      if (!existingJob || existingJob.status !== "processing") {
+        return null;
+      }
+
+      job = {
+        ...existingJob,
+        reservedBy: workerName,
+        updatedAt: nowIso
+      };
+      agentRun = {
+        ...existingRun,
+        leaseOwner: workerName,
+        leaseExpiresAt: nextLeaseExpiresAt,
+        heartbeatAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      await upsertRetrievalJob(client, job);
+      await upsertAgentRun(client, agentRun);
     }
-
-    const job: RetrievalJobRecord = {
-      ...normalizeRetrievalJob(row.payload),
-      status: "processing",
-      reservedBy: workerName,
-      attempts: row.payload.attempts + 1,
-      startedAt: new Date().toISOString(),
-      lastAttemptedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    await upsertRetrievalJob(client, job);
 
     const claimResult = await client.query<{ payload: ClaimRecord }>(
       "SELECT payload FROM claims WHERE id = $1",
       [job.claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (!claim) {
       return null;
     }
 
+    const agentSteps = await loadAgentStepsByRunId(agentRun.id, client);
+
     return {
       job,
-      claim: toClaimDetail(claim)
+      claim: toClaimDetail(claim),
+      agentRun: buildAgentRunView(agentRun, agentSteps)
     };
   });
+}
+
+export type StartAgentToolStepInput = {
+  stepNumber: number;
+  toolName: AgentToolName;
+  toolArgs: {
+    connectorId: string;
+    mode: ConnectorMode;
+    attemptLabel: string;
+  };
+  publicReason: string;
+  idempotencyKey: string;
+  plannerUsage: {
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+};
+
+export type RecordAgentTerminalStepInput = {
+  stepNumber: number;
+  directiveKind: Extract<AgentDirectiveKind, "final" | "retry">;
+  publicReason: string;
+  idempotencyKey: string;
+  plannerUsage: {
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+  summary: string;
+  terminalReason: AgentRunTerminalReason;
+  finalCandidate?: ExecutionCandidate | null;
+  retryAfterSeconds?: number | null;
+};
+
+export function assertRunLease(run: AgentRunRecord, workerName: string, now = Date.now()) {
+  if (run.status !== "running") {
+    throw new Error("Agent run is not active.");
+  }
+
+  if (run.leaseOwner !== workerName) {
+    throw new Error("Agent run lease is held by another worker.");
+  }
+
+  const leaseExpiresAtMs = run.leaseExpiresAt ? new Date(run.leaseExpiresAt).getTime() : NaN;
+
+  if (!run.leaseExpiresAt || Number.isNaN(leaseExpiresAtMs) || leaseExpiresAtMs <= now) {
+    throw new Error("Agent run lease has expired.");
+  }
+}
+
+export async function heartbeatAgentRun(runId: string, workerName: string) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+    const nowIso = new Date().toISOString();
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso
+    };
+
+    await upsertAgentRun(client, updatedRun);
+    const steps = await loadAgentStepsByRunId(runId, client);
+    return buildAgentRunView(updatedRun, steps);
+  });
+}
+
+export async function startAgentToolStep(
+  runId: string,
+  input: StartAgentToolStepInput,
+  workerName: string
+) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+
+    const stepResult = await client.query<{ payload: AgentStepRecord }>(
+      "SELECT payload FROM agent_steps WHERE agent_run_id = $1 AND step_number = $2 FOR UPDATE",
+      [runId, input.stepNumber]
+    );
+    const existingStep = stepResult.rows[0]?.payload
+      ? normalizeAgentStep(stepResult.rows[0].payload)
+      : null;
+
+    if (existingStep) {
+      if (
+        existingStep.idempotencyKey !== input.idempotencyKey ||
+        existingStep.toolName !== input.toolName
+      ) {
+        throw new Error("Agent step already exists with different identity.");
+      }
+
+      return {
+        run: buildAgentRunView(run, await loadAgentStepsByRunId(runId, client)),
+        step: toAgentStepHistoryItem(existingStep)
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const step: AgentStepRecord = {
+      id: `${runId}_step_${input.stepNumber}`,
+      agentRunId: runId,
+      stepNumber: input.stepNumber,
+      directiveKind: "tool_call",
+      toolName: input.toolName,
+      status: "started",
+      idempotencyKey: input.idempotencyKey,
+      publicReason: input.publicReason,
+      toolArgs: input.toolArgs,
+      plannerProvider: input.plannerUsage.provider,
+      plannerModel: input.plannerUsage.model,
+      plannerInputTokens: input.plannerUsage.inputTokens,
+      plannerOutputTokens: input.plannerUsage.outputTokens,
+      result: null,
+      startedAt: nowIso,
+      completedAt: null
+    };
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      modelProvider: input.plannerUsage.provider,
+      modelName: input.plannerUsage.model,
+      modelCallsUsed: run.modelCallsUsed + 1,
+      inputTokensUsed: run.inputTokensUsed + input.plannerUsage.inputTokens,
+      outputTokensUsed: run.outputTokensUsed + input.plannerUsage.outputTokens,
+      totalTokensUsed:
+        run.totalTokensUsed + input.plannerUsage.inputTokens + input.plannerUsage.outputTokens,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso
+    };
+
+    await upsertAgentStep(client, step);
+    await upsertAgentRun(client, updatedRun);
+
+    return {
+      run: buildAgentRunView(updatedRun, [...(await loadAgentStepsByRunId(runId, client))]),
+      step: toAgentStepHistoryItem(step)
+    };
+  });
+}
+
+export async function completeAgentToolStep(
+  runId: string,
+  stepNumber: number,
+  result: AgentStepResult,
+  workerName: string
+) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+
+    const stepResult = await client.query<{ payload: AgentStepRecord }>(
+      "SELECT payload FROM agent_steps WHERE agent_run_id = $1 AND step_number = $2 FOR UPDATE",
+      [runId, stepNumber]
+    );
+    const existingStep = stepResult.rows[0]?.payload
+      ? normalizeAgentStep(stepResult.rows[0].payload)
+      : null;
+
+    if (!existingStep) {
+      throw new Error("Agent step not found.");
+    }
+
+    if (existingStep.status === "completed") {
+      return {
+        run: buildAgentRunView(run, await loadAgentStepsByRunId(runId, client)),
+        step: toAgentStepHistoryItem(existingStep)
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const stepsBefore = await loadAgentStepsByRunId(runId, client);
+    const previousObservation = [...stepsBefore]
+      .filter((step) => step.stepNumber < stepNumber && step.result?.observation)
+      .map((step) => step.result?.observation ?? null)
+      .filter((step): step is NonNullable<AgentStepResult["observation"]> => Boolean(step))
+      .at(-1);
+    const currentObservation = result.observation ?? null;
+    const connectorSwitchIncrement =
+      currentObservation &&
+      previousObservation &&
+      (currentObservation.executionMode !== previousObservation.executionMode ||
+        currentObservation.connectorId !== previousObservation.connectorId)
+        ? 1
+        : 0;
+    const completedStep: AgentStepRecord = {
+      ...existingStep,
+      status: "completed",
+      result,
+      completedAt: nowIso
+    };
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      connectorSwitchCount: run.connectorSwitchCount + connectorSwitchIncrement,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso,
+      lastError:
+        result.failureCategory && result.summary
+          ? result.summary
+          : run.lastError
+    };
+
+    await upsertAgentStep(client, completedStep);
+    await upsertAgentRun(client, updatedRun);
+
+    return {
+      run: buildAgentRunView(updatedRun, await loadAgentStepsByRunId(runId, client)),
+      step: toAgentStepHistoryItem(completedStep)
+    };
+  });
+}
+
+export async function recordAgentTerminalStep(
+  runId: string,
+  input: RecordAgentTerminalStepInput,
+  workerName: string
+) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+
+    const stepResult = await client.query<{ payload: AgentStepRecord }>(
+      "SELECT payload FROM agent_steps WHERE agent_run_id = $1 AND step_number = $2 FOR UPDATE",
+      [runId, input.stepNumber]
+    );
+    const existingStep = stepResult.rows[0]?.payload
+      ? normalizeAgentStep(stepResult.rows[0].payload)
+      : null;
+
+    if (existingStep) {
+      if (existingStep.idempotencyKey !== input.idempotencyKey) {
+        throw new Error("Terminal agent step already exists with different identity.");
+      }
+
+      return {
+        run: buildAgentRunView(run, await loadAgentStepsByRunId(runId, client)),
+        step: toAgentStepHistoryItem(existingStep)
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const step: AgentStepRecord = {
+      id: `${runId}_step_${input.stepNumber}`,
+      agentRunId: runId,
+      stepNumber: input.stepNumber,
+      directiveKind: input.directiveKind,
+      toolName: null,
+      status: "completed",
+      idempotencyKey: input.idempotencyKey,
+      publicReason: input.publicReason,
+      toolArgs: null,
+      plannerProvider: input.plannerUsage.provider,
+      plannerModel: input.plannerUsage.model,
+      plannerInputTokens: input.plannerUsage.inputTokens,
+      plannerOutputTokens: input.plannerUsage.outputTokens,
+      result: {
+        summary: input.summary,
+        evidenceArtifactIds: input.finalCandidate?.evidence.map((artifact) => artifact.id) ?? [],
+        failureCategory: null,
+        finalCandidate: input.finalCandidate ?? null,
+        retryAfterSeconds: input.retryAfterSeconds ?? null,
+        terminalReason: input.terminalReason
+      },
+      startedAt: nowIso,
+      completedAt: nowIso
+    };
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      modelProvider: input.plannerUsage.provider,
+      modelName: input.plannerUsage.model,
+      modelCallsUsed: run.modelCallsUsed + 1,
+      inputTokensUsed: run.inputTokensUsed + input.plannerUsage.inputTokens,
+      outputTokensUsed: run.outputTokensUsed + input.plannerUsage.outputTokens,
+      totalTokensUsed:
+        run.totalTokensUsed + input.plannerUsage.inputTokens + input.plannerUsage.outputTokens,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso
+    };
+
+    await upsertAgentStep(client, step);
+    await upsertAgentRun(client, updatedRun);
+
+    return {
+      run: buildAgentRunView(updatedRun, await loadAgentStepsByRunId(runId, client)),
+      step: toAgentStepHistoryItem(step)
+    };
+  });
+}
+
+async function finalizeAgentRunForJob(
+  client: PoolClient,
+  retrievalJobId: string,
+  params: {
+    status: AgentRunStatus;
+    terminalReason: AgentRunTerminalReason | null;
+    finalCandidate?: ExecutionCandidate | null;
+    lastError?: string | null;
+  }
+) {
+  const existingRun = await loadLatestActiveAgentRunByJobId(retrievalJobId, client);
+
+  if (!existingRun) {
+    return null;
+  }
+
+  const nowIso = new Date().toISOString();
+  const updatedRun: AgentRunRecord = {
+    ...existingRun,
+    status: params.status,
+    terminalReason: params.terminalReason ?? existingRun.terminalReason,
+    finalCandidate: params.finalCandidate ?? existingRun.finalCandidate,
+    lastError: params.lastError ?? existingRun.lastError,
+    leaseOwner: null,
+    leaseExpiresAt: null,
+    heartbeatAt: nowIso,
+    completedAt: nowIso,
+    updatedAt: nowIso
+  };
+
+  await upsertAgentRun(client, updatedRun);
+  return updatedRun;
 }
 
 export async function failRetrievalJob(
@@ -1659,10 +3711,13 @@ export async function failRetrievalJob(
     error: string;
     failureCategory?: RetrievalJobRecord["failureCategory"];
     retryable?: boolean;
+    retryAfterSeconds?: number;
     connectorId?: string;
     connectorName?: string;
+    executionMode?: RetrievalJobRecord["executionMode"];
     observedAt?: string;
     durationMs?: number;
+    terminalReason?: AgentRunTerminalReason;
   }
 ) {
   await initializeStore();
@@ -1687,12 +3742,13 @@ export async function failRetrievalJob(
       status: exhausted ? "failed" : "retrying",
       availableAt: exhausted
         ? new Date().toISOString()
-        : new Date(Date.now() + 60 * 1000).toISOString(),
+        : new Date(Date.now() + Math.max(1, failure.retryAfterSeconds ?? 60) * 1000).toISOString(),
       lastError: failure.error,
       failureCategory: failure.failureCategory ?? null,
       retryable: failure.retryable ?? !exhausted,
       connectorId: failure.connectorId ?? job.connectorId,
       connectorName: failure.connectorName ?? job.connectorName,
+      executionMode: failure.executionMode ?? job.executionMode,
       lastAttemptedAt: observedAt,
       updatedAt: new Date().toISOString(),
       attemptHistory: [
@@ -1700,7 +3756,7 @@ export async function failRetrievalJob(
           attempt: job.attempts,
           connectorId: failure.connectorId ?? job.connectorId,
           connectorName: failure.connectorName ?? job.connectorName,
-          executionMode: job.executionMode,
+          executionMode: failure.executionMode ?? job.executionMode,
           startedAt: job.startedAt ?? observedAt,
           finishedAt: observedAt,
           status: exhausted ? "failed" : "retrying",
@@ -1713,18 +3769,29 @@ export async function failRetrievalJob(
     };
 
     await upsertRetrievalJob(client, updatedJob);
+    await finalizeAgentRunForJob(client, job.id, {
+      status: exhausted ? "failed" : "retry_scheduled",
+      terminalReason:
+        failure.terminalReason ??
+        (exhausted ? "fallback_policy_review" : "retry_scheduled"),
+      lastError: failure.error
+    });
 
     const claimResult = await client.query<{ payload: ClaimRecord }>(
       "SELECT payload FROM claims WHERE id = $1",
       [job.claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (claim) {
       await insertAuditEvent(client, {
         id: `AUD-${Date.now()}`,
         at: observedAt,
+        organizationId: claim.organizationId,
         actor: { name: "System", type: "system", avatar: "SYS" },
+        eventType: exhausted ? "retrieval.failed" : "retrieval.retry_scheduled",
         action: exhausted ? "Agent Failed" : "Agent Retry Scheduled",
         object: "Claim",
         objectId: claim.id,
@@ -1735,6 +3802,13 @@ export async function failRetrievalJob(
           : `${failure.connectorName ?? "Agent runtime"} scheduled another retrieval attempt.`,
         sensitivity: "normal",
         category: "Retrieval Queue",
+        outcome: exhausted ? "failure" : "success",
+        detail: {
+          connectorId: failure.connectorId ?? null,
+          connectorName: failure.connectorName ?? null,
+          failureCategory: failure.failureCategory ?? null,
+          retryable: failure.retryable ?? !exhausted
+        },
         reason: failure.error,
         claimId: claim.id
       });
@@ -1757,7 +3831,9 @@ export async function applyRetrievalOutcome(
       "SELECT payload FROM claims WHERE id = $1 FOR UPDATE",
       [claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (!claim) {
       return null;
@@ -1799,6 +3875,32 @@ export async function applyRetrievalOutcome(
 
     await upsertResult(client, mutation.result);
     await syncEvidenceArtifacts(client, mutation.claim, mutation.result.id);
+
+    for (const artifact of storedEvidence) {
+      await insertAuditEvent(client, {
+        id: `AUD-${Date.now()}_${artifact.id}`,
+        at: artifact.createdAt,
+        organizationId: mutation.claim.organizationId,
+        actor: { name: "System", type: "system", avatar: "SYS" },
+        eventType: "evidence.uploaded",
+        action: "Stored Evidence",
+        object: "Evidence",
+        objectId: artifact.id,
+        source: "System",
+        payer: mutation.claim.payerName,
+        summary: `Stored evidence artifact ${artifact.label} for ${mutation.claim.claimNumber}.`,
+        sensitivity: "normal",
+        category: "Evidence Capture",
+        outcome: "success",
+        detail: {
+          claimId: mutation.claim.id,
+          sizeBytes: artifact.sizeBytes ?? null,
+          kind: artifact.kind
+        },
+        claimId: mutation.claim.id,
+        resultId: mutation.result.id
+      });
+    }
 
     for (const event of mutation.auditEvents) {
       await insertAuditEvent(client, event);
@@ -1843,6 +3945,13 @@ export async function applyRetrievalOutcome(
             },
             ...job.attemptHistory
           ]
+        });
+        await finalizeAgentRunForJob(client, job.id, {
+          status: decision.nextStatus === "resolved" ? "completed" : "review_required",
+          terminalReason:
+            decision.nextStatus === "resolved" ? "resolved_candidate" : "review_required",
+          finalCandidate: storedCandidate,
+          lastError: null
         });
       }
     }

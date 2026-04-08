@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { hasPermission, type UserRole } from "@tenio/domain";
 import {
   AlertTriangle,
   CheckCircle,
@@ -45,12 +46,15 @@ function statusBadge(status: PayerConfigurationView["status"]) {
 
 export function ConfigurationClient({
   payers,
-  auditEvents
+  auditEvents,
+  currentRole
 }: {
   payers: PayerConfigurationView[];
   auditEvents: AuditEventView[];
+  currentRole: UserRole;
 }) {
   const router = useRouter();
+  const canManageConfiguration = hasPermission(currentRole, "payer:write");
   const [payerState, setPayerState] = useState(payers);
   const [selectedPayer, setSelectedPayer] = useState(payers[0]?.payerId ?? "");
   const [owner, setOwner] = useState("");
@@ -159,6 +163,9 @@ export function ConfigurationClient({
                   </span>
                 ) : null}
               </div>
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                {payer.countryCode} / {payer.jurisdiction}
+              </div>
               <div className="mb-2">{statusBadge(payer.status)}</div>
               <div className="text-xs text-gray-600">
                 {payer.enabledWorkflows.length} workflows •{" "}
@@ -186,6 +193,9 @@ export function ConfigurationClient({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <span>
+                Jurisdiction: {currentPayer.countryCode} / {currentPayer.jurisdiction}
+              </span>
               <span>Last verified: {new Date(currentPayer.lastVerifiedAt).toLocaleString()}</span>
               <span>Review threshold: {Math.round(currentPayer.reviewThreshold * 100)}%</span>
               <span>Escalation threshold: {Math.round(currentPayer.escalationThreshold * 100)}%</span>
@@ -201,15 +211,17 @@ export function ConfigurationClient({
                   Future intake and retrieval decisions use these payer-level controls.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isPending}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-              >
-                <Save className="h-4 w-4" />
-                Save Policy
-              </button>
+              {canManageConfiguration ? (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isPending}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  Save Policy
+                </button>
+              ) : null}
             </div>
 
             {message ? (
@@ -222,6 +234,11 @@ export function ConfigurationClient({
                 {error}
               </div>
             ) : null}
+            {!canManageConfiguration ? (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Configuration edits are limited to owner roles in partner environments.
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <label className="block">
@@ -231,6 +248,7 @@ export function ConfigurationClient({
                 <input
                   value={owner}
                   onChange={(event) => setOwner(event.target.value)}
+                  disabled={!canManageConfiguration}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </label>
@@ -245,6 +263,7 @@ export function ConfigurationClient({
                   max={168}
                   value={defaultSlaHours}
                   onChange={(event) => setDefaultSlaHours(event.target.value)}
+                  disabled={!canManageConfiguration}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </label>
@@ -259,6 +278,7 @@ export function ConfigurationClient({
                   max={99}
                   value={reviewThreshold}
                   onChange={(event) => setReviewThreshold(event.target.value)}
+                  disabled={!canManageConfiguration}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </label>
@@ -273,6 +293,7 @@ export function ConfigurationClient({
                   max={95}
                   value={escalationThreshold}
                   onChange={(event) => setEscalationThreshold(event.target.value)}
+                  disabled={!canManageConfiguration}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </label>
@@ -283,6 +304,7 @@ export function ConfigurationClient({
                 type="checkbox"
                 checked={autoAssignOwner}
                 onChange={(event) => setAutoAssignOwner(event.target.checked)}
+                disabled={!canManageConfiguration}
                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               Auto-assign new intake and imported claims to the payer owner when no owner is supplied.

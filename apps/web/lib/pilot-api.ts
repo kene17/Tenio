@@ -11,10 +11,23 @@ export type QueueItemView = {
   claimNumber: string;
   patientName: string;
   payerName: string;
+  jurisdiction?: "us" | "ca";
+  countryCode?: "US" | "CA";
+  provinceOfService?: string | null;
+  claimType?: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
   claimStatus: string;
   nextAction: string;
   queueReason: string;
   owner: string | null;
+  lastTouchedAt: string;
   lastUpdate: string;
   age: string;
   slaRisk: "healthy" | "at-risk" | "breached";
@@ -27,6 +40,20 @@ export type ClaimDetailView = {
   item: ClaimDetail;
   serviceDate: string;
   claimType: string;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
+  planNumber?: string | null;
+  memberCertificate?: string | null;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
+  lastTouchedAt: string;
   allowedAmountCents: number | null;
   paidAmountCents: number | null;
   patientResponsibilityCents: number | null;
@@ -35,6 +62,8 @@ export type ClaimDetailView = {
   currentQueue: string;
   nextAction: string;
   totalTouches: number;
+  requiresPhoneCall: boolean;
+  phoneCallRequiredAt: string | null;
   daysSinceLastFollowUp: number;
   escalationState: string;
   statusLabel: string;
@@ -55,11 +84,13 @@ export type ClaimDetailView = {
   auditTrail: Array<{ label: string; value: string; subtext: string }>;
   activeRetrievalJob?: {
     id: string;
+    agentRunId: string | null;
     status: string;
     attempts: number;
     lastError: string | null;
     updatedAt: string;
     connectorName?: string | null;
+    traceId?: string | null;
     failureCategory?: string | null;
     retryable?: boolean;
     reviewReason?: string | null;
@@ -117,7 +148,9 @@ export type AuditEventView = {
   id: string;
   time: string;
   date: string;
-  actor: { name: string; type: "human" | "system" | "admin"; avatar: string };
+  actor: { name: string; type: "human" | "system" | "owner"; avatar: string };
+  eventType?: string;
+  userId?: string | null;
   action: string;
   object: string;
   objectId: string;
@@ -126,6 +159,9 @@ export type AuditEventView = {
   summary: string;
   sensitivity: "normal" | "sensitive" | "high-risk";
   category: string;
+  outcome?: "success" | "failure";
+  importBatchId?: string | null;
+  detail?: Record<string, unknown>;
   beforeAfter?: Record<string, { from: string; to: string }>;
   reason?: string;
   requestId?: string;
@@ -137,9 +173,22 @@ export type ClaimsListItemView = {
   claimNumber: string;
   payerName: string;
   patientName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
+  claimType: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
   serviceDate: string;
   currentStatus: string;
   owner: string | null;
+  lastTouchedAt: string;
   lastUpdated: string;
   resolutionState: string;
   evidenceCount: number;
@@ -151,6 +200,8 @@ export type PayerConfigurationView = {
   id: string;
   payerId: string;
   payerName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
   status: "active" | "needs_attention" | "inactive";
   owner: string;
   lastVerifiedAt: string;
@@ -174,10 +225,13 @@ export type PerformanceView = {
   summary: {
     claimsWorkedToday: number;
     avgResolutionTimeDays: string;
+    avgTouchesPerClaim: string;
     slaCompliance: string;
     needsReview: number;
     claimsResolved: number;
     touchesRemoved: number;
+    claimsRequiringCall: number;
+    phoneCallRate: string;
   };
   agentOverview: {
     automationCoverage: string;
@@ -195,6 +249,7 @@ export type PerformanceView = {
     avgResolutionTime: string;
     risk: "Low" | "Medium" | "High";
     reviewRate: string;
+    phoneCallRate: string;
     lastDelay: string;
   }>;
   teamPerformance: Array<{
@@ -221,6 +276,46 @@ export type PerformanceView = {
     severity: "good" | "warning" | "critical";
     time: string;
   }>;
+};
+
+export type StatusView = {
+  lastImportAt: string | null;
+  lastImportOutcome: "success" | "failure" | null;
+  lastImportRowCount: number | null;
+  lastQueueSyncAt: string | null;
+  failedActionsLast24h: number;
+  openClaimsCount: number;
+};
+
+export type OnboardingStepId =
+  | "team_members"
+  | "first_import"
+  | "configure_payers"
+  | "review_first_queue";
+
+export type OnboardingStepStatus = "complete" | "current" | "pending";
+
+export type OnboardingStateView = {
+  startedAt: string;
+  steps: Array<{
+    id: OnboardingStepId;
+    status: OnboardingStepStatus;
+  }>;
+  welcome: {
+    shouldShow: boolean;
+    dismissible: boolean;
+    dismissedAt: string | null;
+  };
+  queueTour: {
+    shouldShow: boolean;
+    completedAt: string | null;
+    firstClaimDetailOpenedAt: string | null;
+  };
+  progress: {
+    completedCount: number;
+    totalSteps: number;
+    nextStepId: OnboardingStepId | null;
+  };
 };
 
 function getApiBaseUrl() {
@@ -313,12 +408,51 @@ export async function getPayerConfigurations() {
   return apiFetch<{ items: PayerConfigurationView[] }>("/configuration/payers");
 }
 
+export async function getClaimIntakeOptions() {
+  return apiFetch<{
+    items: Array<{
+      payerId: string;
+      payerName: string;
+      jurisdiction: "us" | "ca";
+      countryCode: "US" | "CA";
+    }>;
+  }>("/claim-intake-options");
+}
+
+export async function getStatus() {
+  return apiFetch<{ item: StatusView }>("/status");
+}
+
+export async function getOnboardingState() {
+  return apiFetch<{ item: OnboardingStateView }>("/onboarding/state");
+}
+
 export async function createClaimIntake(input: {
   organizationId: string;
   payerId: string;
   claimNumber: string;
   patientName: string;
+  jurisdiction?: "us" | "ca";
+  countryCode?: "US" | "CA";
+  provinceOfService?: string | null;
+  claimType?: string | null;
+  serviceProviderType?:
+    | "physiotherapist"
+    | "chiropractor"
+    | "massage_therapist"
+    | "psychotherapist"
+    | "other"
+    | null;
+  serviceCode?: string | null;
+  planNumber?: string | null;
+  memberCertificate?: string | null;
+  serviceDate?: string | null;
+  billedAmountCents?: number | null;
   priority: "low" | "normal" | "high" | "urgent";
+  owner?: string | null;
+  notes?: string | null;
+  slaAt?: string | null;
+  sourceStatus?: string | null;
 }) {
   return apiFetch<{ item: ClaimDetailView | null }>("/claims/intake", {
     method: "POST",
@@ -335,9 +469,20 @@ export async function submitClaimWorkflowAction(
       | "approve_review"
       | "resolve_claim"
       | "escalate_claim"
-      | "reopen_claim";
+      | "reopen_claim"
+      | "mark_call_required"
+      | "log_follow_up";
     assignee?: string;
     note?: string;
+    outcome?:
+      | "status_checked"
+      | "pending_payer"
+      | "more_info_needed"
+      | "needs_review"
+      | "phone_call_required"
+      | "resolved";
+    nextAction?: string;
+    followUpAt?: string | null;
   }
 ) {
   return apiFetch<{ item: ClaimDetailView | null }>(`/claims/${claimId}/workflow-action`, {

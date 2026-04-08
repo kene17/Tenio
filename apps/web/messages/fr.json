@@ -1,0 +1,140 @@
+{
+  "shell": {
+    "navigation": {
+      "queue": "File d'attente",
+      "claims": "Réclamations",
+      "onboarding": "Importation",
+      "results": "Résolu",
+      "performance": "Performance",
+      "configuration": "Configuration",
+      "auditLog": "Journal d'audit",
+      "status": "État",
+      "readinessGuide": "Guide de préparation"
+    },
+    "searchPlaceholder": "Rechercher des réclamations...",
+    "protected": "Protégé",
+    "signOut": "Fermer la session",
+    "languageLabel": "Langue"
+  },
+  "onboarding": {
+    "title": "Intégration",
+    "subtitle": "Importez l'inventaire actif avec validation d'aperçu, détection des doublons et rapprochement avant la mise en service.",
+    "downloadTemplate": "Télécharger le modèle",
+    "uploadCsv": "Téléverser un CSV",
+    "configuredPayers": "Payeurs configurés",
+    "rowsLoaded": "Lignes chargées",
+    "readyToCommit": "Prêtes à valider",
+    "skippedRows": "Lignes ignorées",
+    "importInstructionsTitle": "Instructions d'importation",
+    "importInstructionsBody": "Utilisez exactement les en-têtes du modèle. `payerId` ou `payerName` doit correspondre à un profil de payeur configuré. Pour les pilotes paramédicaux à Ottawa, commencez par le profil CSV Jane App afin de conserver la discipline de service, le code et les métadonnées d'adhésion.",
+    "expectedHeaders": "En-têtes attendus",
+    "uploadedFile": "Fichier téléversé",
+    "none": "Aucun",
+    "previewImport": "Prévisualiser l'importation",
+    "commitReadyRows": "Valider les lignes prêtes",
+    "configuredPayersTitle": "Payeurs configurés",
+    "configuredPayersBody": "Les lignes importées doivent correspondre exactement à ces profils de payeur ou à leur nom.",
+    "previewResultsTitle": "Résultats de l'aperçu",
+    "previewResultsBody": "Tenio ne validera que les lignes marquées Créer ou Mettre à jour.",
+    "summaryTotal": "Total",
+    "summaryCreate": "Créer",
+    "summaryUpdate": "Mettre à jour",
+    "summaryInvalid": "Invalide",
+    "summaryDuplicate": "Doublon",
+    "columnRow": "Ligne",
+    "columnAction": "Action",
+    "columnClaim": "Réclamation",
+    "columnPatient": "Patient",
+    "columnPayer": "Payeur",
+    "columnJurisdiction": "Territoire",
+    "columnClaimType": "Type de réclamation",
+    "columnService": "Service",
+    "columnPriority": "Priorité",
+    "columnMessages": "Messages",
+    "missing": "Manquant",
+    "invalid": "Invalide",
+    "templateProfileLabel": "Profil d'importation",
+    "templateProfileHelp": "Choisissez le format source le plus proche avant l'aperçu. Jane App est le profil recommandé pour le paramédical à Ottawa. Le modèle générique exige une correspondance exacte. Dentrix est une base de travail avec mappage d'alias d'en-têtes, pas un parseur certifié.",
+    "profileJane": "CSV Jane App",
+    "profileJaneDescription": "Profil paramédical d'Ottawa recommandé avec alias d'en-têtes Jane et valeurs canadiennes par défaut.",
+    "profileGeneric": "Modèle générique Tenio",
+    "profileGenericDescription": "Correspondance exacte avec le modèle CSV Tenio.",
+    "profileDentrix": "Gabarit CSV Dentrix",
+    "profileDentrixDescription": "Mappage initial des alias pour exports de cabinets dentaires et fichiers d'exemple.",
+    "previewGeneratedNotice": "Aperçu généré. Vérifiez les lignes ignorées avant de valider.",
+    "commitNoticePrefix": "",
+    "commitNoticeSuffix": "lignes ont été intégrées au backlog actif.",
+    "uploadRequiredError": "Téléversez un fichier CSV avant de demander un aperçu.",
+    "previewRequiredError": "Prévisualisez d'abord le fichier. Tenio ne valide que les lignes marquées Créer ou Mettre à jour.",
+    "previewFailedError": "L'aperçu d'importation a échoué. Vérifiez le format CSV et réessayez.",
+    "commitFailedError": "La validation de l'importation a échoué. Aucun changement n'a été appliqué au backlog.",
+    "actionCreate": "Créer",
+    "actionUpdate": "Mettre à jour",
+    "actionSkip": "Ignorer",
+    "setup": {
+      "title": "Liste de configuration",
+      "subtitle": "Utilisez cette liste pour terminer les éléments essentiels avant que l'équipe ne commence à travailler les réclamations dans Tenio.",
+      "progressSuffix": "complétées",
+      "nextStepLabel": "Prochaine étape :",
+      "allStepsComplete": "Toutes les étapes de configuration sont terminées.",
+      "statusComplete": "Terminée",
+      "statusCurrent": "En cours",
+      "statusPending": "À venir",
+      "contactSupport": "Contacter le support",
+      "openImportTool": "Ouvrir l'outil d'importation",
+      "openConfiguration": "Ouvrir la configuration",
+      "openQueue": "Ouvrir la file",
+      "openSetupChecklist": "Ouvrir la liste de configuration",
+      "skipForNow": "Ignorer pour le moment",
+      "skipLockedMessage": "Terminez votre première importation avant de fermer ce guide de configuration.",
+      "goToQueue": "Aller à la file",
+      "updateError": "La liste de configuration n'a pas pu être mise à jour. Réessayez.",
+      "welcomeEyebrow": "Configuration de l'espace",
+      "welcomeTitle": "Terminez ces quatre étapes avant la mise en service",
+      "welcomeBody": "Tenio vous guide pour l'accès de l'équipe, la première importation, la vérification des payeurs et la première revue de la file.",
+      "tourEyebrow": "Visite de la file",
+      "skipTour": "Ignorer la visite",
+      "finishTour": "Terminer la visite",
+      "nextTourStep": "Conseil suivant",
+      "steps": {
+        "team_members": {
+          "title": "Ajoutez les membres de votre équipe",
+          "description": "Ajoutez les personnes qui travailleront et réviseront les réclamations. Pour ce pilote, le provisionnement initial reste géré avec le support Tenio."
+        },
+        "first_import": {
+          "title": "Importez vos premières réclamations",
+          "description": "Importez votre inventaire actif afin que la file reflète le travail réel avant la mise en service."
+        },
+        "configure_payers": {
+          "title": "Configurez vos payeurs",
+          "description": "Confirmez les seuils de payeur et l'attribution par défaut avant que l'équipe ne commence à travailler la file."
+        },
+        "review_first_queue": {
+          "title": "Passez en revue votre première file",
+          "description": "Ouvrez la file, examinez les priorités et, au besoin, ouvrez une réclamation pour voir comment le suivi fonctionne."
+        }
+      },
+      "tour": {
+        "priority": {
+          "title": "Commencez par la colonne Priorité",
+          "body": "Utilisez les indicateurs de priorité pour repérer d'abord les réclamations urgentes et à risque élevé."
+        },
+        "claim": {
+          "title": "Ouvrez une réclamation depuis son numéro",
+          "body": "Cliquez sur un numéro de réclamation pour ouvrir le détail complet, consigner le suivi et revoir les preuves."
+        },
+        "sla": {
+          "title": "Surveillez la colonne Âge / SLA",
+          "body": "Cette colonne montre le vieillissement et le risque de dépassement afin de décider quoi traiter ensuite."
+        }
+      }
+    }
+  },
+  "claim": {
+    "tabs": {
+      "overview": "Aperçu",
+      "evidence": "Preuves",
+      "timeline": "Historique"
+    }
+  }
+}

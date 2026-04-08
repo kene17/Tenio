@@ -10,6 +10,7 @@
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@sentry/node": "^10.47.0",
     "@tenio/contracts": "^0.0.0",
     "@tenio/domain": "^0.0.0",
     "dotenv": "^17.4.0",

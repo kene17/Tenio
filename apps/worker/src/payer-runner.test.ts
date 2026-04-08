@@ -3,7 +3,8 @@ import test from "node:test";
 
 import {
   runPayerRetrieval,
-  type AetnaClaimStatusApiPayload
+  type AetnaClaimStatusApiPayload,
+  type SunLifePshcpBrowserPayload
 } from "./payer-runner.js";
 
 async function withFixtureConnector<T>(callback: () => Promise<T>) {
@@ -87,6 +88,20 @@ test("runPayerRetrieval fixture returns retryable incomplete Aetna data", { conc
   assert.match(snapshot.portalText, /Data Complete: false/);
 });
 
+test("runPayerRetrieval can force the browser fallback for Aetna recovery", { concurrency: false }, async () => {
+  const snapshot = await withFixtureConnector(() =>
+    runPayerRetrieval({
+      ...buildTask("10001"),
+      sessionMode: "browser",
+      preferredConnectorId: "portal-browser-fallback"
+    })
+  );
+
+  assert.equal(snapshot.connectorId, "portal-browser-fallback");
+  assert.equal(snapshot.executionMode, "browser");
+  assert.equal(snapshot.connectorPayloadJson, null);
+});
+
 test("runPayerRetrieval falls back to the browser connector for other payers", { concurrency: false }, async () => {
   const snapshot = await runPayerRetrieval({
     claimId: "CLM-UHC-1",
@@ -103,4 +118,52 @@ test("runPayerRetrieval falls back to the browser connector for other payers", {
   assert.equal(snapshot.executionMode, "browser");
   assert.equal(snapshot.connectorPayloadJson, null);
   assert.equal(snapshot.evidenceArtifacts.length, 1);
+});
+
+function buildSunLifeTask(claimNumber: string) {
+  return {
+    claimId: `CLM-${claimNumber}`,
+    claimNumber,
+    patientName: "Marie Tremblay",
+    payerId: "payer_sun_life",
+    payerName: "Sun Life / PSHCP",
+    jurisdiction: "ca" as const,
+    countryCode: "CA" as const,
+    provinceOfService: "ON",
+    claimType: "dental",
+    sessionMode: "browser" as const,
+    attempt: 1,
+    maxAttempts: 3
+  };
+}
+
+test("runPayerRetrieval uses the structured Sun Life PSHCP browser connector", async () => {
+  const snapshot = await runPayerRetrieval(buildSunLifeTask("SUN-10001"));
+
+  assert.equal(snapshot.connectorId, "sun-life-pshcp-browser");
+  assert.equal(snapshot.executionMode, "browser");
+  assert.equal(snapshot.evidenceArtifacts.length, 2);
+  assert.ok(snapshot.connectorPayloadJson);
+
+  const payload = JSON.parse(snapshot.connectorPayloadJson) as SunLifePshcpBrowserPayload;
+  assert.equal(payload.statusCode, "PAID");
+  assert.equal(payload.federalPlan, true);
+  assert.match(snapshot.portalText, /Sun Life PSHCP browser workflow payload/);
+});
+
+test("runPayerRetrieval fixture returns COB and incomplete Sun Life PSHCP scenarios", async () => {
+  const cobSnapshot = await runPayerRetrieval(buildSunLifeTask("sun-cob"));
+  const retrySnapshot = await runPayerRetrieval(buildSunLifeTask("sun-retry"));
+
+  const cobPayload = JSON.parse(
+    cobSnapshot.connectorPayloadJson ?? "null"
+  ) as SunLifePshcpBrowserPayload;
+  const retryPayload = JSON.parse(
+    retrySnapshot.connectorPayloadJson ?? "null"
+  ) as SunLifePshcpBrowserPayload;
+
+  assert.equal(cobPayload.statusCode, "COB_REQUIRED");
+  assert.equal(cobPayload.cobRequired, true);
+  assert.equal(retryPayload.statusCode, "PORTAL_INCOMPLETE");
+  assert.equal(retryPayload.dataComplete, false);
 });

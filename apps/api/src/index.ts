@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "./sentry.js";
 
 import { buildApp } from "./app.js";
 

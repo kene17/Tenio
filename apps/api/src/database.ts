@@ -11,7 +11,8 @@ export function getDatabaseUrl() {
 export function getPool() {
   if (!pool) {
     pool = new Pool({
-      connectionString: getDatabaseUrl()
+      connectionString: getDatabaseUrl(),
+      allowExitOnIdle: true
     });
   }
 

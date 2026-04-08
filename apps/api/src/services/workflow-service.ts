@@ -11,15 +11,20 @@ import {
   claimNextRetrievalJob,
   commitClaimImport,
   createClaim,
+  completeAgentToolStep,
   exportResults,
   failRetrievalJob,
+  getAccountSummary,
   getClaimDetail,
   getEvidenceArtifactContent,
+  getOnboardingState,
   getPerformanceMetrics,
   getPilotClaimDetail,
   getReviewPolicyForClaim,
   getResultDetail,
+  getStatusSummary,
   getValidatedSession,
+  inviteUserToOrganization,
   listAuditEvents,
   listClaims,
   listClaimsList,
@@ -27,27 +32,34 @@ import {
   listPilotQueueItems,
   listQueue,
   listResultSummaries,
+  listUsersByOrganization,
   previewClaimImport,
+  heartbeatAgentRun,
+  markClaimDetailOpenedForOnboarding,
+  removeUserFromOrganization,
+  recordAgentTerminalStep,
+  startAgentToolStep,
+  updateOnboardingState,
   updatePayerConfigurationPolicy,
   enqueueRetrievalJob
 } from "../domain/store.js";
-import type { ClaimImportRowInput } from "../domain/imports.js";
+import type { ImportProfileId, RawImportRow } from "../import/pms/index.js";
 
 export class WorkflowService {
-  async getQueue() {
-    return queueItemSchema.array().parse(await listQueue());
+  async getQueue(organizationId?: string) {
+    return queueItemSchema.array().parse(await listQueue(organizationId));
   }
 
-  async getClaims() {
-    return claimSummarySchema.array().parse(await listClaims());
+  async getClaims(organizationId?: string) {
+    return claimSummarySchema.array().parse(await listClaims(organizationId));
   }
 
-  async getClaimsList() {
-    return listClaimsList();
+  async getClaimsList(organizationId?: string) {
+    return listClaimsList(organizationId);
   }
 
-  async getClaimDetail(claimId: string) {
-    const claim = await getClaimDetail(claimId);
+  async getClaimDetail(claimId: string, organizationId?: string) {
+    const claim = await getClaimDetail(claimId, organizationId);
 
     if (!claim) {
       return null;
@@ -56,36 +68,40 @@ export class WorkflowService {
     return claimDetailSchema.parse(claim);
   }
 
-  async getPilotQueue() {
-    return listPilotQueueItems();
+  async getPilotQueue(organizationId?: string) {
+    return listPilotQueueItems(organizationId);
   }
 
-  async getPilotClaimDetail(claimId: string) {
-    return getPilotClaimDetail(claimId);
+  async getPilotClaimDetail(claimId: string, organizationId?: string) {
+    return getPilotClaimDetail(claimId, organizationId);
   }
 
-  async getResults() {
-    return listResultSummaries();
+  async getResults(organizationId?: string) {
+    return listResultSummaries(organizationId);
   }
 
   async exportResults(...args: Parameters<typeof exportResults>) {
     return exportResults(...args);
   }
 
-  async getResultDetail(resultId: string) {
-    return getResultDetail(resultId);
+  async getResultDetail(resultId: string, organizationId?: string) {
+    return getResultDetail(resultId, organizationId);
   }
 
-  async getEvidenceArtifactContent(artifactId: string, organizationId: string) {
-    return getEvidenceArtifactContent(artifactId, organizationId);
+  async getEvidenceArtifactContent(
+    artifactId: string,
+    organizationId: string,
+    actor?: Parameters<typeof getEvidenceArtifactContent>[2]
+  ) {
+    return getEvidenceArtifactContent(artifactId, organizationId, actor);
   }
 
-  async getAuditLog() {
-    return listAuditEvents();
+  async getAuditLog(organizationId?: string) {
+    return listAuditEvents(organizationId);
   }
 
-  async getPerformanceMetrics() {
-    return getPerformanceMetrics();
+  async getPerformanceMetrics(organizationId?: string) {
+    return getPerformanceMetrics(organizationId);
   }
 
   async getPayerConfigurations(organizationId?: string) {
@@ -100,6 +116,40 @@ export class WorkflowService {
     return getValidatedSession(sessionId);
   }
 
+  async getUsers(organizationId: string) {
+    return listUsersByOrganization(organizationId);
+  }
+
+  async inviteUser(...args: Parameters<typeof inviteUserToOrganization>) {
+    return inviteUserToOrganization(...args);
+  }
+
+  async removeUser(...args: Parameters<typeof removeUserFromOrganization>) {
+    return removeUserFromOrganization(...args);
+  }
+
+  async getAccount(organizationId: string) {
+    return getAccountSummary(organizationId);
+  }
+
+  async getStatus(organizationId: string) {
+    return getStatusSummary(organizationId);
+  }
+
+  async getOnboardingState(...args: Parameters<typeof getOnboardingState>) {
+    return getOnboardingState(...args);
+  }
+
+  async updateOnboardingState(...args: Parameters<typeof updateOnboardingState>) {
+    return updateOnboardingState(...args);
+  }
+
+  async markClaimDetailOpenedForOnboarding(
+    ...args: Parameters<typeof markClaimDetailOpenedForOnboarding>
+  ) {
+    return markClaimDetailOpenedForOnboarding(...args);
+  }
+
   async createClaim(...args: Parameters<typeof createClaim>) {
     return createClaim(...args);
   }
@@ -108,12 +158,20 @@ export class WorkflowService {
     return getReviewPolicyForClaim(...args);
   }
 
-  async previewClaimImport(rows: ClaimImportRowInput[], actor: Parameters<typeof previewClaimImport>[1]) {
-    return previewClaimImport(rows, actor);
+  async previewClaimImport(
+    rows: RawImportRow[],
+    actor: Parameters<typeof previewClaimImport>[1],
+    importProfile?: ImportProfileId
+  ) {
+    return previewClaimImport(rows, actor, importProfile);
   }
 
-  async commitClaimImport(rows: ClaimImportRowInput[], actor: Parameters<typeof commitClaimImport>[1]) {
-    return commitClaimImport(rows, actor);
+  async commitClaimImport(
+    rows: RawImportRow[],
+    actor: Parameters<typeof commitClaimImport>[1],
+    importProfile?: ImportProfileId
+  ) {
+    return commitClaimImport(rows, actor, importProfile);
   }
 
   async updatePayerConfigurationPolicy(
@@ -132,6 +190,22 @@ export class WorkflowService {
 
   async claimNextRetrievalJob(...args: Parameters<typeof claimNextRetrievalJob>) {
     return claimNextRetrievalJob(...args);
+  }
+
+  async heartbeatAgentRun(...args: Parameters<typeof heartbeatAgentRun>) {
+    return heartbeatAgentRun(...args);
+  }
+
+  async startAgentToolStep(...args: Parameters<typeof startAgentToolStep>) {
+    return startAgentToolStep(...args);
+  }
+
+  async completeAgentToolStep(...args: Parameters<typeof completeAgentToolStep>) {
+    return completeAgentToolStep(...args);
+  }
+
+  async recordAgentTerminalStep(...args: Parameters<typeof recordAgentTerminalStep>) {
+    return recordAgentTerminalStep(...args);
   }
 
   async failRetrievalJob(...args: Parameters<typeof failRetrievalJob>) {

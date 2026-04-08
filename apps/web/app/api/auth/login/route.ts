@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { UserRole } from "@tenio/domain";
 
 import { encodeSession, PILOT_SESSION_COOKIE } from "../../../../lib/pilot-auth";
 
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
       id: string;
       userId: string;
       organizationId: string;
-      role: "admin" | "manager" | "operator" | "viewer";
+      organizationName?: string;
+      role: UserRole;
       fullName: string;
       email: string;
       expiresAt: string;
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
       sessionId: payload.session.id,
       userId: payload.session.userId,
       organizationId: payload.session.organizationId,
+      organizationName: payload.session.organizationName,
       role: payload.session.role,
       fullName: payload.session.fullName,
       email: payload.session.email,

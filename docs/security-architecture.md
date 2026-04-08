@@ -4,7 +4,7 @@
 
 - Web sessions are signed with `TENIO_WEB_SESSION_SECRET`.
 - Users authenticate against the workflow API and receive a session record plus a signed cookie.
-- Roles currently supported: `admin`, `manager`, `operator`, `viewer`.
+- Roles currently supported: `owner`, `manager`, `operator`, `viewer`.
 
 ## Service Authentication
 
