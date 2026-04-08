@@ -175,6 +175,7 @@ async function seedStoredEvidenceArtifact() {
 }
 
 async function insertFailureAuditEvent(organizationId: string) {
+  const eventId = `AUD-failure-${Date.now()}`;
   await getPool().query(
     `
       INSERT INTO audit_events (id, organization_id, occurred_at, payload)
@@ -185,10 +186,10 @@ async function insertFailureAuditEvent(organizationId: string) {
         payload = EXCLUDED.payload
     `,
     [
-      `AUD-failure-${Date.now()}`,
+      eventId,
       organizationId,
       JSON.stringify({
-        id: `AUD-failure-${Date.now()}`,
+        id: eventId,
         at: new Date().toISOString(),
         organizationId,
         actor: { name: "System", type: "system", avatar: "SYS" },
@@ -207,6 +208,59 @@ async function insertFailureAuditEvent(organizationId: string) {
       })
     ]
   );
+}
+
+async function insertAuditEvent(params: {
+  organizationId: string;
+  eventType: string;
+  object?: string;
+  objectId?: string;
+  claimId?: string;
+  outcome?: "success" | "failure";
+  detail?: Record<string, unknown>;
+}) {
+  const eventId = `AUD-${params.eventType}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await getPool().query(
+    `
+      INSERT INTO audit_events (id, organization_id, claim_id, occurred_at, payload)
+      VALUES ($1, $2, $3, NOW(), $4::jsonb)
+      ON CONFLICT (id) DO UPDATE SET
+        organization_id = EXCLUDED.organization_id,
+        claim_id = EXCLUDED.claim_id,
+        occurred_at = EXCLUDED.occurred_at,
+        payload = EXCLUDED.payload
+    `,
+    [
+      eventId,
+      params.organizationId,
+      params.claimId ?? null,
+      JSON.stringify({
+        id: eventId,
+        at: new Date().toISOString(),
+        organizationId: params.organizationId,
+        actor: { name: "System", type: "system", avatar: "SYS" },
+        eventType: params.eventType,
+        action: params.eventType,
+        object: params.object ?? "Configuration",
+        objectId: params.objectId ?? eventId,
+        source: "System",
+        payer: "Mixed",
+        summary: `${params.eventType} inserted for testing.`,
+        sensitivity: "normal",
+        category: "Testing",
+        outcome: params.outcome ?? "success",
+        detail: params.detail ?? {},
+        claimId: params.claimId ?? undefined
+      })
+    ]
+  );
+}
+
+function getStepStatus(
+  steps: Array<{ id: string; status: string }>,
+  stepId: string
+) {
+  return steps.find((step) => step.id === stepId)?.status ?? null;
 }
 
 async function captureStdout<T>(run: () => Promise<T>) {
@@ -276,6 +330,13 @@ test("protected routes return 403 without an authenticated session", async () =>
       app.inject({ method: "GET", url: "/configuration/payers", headers: serviceHeaders }),
       app.inject({ method: "GET", url: "/audit-log", headers: serviceHeaders }),
       app.inject({ method: "GET", url: "/performance", headers: serviceHeaders }),
+      app.inject({ method: "GET", url: "/onboarding/state", headers: serviceHeaders }),
+      app.inject({
+        method: "POST",
+        url: "/onboarding/state",
+        headers: commonHeaders,
+        payload: { action: "dismiss_welcome" }
+      }),
       app.inject({ method: "GET", url: "/users", headers: serviceHeaders }),
       app.inject({ method: "GET", url: "/account", headers: serviceHeaders }),
       app.inject({ method: "GET", url: "/status", headers: serviceHeaders })
@@ -366,6 +427,13 @@ test("operator can work claims but cannot read payer policy, export, audit, stat
       }),
       app.inject({ method: "GET", url: "/audit-log", headers: authHeaders(operatorSession) }),
       app.inject({ method: "GET", url: "/performance", headers: authHeaders(operatorSession) }),
+      app.inject({ method: "GET", url: "/onboarding/state", headers: authHeaders(operatorSession) }),
+      app.inject({
+        method: "POST",
+        url: "/onboarding/state",
+        headers: commonHeaders,
+        payload: { action: "dismiss_welcome" }
+      }),
       app.inject({ method: "GET", url: "/status", headers: authHeaders(operatorSession) }),
       app.inject({ method: "POST", url: "/results/export", headers: authHeaders(operatorSession) }),
       app.inject({ method: "GET", url: "/users", headers: authHeaders(operatorSession) }),
@@ -444,6 +512,16 @@ test("viewer is read-only and cannot download evidence", async () => {
       app.inject({ method: "GET", url: "/configuration/payers", headers: authHeaders(viewerSession) }),
       app.inject({ method: "GET", url: "/audit-log", headers: authHeaders(viewerSession) }),
       app.inject({ method: "GET", url: "/performance", headers: authHeaders(viewerSession) }),
+      app.inject({ method: "GET", url: "/onboarding/state", headers: authHeaders(viewerSession) }),
+      app.inject({
+        method: "POST",
+        url: "/onboarding/state",
+        headers: {
+          ...authHeaders(viewerSession),
+          "content-type": "application/json"
+        },
+        payload: { action: "complete_queue_tour" }
+      }),
       app.inject({ method: "GET", url: "/status", headers: authHeaders(viewerSession) }),
       app.inject({ method: "GET", url: "/users", headers: authHeaders(viewerSession) }),
       app.inject({ method: "GET", url: "/account", headers: authHeaders(viewerSession) }),
@@ -468,6 +546,16 @@ test("manager can read payer config, users, audit, and status but cannot change 
       app.inject({ method: "GET", url: "/users", headers: authHeaders(managerSession) }),
       app.inject({ method: "GET", url: "/audit-log", headers: authHeaders(managerSession) }),
       app.inject({ method: "GET", url: "/performance", headers: authHeaders(managerSession) }),
+      app.inject({ method: "GET", url: "/onboarding/state", headers: authHeaders(managerSession) }),
+      app.inject({
+        method: "POST",
+        url: "/onboarding/state",
+        headers: {
+          ...authHeaders(managerSession),
+          "content-type": "application/json"
+        },
+        payload: { action: "complete_queue_tour" }
+      }),
       app.inject({ method: "GET", url: "/status", headers: authHeaders(managerSession) }),
       app.inject({ method: "POST", url: "/results/export", headers: authHeaders(managerSession) })
     ]);
@@ -584,6 +672,297 @@ test("login returns organization name for the authenticated workspace", async ()
   const session = await login(appConfig.seedOwnerEmail, appConfig.seedOwnerPassword);
 
   assert.equal(session.organizationName, appConfig.seedOrgName);
+});
+
+test("onboarding state derives setup progress from org activity and queue tour completion", async () => {
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const organizationId = `org_onboarding_${suffix}`;
+  const ownerSession = await upsertTestSession({
+    userId: `user_onboarding_owner_${suffix}`,
+    organizationId,
+    organizationName: `Onboarding Clinic ${suffix}`,
+    email: `owner.${suffix}@clinic.test`,
+    fullName: "Olivia Owner",
+    role: "owner",
+    sessionId: `session_onboarding_owner_${suffix}`
+  });
+  const app = await buildApp();
+
+  try {
+    const intake = await app.inject({
+      method: "POST",
+      url: "/claims/intake",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: {
+        organizationId,
+        payerId: "payer_sun_life",
+        claimNumber: "CLM-ONB-BASE-1001",
+        patientName: "Baseline Claim",
+        jurisdiction: "ca",
+        countryCode: "CA",
+        provinceOfService: "ON",
+        claimType: "paramedical",
+        serviceProviderType: "physiotherapist",
+        serviceCode: "97110",
+        serviceDate: "2026-04-08",
+        billedAmountCents: 12500,
+        priority: "normal"
+      }
+    });
+    assert.equal(intake.statusCode, 200);
+
+    const initial = await app.inject({
+      method: "GET",
+      url: "/onboarding/state",
+      headers: authHeaders(ownerSession)
+    });
+    assert.equal(initial.statusCode, 200);
+    const initialPayload = JSON.parse(initial.body) as {
+      item: {
+        steps: Array<{ id: string; status: string }>;
+        welcome: { dismissible: boolean };
+      };
+    };
+    assert.equal(getStepStatus(initialPayload.item.steps, "team_members"), "current");
+    assert.notEqual(getStepStatus(initialPayload.item.steps, "first_import"), "complete");
+    assert.equal(initialPayload.item.welcome.dismissible, false);
+
+    const earlyDismiss = await app.inject({
+      method: "POST",
+      url: "/onboarding/state",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: { action: "dismiss_welcome" }
+    });
+    assert.equal(earlyDismiss.statusCode, 400);
+
+    const invite = await app.inject({
+      method: "POST",
+      url: "/users/invite",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: {
+        email: `operator.${suffix}@clinic.test`,
+        fullName: "Nina Operator",
+        role: "operator"
+      }
+    });
+    assert.equal(invite.statusCode, 200);
+
+    const importCommit = await app.inject({
+      method: "POST",
+      url: "/claims/import/commit",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: {
+        importProfile: "generic_template",
+        rows: [
+          {
+            claimNumber: "CLM-ONB-IM-1001",
+            patientName: "Imported Claim",
+            payerId: "payer_sun_life",
+            jurisdiction: "ca",
+            countryCode: "CA",
+            provinceOfService: "ON",
+            claimType: "paramedical",
+            serviceProviderType: "physiotherapist",
+            serviceCode: "97110",
+            serviceDate: "2026-04-08",
+            billedAmountCents: "8900",
+            priority: "high"
+          }
+        ]
+      }
+    });
+    assert.equal(importCommit.statusCode, 200);
+
+    await insertAuditEvent({
+      organizationId,
+      eventType: "payer.policy_updated",
+      detail: {
+        payerId: "payer_sun_life",
+        rowsImported: 1
+      }
+    });
+
+    const postImport = await app.inject({
+      method: "GET",
+      url: "/onboarding/state",
+      headers: authHeaders(ownerSession)
+    });
+    assert.equal(postImport.statusCode, 200);
+    const postImportPayload = JSON.parse(postImport.body) as {
+      item: {
+        steps: Array<{ id: string; status: string }>;
+        welcome: { shouldShow: boolean; dismissible: boolean };
+        queueTour: { shouldShow: boolean };
+      };
+    };
+    assert.equal(getStepStatus(postImportPayload.item.steps, "team_members"), "complete");
+    assert.equal(getStepStatus(postImportPayload.item.steps, "first_import"), "complete");
+    assert.equal(getStepStatus(postImportPayload.item.steps, "configure_payers"), "complete");
+    assert.equal(getStepStatus(postImportPayload.item.steps, "review_first_queue"), "current");
+    assert.equal(postImportPayload.item.welcome.dismissible, true);
+    assert.equal(postImportPayload.item.welcome.shouldShow, true);
+    assert.equal(postImportPayload.item.queueTour.shouldShow, false);
+
+    const dismiss = await app.inject({
+      method: "POST",
+      url: "/onboarding/state",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: { action: "dismiss_welcome" }
+    });
+    assert.equal(dismiss.statusCode, 200);
+    const dismissPayload = JSON.parse(dismiss.body) as {
+      item: {
+        welcome: { shouldShow: boolean };
+        queueTour: { shouldShow: boolean };
+      };
+    };
+    assert.equal(dismissPayload.item.welcome.shouldShow, false);
+    assert.equal(dismissPayload.item.queueTour.shouldShow, true);
+
+    const completeTour = await app.inject({
+      method: "POST",
+      url: "/onboarding/state",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: { action: "complete_queue_tour" }
+    });
+    assert.equal(completeTour.statusCode, 200);
+    const completeTourPayload = JSON.parse(completeTour.body) as {
+      item: {
+        steps: Array<{ id: string; status: string }>;
+        progress: { completedCount: number };
+        queueTour: { shouldShow: boolean };
+      };
+    };
+    assert.equal(getStepStatus(completeTourPayload.item.steps, "review_first_queue"), "complete");
+    assert.equal(completeTourPayload.item.progress.completedCount, 4);
+    assert.equal(completeTourPayload.item.queueTour.shouldShow, false);
+  } finally {
+    await app.close();
+  }
+});
+
+test("opening a claim detail marks the first queue review step complete", async () => {
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const organizationId = `org_claim_open_${suffix}`;
+  const ownerSession = await upsertTestSession({
+    userId: `user_claim_open_owner_${suffix}`,
+    organizationId,
+    organizationName: `Claim Open Clinic ${suffix}`,
+    email: `claim-open.${suffix}@clinic.test`,
+    fullName: "Morgan Manager",
+    role: "manager",
+    sessionId: `session_claim_open_owner_${suffix}`
+  });
+  const app = await buildApp();
+
+  try {
+    const initial = await app.inject({
+      method: "GET",
+      url: "/onboarding/state",
+      headers: authHeaders(ownerSession)
+    });
+    assert.equal(initial.statusCode, 200);
+
+    const importCommit = await app.inject({
+      method: "POST",
+      url: "/claims/import/commit",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: {
+        importProfile: "generic_template",
+        rows: [
+          {
+            claimNumber: "ONB-OPEN-IMPORT-1001",
+            patientName: "Imported Queue Patient",
+            payerId: "payer_sun_life",
+            jurisdiction: "ca",
+            countryCode: "CA",
+            provinceOfService: "ON",
+            claimType: "paramedical",
+            serviceProviderType: "physiotherapist",
+            serviceCode: "97110",
+            serviceDate: "2026-04-08",
+            billedAmountCents: "14500",
+            priority: "high"
+          }
+        ]
+      }
+    });
+    assert.equal(importCommit.statusCode, 200);
+
+    const intake = await app.inject({
+      method: "POST",
+      url: "/claims/intake",
+      headers: {
+        ...authHeaders(ownerSession),
+        "content-type": "application/json"
+      },
+      payload: {
+        organizationId,
+        payerId: "payer_sun_life",
+        claimNumber: "CLM-ONB-OPEN-1001",
+        patientName: "Claim Open Patient",
+        jurisdiction: "ca",
+        countryCode: "CA",
+        provinceOfService: "ON",
+        claimType: "paramedical",
+        serviceProviderType: "physiotherapist",
+        serviceCode: "97110",
+        serviceDate: "2026-04-08",
+        billedAmountCents: 14500,
+        priority: "high"
+      }
+    });
+    assert.equal(intake.statusCode, 200);
+
+    const claimDetail = await app.inject({
+      method: "GET",
+      url: "/claims/CLM-ONB-OPEN-1001",
+      headers: authHeaders(ownerSession)
+    });
+    assert.equal(claimDetail.statusCode, 200);
+
+    const updatedState = await app.inject({
+      method: "GET",
+      url: "/onboarding/state",
+      headers: authHeaders(ownerSession)
+    });
+    assert.equal(updatedState.statusCode, 200);
+    const updatedPayload = JSON.parse(updatedState.body) as {
+      item: {
+        steps: Array<{ id: string; status: string }>;
+        queueTour: {
+          shouldShow: boolean;
+          firstClaimDetailOpenedAt: string | null;
+        };
+      };
+    };
+    assert.equal(getStepStatus(updatedPayload.item.steps, "review_first_queue"), "complete");
+    assert.equal(updatedPayload.item.queueTour.shouldShow, false);
+    assert.ok(updatedPayload.item.queueTour.firstClaimDetailOpenedAt);
+  } finally {
+    await app.close();
+  }
 });
 
 test("evidence download stays organization-scoped", async () => {

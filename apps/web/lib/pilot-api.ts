@@ -287,6 +287,37 @@ export type StatusView = {
   openClaimsCount: number;
 };
 
+export type OnboardingStepId =
+  | "team_members"
+  | "first_import"
+  | "configure_payers"
+  | "review_first_queue";
+
+export type OnboardingStepStatus = "complete" | "current" | "pending";
+
+export type OnboardingStateView = {
+  startedAt: string;
+  steps: Array<{
+    id: OnboardingStepId;
+    status: OnboardingStepStatus;
+  }>;
+  welcome: {
+    shouldShow: boolean;
+    dismissible: boolean;
+    dismissedAt: string | null;
+  };
+  queueTour: {
+    shouldShow: boolean;
+    completedAt: string | null;
+    firstClaimDetailOpenedAt: string | null;
+  };
+  progress: {
+    completedCount: number;
+    totalSteps: number;
+    nextStepId: OnboardingStepId | null;
+  };
+};
+
 function getApiBaseUrl() {
   return process.env.TENIO_API_BASE_URL ?? "http://127.0.0.1:4000";
 }
@@ -390,6 +421,10 @@ export async function getClaimIntakeOptions() {
 
 export async function getStatus() {
   return apiFetch<{ item: StatusView }>("/status");
+}
+
+export async function getOnboardingState() {
+  return apiFetch<{ item: OnboardingStateView }>("/onboarding/state");
 }
 
 export async function createClaimIntake(input: {

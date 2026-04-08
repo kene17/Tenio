@@ -294,6 +294,15 @@ export async function buildApp() {
         return sendError(reply, 404, "Claim not found");
       }
 
+      try {
+        await workflow.markClaimDetailOpenedForOnboarding(request.tenioActor!);
+      } catch (error) {
+        request.log.warn(
+          { error: error instanceof Error ? error.message : "Unknown error" },
+          "Failed to mark onboarding claim detail open"
+        );
+      }
+
       return { item: claim };
     }
   );
@@ -650,6 +659,43 @@ export async function buildApp() {
   app.get("/status", { preHandler: requirePermission("status:read") }, async (request) => ({
     item: await workflow.getStatus(request.tenioActor!.organizationId)
   }));
+
+  app.get(
+    "/onboarding/state",
+    { preHandler: requirePermission("users:read") },
+    async (request) => ({
+      item: await workflow.getOnboardingState(request.tenioActor!)
+    })
+  );
+
+  app.post(
+    "/onboarding/state",
+    { preHandler: requirePermission("users:read") },
+    async (request, reply) => {
+      const body = request.body as {
+        action?: "dismiss_welcome" | "complete_queue_tour";
+      } | null;
+
+      if (
+        body?.action !== "dismiss_welcome" &&
+        body?.action !== "complete_queue_tour"
+      ) {
+        return sendError(reply, 400, "Invalid onboarding action");
+      }
+
+      try {
+        return {
+          item: await workflow.updateOnboardingState(request.tenioActor!, body.action)
+        };
+      } catch (error) {
+        return sendError(
+          reply,
+          400,
+          error instanceof Error ? error.message : "Onboarding update failed"
+        );
+      }
+    }
+  );
 
   app.post(
     "/internal/retrieval-jobs/claim",

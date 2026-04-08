@@ -78,9 +78,13 @@ npm run ready:api
 
 ## Seed Users
 
-- Admin: `ops.admin@acme-rcm.test` / `tenio-admin-demo`
+Defaults match `apps/api/src/config.ts` and `apps/api/.env.example` (override with `TENIO_SEED_*` env vars).
+
+- Owner: `ops.owner@acme-rcm.test` / `tenio-owner-demo`
 - Manager: `queue.manager@acme-rcm.test` / `tenio-manager-demo`
 - Operator: `operator.one@acme-rcm.test` / `tenio-operator-demo`
+
+The web app posts to the API at `TENIO_API_BASE_URL` (default `http://127.0.0.1:4000`) with `x-tenio-service-token` (`TENIO_WEB_SERVICE_TOKEN`, default `tenio-local-web-service-token`). If that token does not match the API, login returns **403** and the UI still shows “Invalid credentials” — align tokens in `apps/api/.env` and `apps/web/.env.local`.
 
 ## Validation
 

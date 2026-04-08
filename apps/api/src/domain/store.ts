@@ -137,6 +137,59 @@ export type StatusSummaryView = {
   openClaimsCount: number;
 };
 
+export type OnboardingStepId =
+  | "team_members"
+  | "first_import"
+  | "configure_payers"
+  | "review_first_queue";
+
+export type OnboardingStepStatus = "complete" | "current" | "pending";
+
+export type OnboardingStateView = {
+  startedAt: string;
+  steps: Array<{
+    id: OnboardingStepId;
+    status: OnboardingStepStatus;
+  }>;
+  welcome: {
+    shouldShow: boolean;
+    dismissible: boolean;
+    dismissedAt: string | null;
+  };
+  queueTour: {
+    shouldShow: boolean;
+    completedAt: string | null;
+    firstClaimDetailOpenedAt: string | null;
+  };
+  progress: {
+    completedCount: number;
+    totalSteps: number;
+    nextStepId: OnboardingStepId | null;
+  };
+};
+
+type OrganizationOnboardingStateRecord = {
+  organizationId: string;
+  startedAt: string;
+  baselineActiveUserCount: number;
+  baselineOpenClaimCount: number;
+};
+
+type UserOnboardingStateRecord = {
+  organizationId: string;
+  userId: string;
+  welcomeDismissedAt: string | null;
+  queueTourCompletedAt: string | null;
+  firstClaimDetailOpenedAt: string | null;
+};
+
+const onboardingStepOrder: OnboardingStepId[] = [
+  "team_members",
+  "first_import",
+  "configure_payers",
+  "review_first_queue"
+];
+
 function parsePayloadRow<T>(row: { payload: T }) {
   return row.payload;
 }
@@ -745,6 +798,68 @@ async function createSession(
   );
 }
 
+async function upsertOrganizationOnboardingState(
+  client: PoolClient,
+  state: OrganizationOnboardingStateRecord
+) {
+  await client.query(
+    `
+      INSERT INTO organization_onboarding_state (
+        organization_id,
+        started_at,
+        baseline_active_user_count,
+        baseline_open_claim_count,
+        updated_at
+      )
+      VALUES ($1, $2::timestamptz, $3, $4, NOW())
+      ON CONFLICT (organization_id)
+      DO UPDATE SET
+        started_at = EXCLUDED.started_at,
+        baseline_active_user_count = EXCLUDED.baseline_active_user_count,
+        baseline_open_claim_count = EXCLUDED.baseline_open_claim_count,
+        updated_at = NOW()
+    `,
+    [
+      state.organizationId,
+      state.startedAt,
+      state.baselineActiveUserCount,
+      state.baselineOpenClaimCount
+    ]
+  );
+}
+
+async function upsertUserOnboardingState(
+  client: PoolClient,
+  state: UserOnboardingStateRecord
+) {
+  await client.query(
+    `
+      INSERT INTO user_onboarding_state (
+        organization_id,
+        user_id,
+        welcome_dismissed_at,
+        queue_tour_completed_at,
+        first_claim_detail_opened_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5::timestamptz, NOW())
+      ON CONFLICT (organization_id, user_id)
+      DO UPDATE SET
+        welcome_dismissed_at = EXCLUDED.welcome_dismissed_at,
+        queue_tour_completed_at = EXCLUDED.queue_tour_completed_at,
+        first_claim_detail_opened_at = EXCLUDED.first_claim_detail_opened_at,
+        updated_at = NOW()
+    `,
+    [
+      state.organizationId,
+      state.userId,
+      state.welcomeDismissedAt,
+      state.queueTourCompletedAt,
+      state.firstClaimDetailOpenedAt
+    ]
+  );
+}
+
 function createSeedUsers() {
   return [
     {
@@ -969,6 +1084,43 @@ async function loadOrganizationById(organizationId: string) {
   return result.rows[0] ?? null;
 }
 
+async function loadOrganizationOnboardingState(
+  organizationId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{
+    organization_id: string;
+    started_at: string;
+    baseline_active_user_count: number;
+    baseline_open_claim_count: number;
+  }>(
+    `
+      SELECT
+        organization_id,
+        started_at::text,
+        baseline_active_user_count,
+        baseline_open_claim_count
+      FROM organization_onboarding_state
+      WHERE organization_id = $1
+      LIMIT 1
+    `,
+    [organizationId]
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    organizationId: row.organization_id,
+    startedAt: row.started_at,
+    baselineActiveUserCount: row.baseline_active_user_count,
+    baselineOpenClaimCount: row.baseline_open_claim_count
+  } satisfies OrganizationOnboardingStateRecord;
+}
+
 async function loadUsersByOrganizationInternal(organizationId: string, client?: PoolClient) {
   const result = await getDbExecutor(client).query<UserRow>(
     `
@@ -989,6 +1141,48 @@ async function loadUsersByOrganizationInternal(organizationId: string, client?: 
 async function loadUsersByOrganization(organizationId: string) {
   await initializeStore();
   return loadUsersByOrganizationInternal(organizationId);
+}
+
+async function loadUserOnboardingState(
+  organizationId: string,
+  userId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{
+    organization_id: string;
+    user_id: string;
+    welcome_dismissed_at: string | null;
+    queue_tour_completed_at: string | null;
+    first_claim_detail_opened_at: string | null;
+  }>(
+    `
+      SELECT
+        organization_id,
+        user_id,
+        welcome_dismissed_at::text,
+        queue_tour_completed_at::text,
+        first_claim_detail_opened_at::text
+      FROM user_onboarding_state
+      WHERE organization_id = $1
+        AND user_id = $2
+      LIMIT 1
+    `,
+    [organizationId, userId]
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    organizationId: row.organization_id,
+    userId: row.user_id,
+    welcomeDismissedAt: row.welcome_dismissed_at,
+    queueTourCompletedAt: row.queue_tour_completed_at,
+    firstClaimDetailOpenedAt: row.first_claim_detail_opened_at
+  } satisfies UserOnboardingStateRecord;
 }
 
 async function loadUserById(userId: string, client?: PoolClient) {
@@ -1046,6 +1240,164 @@ async function loadAuditEventsByOrganization(organizationId: string) {
   );
 
   return result.rows.map(parsePayloadRow);
+}
+
+function countActiveUsers(users: AppUserRecord[]) {
+  return users.filter((user) => user.isActive).length;
+}
+
+function countOpenClaims(claims: ClaimRecord[]) {
+  return claims.filter((claim) => claim.status !== "resolved").length;
+}
+
+function eventOccurredOnOrAfter(eventAt: string, boundaryAt: string) {
+  return new Date(eventAt).getTime() >= new Date(boundaryAt).getTime();
+}
+
+function detailNumber(detail: Record<string, unknown> | undefined, key: string) {
+  const value = detail?.[key];
+  return typeof value === "number" ? value : null;
+}
+
+async function ensureOrganizationOnboardingState(
+  organizationId: string,
+  client: PoolClient
+) {
+  const existing = await loadOrganizationOnboardingState(organizationId, client);
+
+  if (existing) {
+    return existing;
+  }
+
+  const [users, claims] = await Promise.all([
+    loadUsersByOrganizationInternal(organizationId, client),
+    loadClaimsByOrganization(organizationId, client)
+  ]);
+  const created: OrganizationOnboardingStateRecord = {
+    organizationId,
+    startedAt: new Date().toISOString(),
+    baselineActiveUserCount: countActiveUsers(users),
+    baselineOpenClaimCount: countOpenClaims(claims)
+  };
+
+  await upsertOrganizationOnboardingState(client, created);
+  return created;
+}
+
+async function ensureUserOnboardingState(
+  organizationId: string,
+  userId: string,
+  client: PoolClient
+) {
+  const existing = await loadUserOnboardingState(organizationId, userId, client);
+
+  if (existing) {
+    return existing;
+  }
+
+  const created: UserOnboardingStateRecord = {
+    organizationId,
+    userId,
+    welcomeDismissedAt: null,
+    queueTourCompletedAt: null,
+    firstClaimDetailOpenedAt: null
+  };
+
+  await upsertUserOnboardingState(client, created);
+  return created;
+}
+
+async function buildOnboardingStateInternal(
+  actor: WorkflowActor,
+  client: PoolClient
+) {
+  const [organizationState, userState, users, claims, auditEvents] = await Promise.all([
+    ensureOrganizationOnboardingState(actor.organizationId, client),
+    ensureUserOnboardingState(actor.organizationId, actor.id, client),
+    loadUsersByOrganizationInternal(actor.organizationId, client),
+    loadClaimsByOrganization(actor.organizationId, client),
+    loadAuditEventsByOrganization(actor.organizationId)
+  ]);
+
+  const activeUserCount = countActiveUsers(users);
+  const openClaimCount = countOpenClaims(claims);
+  const firstImportComplete =
+    auditEvents.some((event) => {
+      if (
+        event.eventType !== "import.commit" ||
+        event.outcome !== "success" ||
+        !eventOccurredOnOrAfter(event.at, organizationState.startedAt)
+      ) {
+        return false;
+      }
+
+      return (
+        (detailNumber(event.detail, "rowsImported") ?? 0) > 0 ||
+        (detailNumber(event.detail, "rowsCreated") ?? 0) > 0 ||
+        (detailNumber(event.detail, "rowCount") ?? 0) > 0
+      );
+    }) || openClaimCount > organizationState.baselineOpenClaimCount;
+  const configurePayersComplete = auditEvents.some(
+    (event) =>
+      event.eventType === "payer.policy_updated" &&
+      event.outcome === "success" &&
+      eventOccurredOnOrAfter(event.at, organizationState.startedAt)
+  );
+  const teamMembersComplete =
+    activeUserCount > organizationState.baselineActiveUserCount;
+  const reviewFirstQueueComplete = Boolean(
+    userState.queueTourCompletedAt || userState.firstClaimDetailOpenedAt
+  );
+
+  const completion = {
+    team_members: teamMembersComplete,
+    first_import: firstImportComplete,
+    configure_payers: configurePayersComplete,
+    review_first_queue: reviewFirstQueueComplete
+  } satisfies Record<OnboardingStepId, boolean>;
+
+  let currentAssigned = false;
+  const steps = onboardingStepOrder.map((id) => {
+    if (completion[id]) {
+      return { id, status: "complete" } satisfies OnboardingStateView["steps"][number];
+    }
+
+    if (!currentAssigned) {
+      currentAssigned = true;
+      return { id, status: "current" } satisfies OnboardingStateView["steps"][number];
+    }
+
+    return { id, status: "pending" } satisfies OnboardingStateView["steps"][number];
+  });
+  const completedCount = steps.filter((step) => step.status === "complete").length;
+  const nextStepId = steps.find((step) => step.status !== "complete")?.id ?? null;
+  const welcomeShouldShow =
+    completedCount < onboardingStepOrder.length && !userState.welcomeDismissedAt;
+
+  return {
+    state: {
+      startedAt: organizationState.startedAt,
+      steps,
+      welcome: {
+        shouldShow: welcomeShouldShow,
+        dismissible: firstImportComplete,
+        dismissedAt: userState.welcomeDismissedAt
+      },
+      queueTour: {
+        shouldShow:
+          firstImportComplete && !welcomeShouldShow && !reviewFirstQueueComplete,
+        completedAt: userState.queueTourCompletedAt,
+        firstClaimDetailOpenedAt: userState.firstClaimDetailOpenedAt
+      },
+      progress: {
+        completedCount,
+        totalSteps: onboardingStepOrder.length,
+        nextStepId
+      }
+    } satisfies OnboardingStateView,
+    completion,
+    userState
+  };
 }
 
 async function revokeSessionsByUserId(userId: string, client: PoolClient) {
@@ -1849,6 +2201,66 @@ export async function getStatusSummary(
     failedActionsLast24h,
     openClaimsCount: claims.filter((claim) => claim.status !== "resolved").length
   };
+}
+
+export async function getOnboardingState(actor: WorkflowActor): Promise<OnboardingStateView> {
+  return withTransaction(async (client) => {
+    const { state } = await buildOnboardingStateInternal(actor, client);
+    return state;
+  });
+}
+
+export async function updateOnboardingState(
+  actor: WorkflowActor,
+  action: "dismiss_welcome" | "complete_queue_tour"
+): Promise<OnboardingStateView> {
+  await withTransaction(async (client) => {
+    const { completion, userState } = await buildOnboardingStateInternal(actor, client);
+    const nowIso = new Date().toISOString();
+
+    if (action === "dismiss_welcome") {
+      if (!completion.first_import) {
+        throw new Error("Complete your first import before dismissing the setup checklist.");
+      }
+
+      if (!userState.welcomeDismissedAt) {
+        await upsertUserOnboardingState(client, {
+          ...userState,
+          welcomeDismissedAt: nowIso
+        });
+      }
+
+      return;
+    }
+
+    if (!userState.queueTourCompletedAt) {
+      await upsertUserOnboardingState(client, {
+        ...userState,
+        queueTourCompletedAt: nowIso
+      });
+    }
+  });
+
+  return getOnboardingState(actor);
+}
+
+export async function markClaimDetailOpenedForOnboarding(actor: WorkflowActor) {
+  if (actor.role !== "owner" && actor.role !== "manager") {
+    return;
+  }
+
+  await withTransaction(async (client) => {
+    const userState = await ensureUserOnboardingState(actor.organizationId, actor.id, client);
+
+    if (userState.firstClaimDetailOpenedAt) {
+      return;
+    }
+
+    await upsertUserOnboardingState(client, {
+      ...userState,
+      firstClaimDetailOpenedAt: new Date().toISOString()
+    });
+  });
 }
 
 export async function getPerformanceMetrics(

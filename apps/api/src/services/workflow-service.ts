@@ -17,6 +17,7 @@ import {
   getAccountSummary,
   getClaimDetail,
   getEvidenceArtifactContent,
+  getOnboardingState,
   getPerformanceMetrics,
   getPilotClaimDetail,
   getReviewPolicyForClaim,
@@ -34,9 +35,11 @@ import {
   listUsersByOrganization,
   previewClaimImport,
   heartbeatAgentRun,
+  markClaimDetailOpenedForOnboarding,
   removeUserFromOrganization,
   recordAgentTerminalStep,
   startAgentToolStep,
+  updateOnboardingState,
   updatePayerConfigurationPolicy,
   enqueueRetrievalJob
 } from "../domain/store.js";
@@ -131,6 +134,20 @@ export class WorkflowService {
 
   async getStatus(organizationId: string) {
     return getStatusSummary(organizationId);
+  }
+
+  async getOnboardingState(...args: Parameters<typeof getOnboardingState>) {
+    return getOnboardingState(...args);
+  }
+
+  async updateOnboardingState(...args: Parameters<typeof updateOnboardingState>) {
+    return updateOnboardingState(...args);
+  }
+
+  async markClaimDetailOpenedForOnboarding(
+    ...args: Parameters<typeof markClaimDetailOpenedForOnboarding>
+  ) {
+    return markClaimDetailOpenedForOnboarding(...args);
   }
 
   async createClaim(...args: Parameters<typeof createClaim>) {

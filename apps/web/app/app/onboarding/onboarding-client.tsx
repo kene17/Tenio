@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { hasPermission, type UserRole } from "@tenio/domain";
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   Download,
   FileSpreadsheet,
@@ -15,6 +16,8 @@ import {
 import { KPICard } from "../../../components/kpi-card";
 import type { Locale, TenioMessages } from "../../../lib/locale";
 import { parseCsvText } from "../../../lib/csv";
+import type { OnboardingStateView, OnboardingStepId } from "../../../lib/pilot-api";
+import fallbackMessages from "../../../messages/en.json";
 
 type ClaimImportAction = "create" | "update" | "invalid" | "duplicate_in_file";
 type RawImportRow = Record<string, string>;
@@ -108,6 +111,9 @@ const templateExample = [
   "Pending payer review"
 ];
 
+const supportEmail =
+  process.env.NEXT_PUBLIC_PILOT_SUPPORT_EMAIL ?? "pilot-support@example.com";
+
 function actionBadge(
   action: ClaimImportAction,
   messages: TenioMessages["onboarding"]
@@ -148,15 +154,44 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+function setupStatusBadge(
+  status: OnboardingStateView["steps"][number]["status"],
+  messages: TenioMessages["onboarding"]
+) {
+  if (status === "complete") {
+    return (
+      <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+        {messages.setup.statusComplete}
+      </span>
+    );
+  }
+
+  if (status === "current") {
+    return (
+      <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+        {messages.setup.statusCurrent}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">
+      {messages.setup.statusPending}
+    </span>
+  );
+}
+
 export function OnboardingClient({
   locale,
   messages,
   currentRole,
+  setupState,
   payers
 }: {
   locale: Locale;
   messages: TenioMessages["onboarding"];
   currentRole: UserRole;
+  setupState: OnboardingStateView | null;
   payers: Array<{
     payerId: string;
     payerName: string;
@@ -164,34 +199,39 @@ export function OnboardingClient({
     countryCode: "US" | "CA";
   }>;
 }) {
+  const onboardingMessages = messages ?? fallbackMessages.onboarding;
+  const setupMessages = onboardingMessages.setup;
   const router = useRouter();
   const canImport = hasPermission(currentRole, "claims:import");
+  const canSeeSetupChecklist = hasPermission(currentRole, "users:read");
   const [rawRows, setRawRows] = useState<RawImportRow[]>([]);
   const [importProfile, setImportProfile] = useState<ImportProfileId>("jane_app_csv");
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<ClaimImportPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [committedCount, setCommittedCount] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+  const importSectionRef = useRef<HTMLElement | null>(null);
   const importProfiles = useMemo(
     () => [
       {
         id: "jane_app_csv" as const,
-        label: messages.profileJane,
-        description: messages.profileJaneDescription
+        label: onboardingMessages.profileJane,
+        description: onboardingMessages.profileJaneDescription
       },
       {
         id: "generic_template" as const,
-        label: messages.profileGeneric,
-        description: messages.profileGenericDescription
+        label: onboardingMessages.profileGeneric,
+        description: onboardingMessages.profileGenericDescription
       },
       {
         id: "dentrix_csv_shell" as const,
-        label: messages.profileDentrix,
-        description: messages.profileDentrixDescription
+        label: onboardingMessages.profileDentrix,
+        description: onboardingMessages.profileDentrixDescription
       }
     ],
-    [messages]
+    [onboardingMessages]
   );
 
   const readyRows = useMemo(
@@ -200,6 +240,8 @@ export function OnboardingClient({
       0,
     [preview]
   );
+
+  const nextStepId = setupState?.progress.nextStepId ?? null;
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -216,6 +258,7 @@ export function OnboardingClient({
     setPreview(null);
     setError(null);
     setNotice(null);
+    setCommittedCount(null);
   }
 
   function handlePreview() {
@@ -244,6 +287,7 @@ export function OnboardingClient({
       const payload = (await response.json()) as { item: ClaimImportPreview };
       setPreview(payload.item);
       setNotice(messages.previewGeneratedNotice);
+      setCommittedCount(null);
     });
   }
 
@@ -273,6 +317,7 @@ export function OnboardingClient({
       const payload = (await response.json()) as { item: ClaimImportPreview };
       setPreview(payload.item);
       const committedCount = payload.item.summary.importedCount ?? readyRows;
+      setCommittedCount(committedCount);
       setNotice(
         locale === "fr"
           ? `${committedCount} ${messages.commitNoticeSuffix}`
@@ -282,9 +327,110 @@ export function OnboardingClient({
     });
   }
 
+  function jumpToImportTool() {
+    importSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function stepCopy(stepId: OnboardingStepId) {
+    return messages.setup.steps[stepId];
+  }
+
+  function renderStepAction(stepId: OnboardingStepId) {
+    if (stepId === "team_members") {
+      return (
+        <a
+          href={`mailto:${supportEmail}`}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {messages.setup.contactSupport}
+        </a>
+      );
+    }
+
+    if (stepId === "first_import") {
+      return (
+        <button
+          type="button"
+          onClick={jumpToImportTool}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {messages.setup.openImportTool}
+        </button>
+      );
+    }
+
+    if (stepId === "configure_payers") {
+      return (
+        <button
+          type="button"
+          onClick={() => router.push("/app/configuration")}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {messages.setup.openConfiguration}
+        </button>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => router.push("/app/queue")}
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        {messages.setup.openQueue}
+      </button>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto">
       <div className="p-6">
+        {canSeeSetupChecklist && setupState ? (
+          <section className="mb-6 rounded-lg border border-gray-200 bg-white p-5">
+            <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {messages.setup.title}
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">{messages.setup.subtitle}</p>
+              </div>
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 xl:min-w-72">
+                <div className="font-semibold">
+                  {setupState.progress.completedCount} / {setupState.progress.totalSteps}{" "}
+                  {messages.setup.progressSuffix}
+                </div>
+                <div className="mt-1 text-xs text-blue-700">
+                  {nextStepId
+                    ? `${messages.setup.nextStepLabel} ${stepCopy(nextStepId).title}`
+                    : messages.setup.allStepsComplete}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {setupState.steps.map((step) => {
+                const copy = stepCopy(step.id);
+
+                return (
+                  <div
+                    key={step.id}
+                    className="flex flex-col gap-4 rounded-lg border border-gray-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        {setupStatusBadge(step.status, messages)}
+                        <div className="text-sm font-semibold text-gray-900">{copy.title}</div>
+                      </div>
+                      <p className="text-sm text-gray-600">{copy.description}</p>
+                    </div>
+                    <div>{renderStepAction(step.id)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">{messages.title}</h1>
@@ -335,7 +481,7 @@ export function OnboardingClient({
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_1fr]">
-          <section className="rounded-lg border border-gray-200 bg-white p-5">
+          <section ref={importSectionRef} className="rounded-lg border border-gray-200 bg-white p-5">
             <div className="mb-4 flex items-start gap-3">
               <FileSpreadsheet className="mt-0.5 h-5 w-5 text-blue-600" />
               <div>
@@ -396,7 +542,23 @@ export function OnboardingClient({
             {notice ? (
               <div className="mt-4 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{notice}</span>
+                <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>{notice}</span>
+                  {committedCount && committedCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/app/queue")}
+                      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                        canSeeSetupChecklist
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "border border-green-300 bg-white text-green-800 hover:bg-green-100"
+                      }`}
+                    >
+                      {messages.setup.goToQueue}
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
             {error ? (

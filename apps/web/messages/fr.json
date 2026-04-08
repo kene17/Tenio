@@ -70,7 +70,65 @@
     "commitFailedError": "La validation de l'importation a échoué. Aucun changement n'a été appliqué au backlog.",
     "actionCreate": "Créer",
     "actionUpdate": "Mettre à jour",
-    "actionSkip": "Ignorer"
+    "actionSkip": "Ignorer",
+    "setup": {
+      "title": "Liste de configuration",
+      "subtitle": "Utilisez cette liste pour terminer les éléments essentiels avant que l'équipe ne commence à travailler les réclamations dans Tenio.",
+      "progressSuffix": "complétées",
+      "nextStepLabel": "Prochaine étape :",
+      "allStepsComplete": "Toutes les étapes de configuration sont terminées.",
+      "statusComplete": "Terminée",
+      "statusCurrent": "En cours",
+      "statusPending": "À venir",
+      "contactSupport": "Contacter le support",
+      "openImportTool": "Ouvrir l'outil d'importation",
+      "openConfiguration": "Ouvrir la configuration",
+      "openQueue": "Ouvrir la file",
+      "openSetupChecklist": "Ouvrir la liste de configuration",
+      "skipForNow": "Ignorer pour le moment",
+      "skipLockedMessage": "Terminez votre première importation avant de fermer ce guide de configuration.",
+      "goToQueue": "Aller à la file",
+      "updateError": "La liste de configuration n'a pas pu être mise à jour. Réessayez.",
+      "welcomeEyebrow": "Configuration de l'espace",
+      "welcomeTitle": "Terminez ces quatre étapes avant la mise en service",
+      "welcomeBody": "Tenio vous guide pour l'accès de l'équipe, la première importation, la vérification des payeurs et la première revue de la file.",
+      "tourEyebrow": "Visite de la file",
+      "skipTour": "Ignorer la visite",
+      "finishTour": "Terminer la visite",
+      "nextTourStep": "Conseil suivant",
+      "steps": {
+        "team_members": {
+          "title": "Ajoutez les membres de votre équipe",
+          "description": "Ajoutez les personnes qui travailleront et réviseront les réclamations. Pour ce pilote, le provisionnement initial reste géré avec le support Tenio."
+        },
+        "first_import": {
+          "title": "Importez vos premières réclamations",
+          "description": "Importez votre inventaire actif afin que la file reflète le travail réel avant la mise en service."
+        },
+        "configure_payers": {
+          "title": "Configurez vos payeurs",
+          "description": "Confirmez les seuils de payeur et l'attribution par défaut avant que l'équipe ne commence à travailler la file."
+        },
+        "review_first_queue": {
+          "title": "Passez en revue votre première file",
+          "description": "Ouvrez la file, examinez les priorités et, au besoin, ouvrez une réclamation pour voir comment le suivi fonctionne."
+        }
+      },
+      "tour": {
+        "priority": {
+          "title": "Commencez par la colonne Priorité",
+          "body": "Utilisez les indicateurs de priorité pour repérer d'abord les réclamations urgentes et à risque élevé."
+        },
+        "claim": {
+          "title": "Ouvrez une réclamation depuis son numéro",
+          "body": "Cliquez sur un numéro de réclamation pour ouvrir le détail complet, consigner le suivi et revoir les preuves."
+        },
+        "sla": {
+          "title": "Surveillez la colonne Âge / SLA",
+          "body": "Cette colonne montre le vieillissement et le risque de dépassement afin de décider quoi traiter ensuite."
+        }
+      }
+    }
   },
   "claim": {
     "tabs": {

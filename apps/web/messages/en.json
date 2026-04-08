@@ -70,7 +70,65 @@
     "commitFailedError": "The import commit failed. No backlog changes were applied.",
     "actionCreate": "Create",
     "actionUpdate": "Update",
-    "actionSkip": "Skip"
+    "actionSkip": "Skip",
+    "setup": {
+      "title": "Setup Checklist",
+      "subtitle": "Use this checklist to finish the implementation basics before the team starts working claims in Tenio.",
+      "progressSuffix": "complete",
+      "nextStepLabel": "Next step:",
+      "allStepsComplete": "All setup steps are complete.",
+      "statusComplete": "Complete",
+      "statusCurrent": "Current",
+      "statusPending": "Pending",
+      "contactSupport": "Contact Support",
+      "openImportTool": "Open Import Tool",
+      "openConfiguration": "Open Configuration",
+      "openQueue": "Open Queue",
+      "openSetupChecklist": "Open Setup Checklist",
+      "skipForNow": "Skip for now",
+      "skipLockedMessage": "Complete your first import before dismissing this setup guide.",
+      "goToQueue": "Go to Queue",
+      "updateError": "The onboarding checklist could not be updated. Try again.",
+      "welcomeEyebrow": "Workspace setup",
+      "welcomeTitle": "Finish these four setup steps before go-live",
+      "welcomeBody": "Tenio will guide you through team access, first import, payer review, and the first queue walkthrough.",
+      "tourEyebrow": "Queue walkthrough",
+      "skipTour": "Skip walkthrough",
+      "finishTour": "Finish walkthrough",
+      "nextTourStep": "Next tip",
+      "steps": {
+        "team_members": {
+          "title": "Add your team members",
+          "description": "Add the people who will work and review claims. For this pilot, initial provisioning is still handled with Tenio support."
+        },
+        "first_import": {
+          "title": "Import your first claims",
+          "description": "Bring in your active claim inventory so the queue reflects live work before go-live."
+        },
+        "configure_payers": {
+          "title": "Configure your payers",
+          "description": "Confirm payer thresholds and default ownership before the team starts working the queue."
+        },
+        "review_first_queue": {
+          "title": "Review your first queue",
+          "description": "Open the queue, inspect priorities, and optionally open a claim to see how follow-up works."
+        }
+      },
+      "tour": {
+        "priority": {
+          "title": "Start with the priority column",
+          "body": "Use the priority badges to spot urgent and high-risk claims first."
+        },
+        "claim": {
+          "title": "Open a claim from its claim number",
+          "body": "Click a claim number to open full detail, capture follow-up, and review evidence."
+        },
+        "sla": {
+          "title": "Watch the Age / SLA column",
+          "body": "This column shows aging and breach risk so you can decide what needs attention next."
+        }
+      }
+    }
   },
   "claim": {
     "tabs": {

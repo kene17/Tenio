@@ -1,8 +1,12 @@
 import { hasPermission } from "@tenio/domain";
 import { redirect } from "next/navigation";
 import { PilotErrorState } from "../../../components/pilot-error-state";
-import { getLocaleMessages } from "../../../lib/locale";
-import { getClaimIntakeOptions, getCurrentSession } from "../../../lib/pilot-api";
+import { getLocaleMessages, getMessagesForLocale } from "../../../lib/locale";
+import {
+  getClaimIntakeOptions,
+  getCurrentSession,
+  getOnboardingState
+} from "../../../lib/pilot-api";
 import { OnboardingClient } from "./onboarding-client";
 
 export const dynamic = "force-dynamic";
@@ -24,23 +28,27 @@ export default async function OnboardingPage() {
   }
 
   try {
-    const [{ items }, { locale, messages }] = await Promise.all([
+    const canSeeSetupChecklist = hasPermission(session.role, "users:read");
+    const [{ items }, { locale, messages }, onboardingState] = await Promise.all([
       getClaimIntakeOptions(),
-      getLocaleMessages()
+      getLocaleMessages(),
+      canSeeSetupChecklist ? getOnboardingState() : Promise.resolve(null)
     ]);
+    const onboardingMessages = messages.onboarding ?? getMessagesForLocale("en").onboarding;
 
     return (
-        <OnboardingClient
-          locale={locale}
-          messages={messages.onboarding}
-          currentRole={session.role}
-          payers={items.map((payer) => ({
-            payerId: payer.payerId,
-            payerName: payer.payerName,
-            jurisdiction: payer.jurisdiction,
-            countryCode: payer.countryCode
-          }))}
-        />
+      <OnboardingClient
+        locale={locale}
+        messages={onboardingMessages}
+        currentRole={session.role}
+        setupState={onboardingState?.item ?? null}
+        payers={items.map((payer) => ({
+          payerId: payer.payerId,
+          payerName: payer.payerName,
+          jurisdiction: payer.jurisdiction,
+          countryCode: payer.countryCode
+        }))}
+      />
     );
   } catch {
     return (
