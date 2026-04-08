@@ -1,5 +1,7 @@
 # Agentic Layer
 
+This document specifies the retrieval-and-recovery runtime inside Tenio's workflow operating layer. It is not a product positioning document and does not change the workflow boundary.
+
 Tenio's agentic layer is the execution engine underneath the workflow OS.
 
 It is responsible for:
@@ -34,8 +36,9 @@ The workflow layer decides, routes, assigns, and audits.
 Today the runtime is made up of:
 
 - `apps/worker` for asynchronous execution
+- bounded `agent_run` / `agent_step` execution with leases and resume
 - connector selection and retrieval paths
-- `services/ai` for first-pass interpretation
+- `services/ai` for stateless step planning and interpretation
 - `ExecutionCandidate` as the contract returned to the workflow layer
 
 ## Connector Rollout

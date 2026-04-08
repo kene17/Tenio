@@ -22,7 +22,9 @@ export default async function ClaimsPage() {
         organizationId={session?.organizationId ?? "org_demo"}
         payerOptions={payerResponse.items.map((payer) => ({
           id: payer.payerId,
-          label: payer.payerName
+          label: payer.payerName,
+          jurisdiction: payer.jurisdiction,
+          countryCode: payer.countryCode
         }))}
       />
     );

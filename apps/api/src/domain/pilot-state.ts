@@ -12,6 +12,9 @@ import type { WorkflowDecision } from "../services/review-policy-service.js";
 export type ClaimRecord = ClaimDetail & {
   serviceDate: string;
   claimType: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
   allowedAmountCents: number | null;
   paidAmountCents: number | null;
   patientResponsibilityCents: number | null;
@@ -23,6 +26,8 @@ export type ClaimRecord = ClaimDetail & {
   daysSinceLastFollowUp: number;
   escalationState: string;
   ageDays: number;
+  requiresPhoneCall: boolean;
+  phoneCallRequiredAt: string | null;
 };
 
 export type ResultRecord = {
@@ -72,6 +77,10 @@ export type PilotQueueItem = {
   claimNumber: string;
   patientName: string;
   payerName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
+  claimType: string | null;
   claimStatus: string;
   nextAction: string;
   queueReason: string;
@@ -106,6 +115,9 @@ export type PilotClaimDetail = {
   item: ClaimDetail;
   serviceDate: string;
   claimType: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
   allowedAmountCents: number | null;
   paidAmountCents: number | null;
   patientResponsibilityCents: number | null;
@@ -114,6 +126,8 @@ export type PilotClaimDetail = {
   currentQueue: string;
   nextAction: string;
   totalTouches: number;
+  requiresPhoneCall: boolean;
+  phoneCallRequiredAt: string | null;
   daysSinceLastFollowUp: number;
   escalationState: string;
   statusLabel: string;
@@ -211,6 +225,9 @@ export function createSeedState() {
       payerName: "Aetna",
       claimNumber: "CLM-204938",
       patientName: "Rosa Martinez",
+      jurisdiction: "us",
+      countryCode: "US",
+      provinceOfService: null,
       status: "needs_review",
       confidence: 0.72,
       slaAt: new Date(now + hours(16)).toISOString(),
@@ -249,6 +266,8 @@ export function createSeedState() {
       currentQueue: "Low Confidence Verification",
       nextAction: "Review Evidence",
       totalTouches: 3,
+      requiresPhoneCall: false,
+      phoneCallRequiredAt: null,
       daysSinceLastFollowUp: 0,
       escalationState: "Not escalated",
       ageDays: 12
@@ -260,6 +279,9 @@ export function createSeedState() {
       payerName: "UnitedHealthcare",
       claimNumber: "CLM-204821",
       patientName: "Michael Johnson",
+      jurisdiction: "us",
+      countryCode: "US",
+      provinceOfService: null,
       status: "blocked",
       confidence: 0.45,
       slaAt: new Date(now - hours(2)).toISOString(),
@@ -289,6 +311,8 @@ export function createSeedState() {
       currentQueue: "Escalation Required",
       nextAction: "Escalate to Specialist",
       totalTouches: 5,
+      requiresPhoneCall: true,
+      phoneCallRequiredAt: new Date(now - hours(1)).toISOString(),
       daysSinceLastFollowUp: 2,
       escalationState: "Escalated",
       ageDays: 18
@@ -300,6 +324,9 @@ export function createSeedState() {
       payerName: "Cigna",
       claimNumber: "CLM-203657",
       patientName: "David Lee",
+      jurisdiction: "us",
+      countryCode: "US",
+      provinceOfService: null,
       status: "in_review",
       confidence: 0.88,
       slaAt: new Date(now + days(2)).toISOString(),
@@ -329,6 +356,8 @@ export function createSeedState() {
       currentQueue: "Awaiting Payer Response",
       nextAction: "Re-check Status",
       totalTouches: 2,
+      requiresPhoneCall: false,
+      phoneCallRequiredAt: null,
       daysSinceLastFollowUp: 1,
       escalationState: "Not escalated",
       ageDays: 8
@@ -340,6 +369,9 @@ export function createSeedState() {
       payerName: "Anthem BCBS",
       claimNumber: "CLM-204102",
       patientName: "Elena Garcia",
+      jurisdiction: "us",
+      countryCode: "US",
+      provinceOfService: null,
       status: "needs_review",
       confidence: 0.65,
       slaAt: new Date(now + hours(6)).toISOString(),
@@ -369,6 +401,8 @@ export function createSeedState() {
       currentQueue: "Missing Evidence",
       nextAction: "Assign Follow-up",
       totalTouches: 3,
+      requiresPhoneCall: true,
+      phoneCallRequiredAt: new Date(now - 45 * 60 * 1000).toISOString(),
       daysSinceLastFollowUp: 0,
       escalationState: "Not escalated",
       ageDays: 15
@@ -380,6 +414,9 @@ export function createSeedState() {
       payerName: "Humana",
       claimNumber: "CLM-203892",
       patientName: "Ariana Patel",
+      jurisdiction: "us",
+      countryCode: "US",
+      provinceOfService: null,
       status: "resolved",
       confidence: 0.91,
       slaAt: new Date(now + days(1)).toISOString(),
@@ -409,6 +446,8 @@ export function createSeedState() {
       currentQueue: "Resolved",
       nextAction: "Export Result",
       totalTouches: 1,
+      requiresPhoneCall: false,
+      phoneCallRequiredAt: null,
       daysSinceLastFollowUp: 0,
       escalationState: "Not escalated",
       ageDays: 6
@@ -631,19 +670,36 @@ export function createSeedState() {
 
 export function formatRelativeTime(isoDate: string) {
   const diffMs = Date.now() - new Date(isoDate).getTime();
-  const diffMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
+  if (!Number.isFinite(diffMs)) {
+    return "—";
+  }
+  // Future or same-moment references (e.g. mistaking SLA due time for "last activity") —
+  // treat as immediate rather than clamping to a bogus "1m ago".
+  if (diffMs <= 0) {
+    return "just now";
+  }
+
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+  if (diffMinutes < 1) {
+    return "just now";
+  }
 
   if (diffMinutes < 60) {
     return `${diffMinutes}m ago`;
   }
 
-  const diffHours = Math.round(diffMinutes / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
 
   if (diffHours < 24) {
     return `${diffHours}h ago`;
   }
 
-  return `${Math.round(diffHours / 24)}d ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
+}
+
+/** Best-effort "last activity" time for claims still on the queue without a payer check yet. */
+export function claimActivityReference(claim: ClaimRecord, queueItem: QueueItem | undefined) {
+  return claim.lastCheckedAt ?? queueItem?.createdAt ?? claim.slaAt;
 }
 
 function formatDateLabel(isoDate: string) {
@@ -734,6 +790,10 @@ export function toClaimSummary(claim: ClaimRecord): ClaimSummary {
     payerId: claim.payerId,
     claimNumber: claim.claimNumber,
     patientName: claim.patientName,
+    jurisdiction: claim.jurisdiction,
+    countryCode: claim.countryCode,
+    provinceOfService: claim.provinceOfService,
+    claimType: claim.claimType,
     status: claim.status,
     confidence: claim.confidence,
     slaAt: claim.slaAt,
@@ -750,6 +810,10 @@ export function toClaimDetail(claim: ClaimRecord): ClaimDetail {
     payerName: claim.payerName,
     claimNumber: claim.claimNumber,
     patientName: claim.patientName,
+    jurisdiction: claim.jurisdiction,
+    countryCode: claim.countryCode,
+    provinceOfService: claim.provinceOfService,
+    claimType: claim.claimType,
     status: claim.status,
     confidence: claim.confidence,
     slaAt: claim.slaAt,
@@ -775,12 +839,16 @@ export function buildPilotQueueItems(
       const claim = claimMap.get(item.claimId);
       if (!claim) return null;
 
-      return {
+      const queueItem: PilotQueueItem = {
         id: claim.id,
         claimId: claim.id,
         claimNumber: claim.claimNumber,
         patientName: claim.patientName,
         payerName: claim.payerName,
+        jurisdiction: claim.jurisdiction,
+        countryCode: claim.countryCode,
+        provinceOfService: claim.provinceOfService,
+        claimType: claim.claimType ?? null,
         claimStatus: statusLabel(claim.status, claim.normalizedStatusText),
         nextAction: claim.nextAction,
         queueReason: item.reason,
@@ -791,19 +859,25 @@ export function buildPilotQueueItems(
         confidence: Math.round(claim.confidence * 100),
         evidenceCount: claim.evidence.length,
         priority: claim.priority
-      } satisfies PilotQueueItem;
+      };
+
+      return queueItem;
     })
-    .filter((item): item is PilotQueueItem => Boolean(item));
+    .filter((item): item is PilotQueueItem => item !== null);
 }
 
 export function buildPilotClaimDetail(
   claimId: string,
   claims: ClaimRecord[],
   results: ResultRecord[],
-  auditEvents: AuditEventRecord[]
+  auditEvents: AuditEventRecord[],
+  queue: QueueItem[]
 ): PilotClaimDetail | null {
   const claim = claims.find((item) => item.id === claimId);
   if (!claim) return null;
+
+  const queueItem = queue.find((item) => item.claimId === claim.id);
+  const activityRef = claimActivityReference(claim, queueItem);
 
   const result = results.find((item) => item.claimId === claimId);
   const claimAuditEvents = auditEvents
@@ -815,6 +889,9 @@ export function buildPilotClaimDetail(
     item: toClaimDetail(claim),
     serviceDate: claim.serviceDate,
     claimType: claim.claimType,
+    jurisdiction: claim.jurisdiction,
+    countryCode: claim.countryCode,
+    provinceOfService: claim.provinceOfService,
     allowedAmountCents: claim.allowedAmountCents,
     paidAmountCents: claim.paidAmountCents,
     patientResponsibilityCents: claim.patientResponsibilityCents,
@@ -823,10 +900,12 @@ export function buildPilotClaimDetail(
     currentQueue: claim.currentQueue,
     nextAction: claim.nextAction,
     totalTouches: claim.totalTouches,
+    requiresPhoneCall: claim.requiresPhoneCall,
+    phoneCallRequiredAt: claim.phoneCallRequiredAt,
     daysSinceLastFollowUp: claim.daysSinceLastFollowUp,
     escalationState: claim.escalationState,
     statusLabel: statusLabel(claim.status, claim.normalizedStatusText),
-    lastUpdatedLabel: formatRelativeTime(claim.lastCheckedAt ?? claim.slaAt),
+    lastUpdatedLabel: formatRelativeTime(activityRef),
     slaLabel:
       getSlaRisk(claim.slaAt) === "breached"
         ? "Breached"
@@ -846,7 +925,7 @@ export function buildPilotClaimDetail(
       routeReason:
         result?.routeReason ??
         "Workflow policy used the candidate signal to decide whether the claim should resolve or remain in review.",
-      lastObservedAt: result?.executionObservedAt ?? claim.lastCheckedAt ?? claim.slaAt,
+      lastObservedAt: result?.executionObservedAt ?? activityRef,
       executionDurationLabel: formatDurationMs(result?.executionDurationMs ?? 0)
     },
     activityTimeline: claimAuditEvents,
@@ -858,18 +937,18 @@ export function buildPilotClaimDetail(
       },
       {
         label: "Last Retrieved",
-        value: formatRelativeTime(claim.lastCheckedAt ?? claim.slaAt),
+        value: formatRelativeTime(activityRef),
         subtext: "Automated"
       },
       {
         label: "Assigned By",
-        value: claim.owner ? formatRelativeTime(claim.lastCheckedAt ?? claim.slaAt) : "Unassigned",
+        value: claim.owner ? formatRelativeTime(activityRef) : "Unassigned",
         subtext: claim.owner ?? "Queue"
       },
       {
         label: "Last Note",
         value: formatRelativeTime(
-          claim.reviews[0]?.createdAt ?? claim.lastCheckedAt ?? claim.slaAt
+          claim.reviews[0]?.createdAt ?? activityRef
         ),
         subtext: claim.reviews[0]?.reviewer ?? "System"
       }
@@ -970,6 +1049,8 @@ export function computeRetrievalOutcome(params: {
     status: decision.nextStatus,
     confidence: candidate.confidence,
     lastCheckedAt: nowIso,
+    requiresPhoneCall: false,
+    phoneCallRequiredAt: null,
     normalizedStatusText: candidate.normalizedStatusText,
     notes:
       candidate.rawNotes ??

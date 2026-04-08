@@ -11,6 +11,7 @@ import {
   claimNextRetrievalJob,
   commitClaimImport,
   createClaim,
+  completeAgentToolStep,
   exportResults,
   failRetrievalJob,
   getClaimDetail,
@@ -28,10 +29,13 @@ import {
   listQueue,
   listResultSummaries,
   previewClaimImport,
+  heartbeatAgentRun,
+  recordAgentTerminalStep,
+  startAgentToolStep,
   updatePayerConfigurationPolicy,
   enqueueRetrievalJob
 } from "../domain/store.js";
-import type { ClaimImportRowInput } from "../domain/imports.js";
+import type { ImportProfileId, RawImportRow } from "../import/pms/index.js";
 
 export class WorkflowService {
   async getQueue() {
@@ -108,12 +112,20 @@ export class WorkflowService {
     return getReviewPolicyForClaim(...args);
   }
 
-  async previewClaimImport(rows: ClaimImportRowInput[], actor: Parameters<typeof previewClaimImport>[1]) {
-    return previewClaimImport(rows, actor);
+  async previewClaimImport(
+    rows: RawImportRow[],
+    actor: Parameters<typeof previewClaimImport>[1],
+    importProfile?: ImportProfileId
+  ) {
+    return previewClaimImport(rows, actor, importProfile);
   }
 
-  async commitClaimImport(rows: ClaimImportRowInput[], actor: Parameters<typeof commitClaimImport>[1]) {
-    return commitClaimImport(rows, actor);
+  async commitClaimImport(
+    rows: RawImportRow[],
+    actor: Parameters<typeof commitClaimImport>[1],
+    importProfile?: ImportProfileId
+  ) {
+    return commitClaimImport(rows, actor, importProfile);
   }
 
   async updatePayerConfigurationPolicy(
@@ -132,6 +144,22 @@ export class WorkflowService {
 
   async claimNextRetrievalJob(...args: Parameters<typeof claimNextRetrievalJob>) {
     return claimNextRetrievalJob(...args);
+  }
+
+  async heartbeatAgentRun(...args: Parameters<typeof heartbeatAgentRun>) {
+    return heartbeatAgentRun(...args);
+  }
+
+  async startAgentToolStep(...args: Parameters<typeof startAgentToolStep>) {
+    return startAgentToolStep(...args);
+  }
+
+  async completeAgentToolStep(...args: Parameters<typeof completeAgentToolStep>) {
+    return completeAgentToolStep(...args);
+  }
+
+  async recordAgentTerminalStep(...args: Parameters<typeof recordAgentTerminalStep>) {
+    return recordAgentTerminalStep(...args);
   }
 
   async failRetrievalJob(...args: Parameters<typeof failRetrievalJob>) {

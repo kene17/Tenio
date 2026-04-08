@@ -53,6 +53,8 @@ export default async function ClaimDetailPage({
   const claimOverview = [
     ["Service Date", claim.serviceDate],
     ["Claim Type", claim.claimType],
+    ["Jurisdiction", `${claim.countryCode} / ${claim.jurisdiction.toUpperCase()}`],
+    ["Province / State", claim.provinceOfService ?? "—"],
     ["Billed Amount", claim.item.amountCents ? `$${(claim.item.amountCents / 100).toFixed(2)}` : "—"],
     [
       "Allowed Amount",
@@ -74,6 +76,7 @@ export default async function ClaimDetailPage({
     ["Next Recommended Action", claim.nextAction],
     ["Assigned Owner", claim.item.owner ?? "Unassigned"],
     ["Total Touches", String(claim.totalTouches)],
+    ["Phone Call Required", claim.requiresPhoneCall ? "Yes" : "No"],
     ["Days Since Last Follow-up", String(claim.daysSinceLastFollowUp)],
     ["Review State", claim.item.reviews[0]?.status ?? "No review required"],
     ["Escalation State", claim.escalationState],
@@ -134,6 +137,18 @@ export default async function ClaimDetailPage({
           </div>
           <ConfidenceBadge confidence={Math.round(claim.item.confidence * 100)} size="md" />
         </div>
+        {claim.requiresPhoneCall ? (
+          <div className="mt-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div>
+              <div className="font-semibold text-red-900">Manual payer phone call required</div>
+              <div className="mt-0.5">
+                {claim.phoneCallRequiredAt
+                  ? `Flagged ${new Date(claim.phoneCallRequiredAt).toLocaleString()}`
+                  : "Flagged in workflow"}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -456,6 +471,17 @@ export default async function ClaimDetailPage({
                           {claim.activeRetrievalJob.lastError}
                         </div>
                       ) : null}
+                      <div className="mt-3 space-y-1 rounded border border-blue-200 bg-white/70 px-3 py-2 font-mono text-[11px] text-blue-900">
+                        <div>
+                          Retrieval Job ID: {claim.activeRetrievalJob.id}
+                        </div>
+                        <div>
+                          Agent Run ID: {claim.activeRetrievalJob.agentRunId ?? "Pending"}
+                        </div>
+                        <div>
+                          Trace ID: {claim.activeRetrievalJob.traceId ?? "Not captured"}
+                        </div>
+                      </div>
                     </div>
                   ) : null}
                   <ClaimRetrieveButton
@@ -488,7 +514,10 @@ export default async function ClaimDetailPage({
                               <span className="font-medium text-gray-900">
                                 Attempt {attempt.attempt} · {attempt.status}
                               </span>
-                              <span>{attempt.connectorName ?? "Agent runtime"}</span>
+                              <span>
+                                {attempt.connectorName ?? "Agent runtime"}
+                                {attempt.executionMode ? ` · ${attempt.executionMode}` : ""}
+                              </span>
                             </div>
                             <div className="mt-1">
                               {new Date(attempt.startedAt).toLocaleString()}

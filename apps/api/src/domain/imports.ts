@@ -8,6 +8,10 @@ export type ClaimImportRowInput = {
   patientName?: string | null;
   payerId?: string | null;
   payerName?: string | null;
+  jurisdiction?: string | null;
+  countryCode?: string | null;
+  provinceOfService?: string | null;
+  claimType?: string | null;
   priority?: string | null;
   owner?: string | null;
   notes?: string | null;
@@ -23,6 +27,10 @@ export type NormalizedClaimImportRow = {
   patientName: string;
   payerId: string;
   payerName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
+  claimType: string | null;
   priority: Priority;
   owner: string | null;
   notes: string | null;
@@ -39,6 +47,10 @@ export type ClaimImportPreviewRow = {
   patientName: string | null;
   payerId: string | null;
   payerName: string | null;
+  jurisdiction: "us" | "ca" | null;
+  countryCode: "US" | "CA" | null;
+  provinceOfService: string | null;
+  claimType: string | null;
   priority: Priority | null;
   owner: string | null;
   notes: string | null;
@@ -80,6 +92,73 @@ function normalizePriority(value: string | null | undefined) {
     priority: null,
     error: `Priority "${value}" must be one of ${allowedPriorities.join(", ")}.`
   };
+}
+
+function normalizeJurisdiction(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized) {
+    return { jurisdiction: null, error: null };
+  }
+
+  if (["us", "usa", "united_states", "united states"].includes(normalized)) {
+    return { jurisdiction: "us" as const, error: null };
+  }
+
+  if (["ca", "can", "canada"].includes(normalized)) {
+    return { jurisdiction: "ca" as const, error: null };
+  }
+
+  return {
+    jurisdiction: null,
+    error: `Jurisdiction "${value}" must be US or CA.`
+  };
+}
+
+function normalizeCountryCode(value: string | null | undefined) {
+  const normalized = value?.trim().toUpperCase();
+
+  if (!normalized) {
+    return { countryCode: null, error: null };
+  }
+
+  if (normalized === "US" || normalized === "CA") {
+    return { countryCode: normalized as "US" | "CA", error: null };
+  }
+
+  return {
+    countryCode: null,
+    error: `Country code "${value}" must be US or CA.`
+  };
+}
+
+function deriveCountryCode(jurisdiction: "us" | "ca") {
+  return jurisdiction === "ca" ? ("CA" as const) : ("US" as const);
+}
+
+function normalizeProvinceOfService(value: string | null | undefined) {
+  const normalized = normalizeText(value)?.toUpperCase();
+
+  if (!normalized) {
+    return { provinceOfService: null, error: null };
+  }
+
+  if (normalized.length < 2 || normalized.length > 3) {
+    return {
+      provinceOfService: null,
+      error: `Province of service "${value}" must be a 2-3 character code.`
+    };
+  }
+
+  return {
+    provinceOfService: normalized,
+    error: null
+  };
+}
+
+function normalizeClaimType(value: string | null | undefined) {
+  const normalized = normalizeText(value)?.toLowerCase();
+  return normalized ? normalized : null;
 }
 
 function normalizeSlaAt(value: string | null | undefined) {
@@ -147,8 +226,18 @@ export function previewClaimImportRows(params: {
     const notes = normalizeText(row.notes);
     const sourceStatus = normalizeText(row.sourceStatus);
     const { priority, error: priorityError } = normalizePriority(row.priority);
+    const { jurisdiction: inputJurisdiction, error: jurisdictionError } =
+      normalizeJurisdiction(row.jurisdiction);
+    const { countryCode: inputCountryCode, error: countryCodeError } =
+      normalizeCountryCode(row.countryCode);
+    const { provinceOfService, error: provinceError } = normalizeProvinceOfService(
+      row.provinceOfService
+    );
+    const claimType = normalizeClaimType(row.claimType);
     const { slaAt, error: slaAtError } = normalizeSlaAt(row.slaAt);
     const payer = resolvePayerConfiguration(row, payerConfigurations);
+    const jurisdiction = inputJurisdiction ?? payer?.jurisdiction ?? "us";
+    const countryCode = inputCountryCode ?? payer?.countryCode ?? deriveCountryCode(jurisdiction);
 
     if (!claimNumber) {
       messages.push("Claim number is required.");
@@ -164,6 +253,26 @@ export function previewClaimImportRows(params: {
 
     if (priorityError) {
       messages.push(priorityError);
+    }
+
+    if (jurisdictionError) {
+      messages.push(jurisdictionError);
+    }
+
+    if (countryCodeError) {
+      messages.push(countryCodeError);
+    }
+
+    if (
+      !countryCodeError &&
+      inputCountryCode &&
+      inputCountryCode !== deriveCountryCode(jurisdiction)
+    ) {
+      messages.push("Country code must match the selected jurisdiction.");
+    }
+
+    if (provinceError) {
+      messages.push(provinceError);
     }
 
     if (slaAtError) {
@@ -204,6 +313,10 @@ export function previewClaimImportRows(params: {
       patientName,
       payerId: payer?.payerId ?? null,
       payerName: payer?.payerName ?? normalizeText(row.payerName),
+      jurisdiction,
+      countryCode,
+      provinceOfService,
+      claimType,
       priority,
       owner,
       notes,

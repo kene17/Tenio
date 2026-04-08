@@ -1,5 +1,8 @@
 import {
+  agentStepResponseSchema,
   aiClaimStatusAnalysisResponseSchema,
+  type AgentStepRequest,
+  type AgentStepResponse,
   type AiClaimStatusAnalysisRequest,
   type AiClaimStatusAnalysisResponse
 } from "@tenio/contracts";
@@ -28,6 +31,32 @@ export class AiServiceClient {
       }
 
       return aiClaimStatusAnalysisResponseSchema.parse(await response.json());
+    } catch {
+      return null;
+    }
+  }
+
+  async planAgentStep(
+    payload: AgentStepRequest,
+    requestId?: string
+  ): Promise<AgentStepResponse | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/claim-agent/step`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-tenio-ai-token":
+            process.env.TENIO_AI_SERVICE_TOKEN ?? "tenio-local-ai-service-token",
+          ...(requestId ? { "x-request-id": requestId } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return agentStepResponseSchema.parse(await response.json());
     } catch {
       return null;
     }

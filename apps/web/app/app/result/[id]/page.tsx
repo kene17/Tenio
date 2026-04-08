@@ -93,11 +93,18 @@ export default async function ResultDetailPage({
             { label: "Last Verified", value: result.lastVerified },
             { label: "Source Payer", value: result.payerName },
             { label: "Evidence Count", value: `${result.evidence.length} items` },
-            { label: "Next Action", value: result.nextAction }
+            { label: "Next Action", value: result.nextAction },
+            { label: "Trace ID", value: result.agentTraceId ?? "Not captured" }
           ].map(({ label, value }) => (
             <div key={label} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="mb-1 text-xs text-gray-600">{label}</div>
-              <div className="text-lg font-semibold text-gray-900">{value}</div>
+              <div
+                className={`text-lg font-semibold text-gray-900 ${
+                  label === "Trace ID" ? "font-mono text-sm" : ""
+                }`}
+              >
+                {value}
+              </div>
             </div>
           ))}
         </div>

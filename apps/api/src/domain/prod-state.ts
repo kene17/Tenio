@@ -1,9 +1,18 @@
-import type { ExecutionFailureCategory } from "@tenio/contracts";
+import type {
+  AgentRunBudget,
+  AgentRunTerminalReason,
+  AgentStepResult,
+  AgentToolName,
+  ConnectorMode,
+  ExecutionCandidate,
+  ExecutionFailureCategory
+} from "@tenio/contracts";
 import type { QueueItem } from "@tenio/domain";
 
 import type { AppRole } from "../auth.js";
 import type { WorkflowDecision } from "../services/review-policy-service.js";
 import {
+  claimActivityReference,
   formatRelativeTime,
   statusLabel,
   type AuditEventRecord,
@@ -86,11 +95,72 @@ export type RetrievalJobRecord = {
   updatedAt: string;
 };
 
+export type AgentRunStatus =
+  | "running"
+  | "completed"
+  | "retry_scheduled"
+  | "review_required"
+  | "failed";
+
+export type AgentStepDirectiveKind = "tool_call" | "final" | "retry";
+
+export type AgentStepRecord = {
+  id: string;
+  agentRunId: string;
+  stepNumber: number;
+  directiveKind: AgentStepDirectiveKind;
+  toolName: AgentToolName | null;
+  status: "started" | "completed";
+  idempotencyKey: string;
+  publicReason: string;
+  toolArgs: {
+    connectorId: string;
+    mode: ConnectorMode;
+    attemptLabel: string;
+  } | null;
+  plannerProvider: string | null;
+  plannerModel: string | null;
+  plannerInputTokens: number;
+  plannerOutputTokens: number;
+  result: AgentStepResult | null;
+  startedAt: string;
+  completedAt: string | null;
+};
+
+export type AgentRunRecord = {
+  id: string;
+  organizationId: string;
+  retrievalJobId: string;
+  claimId: string;
+  status: AgentRunStatus;
+  protocolVersion: 1;
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
+  heartbeatAt: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  modelProvider: string | null;
+  modelName: string | null;
+  modelCallsUsed: number;
+  inputTokensUsed: number;
+  outputTokensUsed: number;
+  totalTokensUsed: number;
+  connectorSwitchCount: number;
+  terminalReason: AgentRunTerminalReason | null;
+  finalCandidate: ExecutionCandidate | null;
+  budget: AgentRunBudget;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PayerConfigurationRecord = {
   id: string;
   organizationId: string;
   payerId: string;
   payerName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
   status: "active" | "needs_attention" | "inactive";
   owner: string;
   lastVerifiedAt: string;
@@ -163,6 +233,10 @@ export type ClaimsListItemView = {
   claimNumber: string;
   payerName: string;
   patientName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
+  claimType: string | null;
   serviceDate: string;
   currentStatus: string;
   owner: string | null;
@@ -177,10 +251,13 @@ export type PerformanceMetricsView = {
   summary: {
     claimsWorkedToday: number;
     avgResolutionTimeDays: string;
+    avgTouchesPerClaim: string;
     slaCompliance: string;
     needsReview: number;
     claimsResolved: number;
     touchesRemoved: number;
+    claimsRequiringCall: number;
+    phoneCallRate: string;
   };
   agentOverview: {
     automationCoverage: string;
@@ -198,6 +275,7 @@ export type PerformanceMetricsView = {
     avgResolutionTime: string;
     risk: "Low" | "Medium" | "High";
     reviewRate: string;
+    phoneCallRate: string;
     lastDelay: string;
   }>;
   teamPerformance: Array<{
@@ -237,6 +315,8 @@ export function createSeedPayerConfigurations(
       organizationId,
       payerId: "payer_aetna",
       payerName: "Aetna",
+      jurisdiction: "us",
+      countryCode: "US",
       status: "active",
       owner: "Sarah Chen",
       lastVerifiedAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
@@ -265,6 +345,8 @@ export function createSeedPayerConfigurations(
       organizationId,
       payerId: "payer_uhc",
       payerName: "UnitedHealthcare",
+      jurisdiction: "us",
+      countryCode: "US",
       status: "needs_attention",
       owner: "Marcus Williams",
       lastVerifiedAt: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -293,6 +375,8 @@ export function createSeedPayerConfigurations(
       organizationId,
       payerId: "payer_cigna",
       payerName: "Cigna",
+      jurisdiction: "us",
+      countryCode: "US",
       status: "active",
       owner: "David Park",
       lastVerifiedAt: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
@@ -312,11 +396,90 @@ export function createSeedPayerConfigurations(
         }
       ],
       issues: []
+    },
+    {
+      id: "cfg_sun_life_pshcp",
+      organizationId,
+      payerId: "payer_sun_life",
+      payerName: "Sun Life / PSHCP",
+      jurisdiction: "ca",
+      countryCode: "CA",
+      status: "needs_attention",
+      owner: "Ottawa Pilot",
+      lastVerifiedAt: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      enabledWorkflows: ["Claim Status"],
+      reviewThreshold: 0.84,
+      escalationThreshold: 0.56,
+      defaultSlaHours: 24,
+      autoAssignOwner: false,
+      statusRules: [
+        'Structured status "Paid" -> Resolved',
+        'Structured status "Coordination of benefits required" -> Needs Review',
+        'Structured status "Not covered under PSHCP" -> Needs Review'
+      ],
+      reviewRules: [
+        "Federal benefits coverage edge case",
+        "Coordination of benefits required",
+        "Validation connector still needs live payer approval"
+      ],
+      destinations: [
+        {
+          id: "dest_sun_life_pshcp_export",
+          label: "Federal benefits CSV review export",
+          kind: "sftp",
+          status: "inactive"
+        }
+      ],
+      issues: [
+        "Validation-only Sun Life path; live payer access not enabled",
+        "No active downstream destination"
+      ]
+    },
+    {
+      id: "cfg_telus_health",
+      organizationId,
+      payerId: "payer_telus_health",
+      payerName: "TELUS Health eClaims",
+      jurisdiction: "ca",
+      countryCode: "CA",
+      status: "inactive",
+      owner: "Ottawa Pilot",
+      lastVerifiedAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      enabledWorkflows: [],
+      reviewThreshold: 0.85,
+      escalationThreshold: 0.55,
+      defaultSlaHours: 24,
+      autoAssignOwner: false,
+      statusRules: ["Permitted rail validation pending"],
+      reviewRules: ["Connector onboarding is not complete"],
+      destinations: [
+        {
+          id: "dest_telus_health_export",
+          label: "TELUS onboarding pending",
+          kind: "webhook",
+          status: "inactive"
+        }
+      ],
+      issues: ["Permitted rail validation pending"]
     }
   ];
 }
 
-export function buildClaimsList(claims: ClaimRecord[]): ClaimsListItemView[] {
+export function findMissingSeedPayerConfigurations(
+  existingConfigs: Pick<PayerConfigurationRecord, "id" | "payerId">[],
+  seedConfigs: PayerConfigurationRecord[]
+) {
+  const existingIds = new Set(existingConfigs.map((config) => config.id));
+  const existingPayerIds = new Set(existingConfigs.map((config) => config.payerId));
+
+  return seedConfigs.filter(
+    (config) => !existingIds.has(config.id) && !existingPayerIds.has(config.payerId)
+  );
+}
+
+export function buildClaimsList(claims: ClaimRecord[], queue: QueueItem[]): ClaimsListItemView[] {
+  const queueByClaimId = new Map(queue.map((item) => [item.claimId, item] as const));
+
   const priorityRank: Record<ClaimRecord["priority"], number> = {
     urgent: 0,
     high: 1,
@@ -350,8 +513,12 @@ export function buildClaimsList(claims: ClaimRecord[]): ClaimsListItemView[] {
         return leftSla - rightSla;
       }
 
-      const leftUpdated = new Date(left.lastCheckedAt ?? left.slaAt).getTime();
-      const rightUpdated = new Date(right.lastCheckedAt ?? right.slaAt).getTime();
+      const leftUpdated = new Date(
+        claimActivityReference(left, queueByClaimId.get(left.id))
+      ).getTime();
+      const rightUpdated = new Date(
+        claimActivityReference(right, queueByClaimId.get(right.id))
+      ).getTime();
       if (leftUpdated !== rightUpdated) {
         return rightUpdated - leftUpdated;
       }
@@ -364,10 +531,16 @@ export function buildClaimsList(claims: ClaimRecord[]): ClaimsListItemView[] {
       claimNumber: claim.claimNumber,
       payerName: claim.payerName,
       patientName: claim.patientName,
+      jurisdiction: claim.jurisdiction,
+      countryCode: claim.countryCode,
+      provinceOfService: claim.provinceOfService,
+      claimType: claim.claimType,
       serviceDate: claim.serviceDate,
       currentStatus: statusLabel(claim.status, claim.normalizedStatusText),
       owner: claim.owner,
-      lastUpdated: formatRelativeTime(claim.lastCheckedAt ?? claim.slaAt),
+      lastUpdated: formatRelativeTime(
+        claimActivityReference(claim, queueByClaimId.get(claim.id))
+      ),
       resolutionState:
         claim.status === "resolved"
           ? "Resolved"
@@ -400,6 +573,9 @@ export function buildPerformanceMetrics(params: {
   const atRiskCount = queue.filter((item) => new Date(item.slaAt).getTime() > now).length;
   const slaCompliance = queue.length === 0 ? 1 : atRiskCount / queue.length;
   const totalTouches = claims.reduce((sum, claim) => sum + claim.totalTouches, 0);
+  const avgTouchesPerClaim = claims.length === 0 ? 0 : totalTouches / claims.length;
+  const claimsRequiringCall = claims.filter((claim) => claim.requiresPhoneCall).length;
+  const phoneCallRate = claims.length === 0 ? 0 : claimsRequiringCall / claims.length;
   const avgAge =
     claims.length === 0 ? 0 : claims.reduce((sum, claim) => sum + claim.ageDays, 0) / claims.length;
   const reviewedClaims = claims.filter(
@@ -409,7 +585,13 @@ export function buildPerformanceMetrics(params: {
 
   const byPayer = new Map<
     string,
-    { openClaims: number; reviewClaims: number; totalAge: number; lastCheckedAt: string[] }
+    {
+      openClaims: number;
+      reviewClaims: number;
+      phoneCallClaims: number;
+      totalAge: number;
+      lastCheckedAt: string[];
+    }
   >();
   const byOwner = new Map<
     string,
@@ -432,11 +614,13 @@ export function buildPerformanceMetrics(params: {
     const payerEntry = byPayer.get(claim.payerName) ?? {
       openClaims: 0,
       reviewClaims: 0,
+      phoneCallClaims: 0,
       totalAge: 0,
       lastCheckedAt: []
     };
     payerEntry.openClaims += claim.status === "resolved" ? 0 : 1;
     payerEntry.reviewClaims += claim.status === "needs_review" ? 1 : 0;
+    payerEntry.phoneCallClaims += claim.requiresPhoneCall ? 1 : 0;
     payerEntry.totalAge += claim.ageDays;
     if (claim.lastCheckedAt) {
       payerEntry.lastCheckedAt.push(claim.lastCheckedAt);
@@ -494,6 +678,7 @@ export function buildPerformanceMetrics(params: {
       ? 0
       : value.totalAge / Math.max(value.openClaims + value.reviewClaims, 1);
     const reviewRate = value.openClaims === 0 ? 0 : value.reviewClaims / value.openClaims;
+    const callRate = value.openClaims === 0 ? 0 : value.phoneCallClaims / value.openClaims;
     const latestCheck = value.lastCheckedAt
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
@@ -503,6 +688,7 @@ export function buildPerformanceMetrics(params: {
       avgResolutionTime: `${avgResolutionDays.toFixed(1)}d`,
       risk: reviewRate > 0.4 ? "High" : reviewRate > 0.2 ? "Medium" : "Low",
       reviewRate: pct(reviewRate),
+      phoneCallRate: pct(callRate),
       lastDelay: latestCheck ? formatRelativeTime(latestCheck) : "No runs yet"
     } as const;
   });
@@ -571,6 +757,15 @@ export function buildPerformanceMetrics(params: {
     });
   }
 
+  if (claimsRequiringCall > 0) {
+    alerts.push({
+      title: "Manual payer calls are still required",
+      body: `${claimsRequiringCall} claim${claimsRequiringCall === 1 ? "" : "s"} require a phone call follow-up. Track this rate during the pilot.`,
+      severity: "warning" as const,
+      time: "Current"
+    });
+  }
+
   alerts.push({
     title: "SLA compliance snapshot",
     body: `${pct(slaCompliance)} of active queue items are still within SLA.`,
@@ -584,10 +779,13 @@ export function buildPerformanceMetrics(params: {
     summary: {
       claimsWorkedToday,
       avgResolutionTimeDays: `${avgAge.toFixed(1)}d`,
+      avgTouchesPerClaim: avgTouchesPerClaim.toFixed(1),
       slaCompliance: pct(slaCompliance),
       needsReview: claims.filter((claim) => claim.status === "needs_review").length,
       claimsResolved: resolvedClaims,
-      touchesRemoved: Math.max(0, resolvedClaims * 2 - totalTouches)
+      touchesRemoved: Math.max(0, resolvedClaims * 2 - totalTouches),
+      claimsRequiringCall,
+      phoneCallRate: pct(phoneCallRate)
     },
     agentOverview: {
       automationCoverage: claims.length === 0 ? "0%" : pct(results.length / claims.length),
@@ -660,7 +858,8 @@ export function applyClaimWorkflowAction(params: {
     | "approve_review"
     | "resolve_claim"
     | "escalate_claim"
-    | "reopen_claim";
+    | "reopen_claim"
+    | "mark_call_required";
   actor: WorkflowActor;
   assignee?: string;
   note?: string;
@@ -694,6 +893,11 @@ export function applyClaimWorkflowAction(params: {
     nextAction = "Review Evidence";
     queueReason = "Reopened for manual review";
     reviewReason = note ?? "Claim reopened.";
+  } else if (action === "mark_call_required") {
+    nextStatus = "blocked";
+    nextAction = "Call Payer";
+    queueReason = "Manual payer phone call required";
+    reviewReason = note ?? "Portal retrieval could not resolve status. Manual phone call required.";
   }
 
   const updatedClaim: ClaimRecord = {
@@ -701,6 +905,18 @@ export function applyClaimWorkflowAction(params: {
     owner: action === "assign_owner" ? assignee ?? claim.owner : claim.owner,
     status: nextStatus,
     lastCheckedAt: nowIso,
+    requiresPhoneCall:
+      action === "mark_call_required"
+        ? true
+        : action === "approve_review" || action === "resolve_claim" || action === "reopen_claim"
+          ? false
+          : claim.requiresPhoneCall,
+    phoneCallRequiredAt:
+      action === "mark_call_required"
+        ? nowIso
+        : action === "approve_review" || action === "resolve_claim" || action === "reopen_claim"
+          ? null
+          : claim.phoneCallRequiredAt,
     notes:
       action === "add_note"
         ? [note?.trim(), claim.notes].filter(Boolean).join("\n\n")
@@ -725,6 +941,8 @@ export function applyClaimWorkflowAction(params: {
                   ? "approved"
                   : action === "escalate_claim"
                     ? "escalated"
+                    : action === "mark_call_required"
+                      ? "escalated"
                     : action === "reopen_claim"
                       ? "corrected"
                       : "approved",
@@ -787,7 +1005,9 @@ export function applyClaimWorkflowAction(params: {
               ? "Resolved"
               : action === "escalate_claim"
                 ? "Escalated"
-                : "Reopened",
+                : action === "mark_call_required"
+                  ? "Phone Call Required"
+                  : "Reopened",
     object: "Claim",
     objectId: claim.id,
     source: "Human",
@@ -798,7 +1018,13 @@ export function applyClaimWorkflowAction(params: {
         : `${actor.name} updated ${claim.claimNumber}: ${reviewReason}`,
     sensitivity: "normal",
     category:
-      action === "add_note" ? "Comment" : action === "assign_owner" ? "Assignment" : "Claim Workflow",
+      action === "add_note"
+        ? "Comment"
+        : action === "assign_owner"
+          ? "Assignment"
+          : action === "mark_call_required"
+            ? "Manual Follow-up"
+            : "Claim Workflow",
     beforeAfter:
       action === "assign_owner"
         ? {

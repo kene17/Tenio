@@ -11,6 +11,10 @@ export type QueueItemView = {
   claimNumber: string;
   patientName: string;
   payerName: string;
+  jurisdiction?: "us" | "ca";
+  countryCode?: "US" | "CA";
+  provinceOfService?: string | null;
+  claimType?: string | null;
   claimStatus: string;
   nextAction: string;
   queueReason: string;
@@ -27,6 +31,9 @@ export type ClaimDetailView = {
   item: ClaimDetail;
   serviceDate: string;
   claimType: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
   allowedAmountCents: number | null;
   paidAmountCents: number | null;
   patientResponsibilityCents: number | null;
@@ -35,6 +42,8 @@ export type ClaimDetailView = {
   currentQueue: string;
   nextAction: string;
   totalTouches: number;
+  requiresPhoneCall: boolean;
+  phoneCallRequiredAt: string | null;
   daysSinceLastFollowUp: number;
   escalationState: string;
   statusLabel: string;
@@ -55,11 +64,13 @@ export type ClaimDetailView = {
   auditTrail: Array<{ label: string; value: string; subtext: string }>;
   activeRetrievalJob?: {
     id: string;
+    agentRunId: string | null;
     status: string;
     attempts: number;
     lastError: string | null;
     updatedAt: string;
     connectorName?: string | null;
+    traceId?: string | null;
     failureCategory?: string | null;
     retryable?: boolean;
     reviewReason?: string | null;
@@ -137,6 +148,10 @@ export type ClaimsListItemView = {
   claimNumber: string;
   payerName: string;
   patientName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
+  provinceOfService: string | null;
+  claimType: string | null;
   serviceDate: string;
   currentStatus: string;
   owner: string | null;
@@ -151,6 +166,8 @@ export type PayerConfigurationView = {
   id: string;
   payerId: string;
   payerName: string;
+  jurisdiction: "us" | "ca";
+  countryCode: "US" | "CA";
   status: "active" | "needs_attention" | "inactive";
   owner: string;
   lastVerifiedAt: string;
@@ -174,10 +191,13 @@ export type PerformanceView = {
   summary: {
     claimsWorkedToday: number;
     avgResolutionTimeDays: string;
+    avgTouchesPerClaim: string;
     slaCompliance: string;
     needsReview: number;
     claimsResolved: number;
     touchesRemoved: number;
+    claimsRequiringCall: number;
+    phoneCallRate: string;
   };
   agentOverview: {
     automationCoverage: string;
@@ -195,6 +215,7 @@ export type PerformanceView = {
     avgResolutionTime: string;
     risk: "Low" | "Medium" | "High";
     reviewRate: string;
+    phoneCallRate: string;
     lastDelay: string;
   }>;
   teamPerformance: Array<{

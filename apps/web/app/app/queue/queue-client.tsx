@@ -80,7 +80,16 @@ export function QueueClient({ items }: QueueClientProps) {
     return items.filter((item) => {
       const matchesSearch =
         searchTerm.length === 0 ||
-        [item.claimNumber, item.patientName, item.payerName, item.owner ?? "", item.queueReason]
+        [
+          item.claimNumber,
+          item.patientName,
+          item.payerName,
+          item.claimType ?? "",
+          item.provinceOfService ?? "",
+          item.countryCode ?? "",
+          item.owner ?? "",
+          item.queueReason
+        ]
           .join(" ")
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
@@ -95,9 +104,9 @@ export function QueueClient({ items }: QueueClientProps) {
   }, [activeFilters, items, searchTerm]);
 
   const selectedClaim =
-    filteredItems.find((item) => item.claimId === selectedClaimId) ??
-    filteredItems[0] ??
-    null;
+    selectedClaimId === null
+      ? null
+      : filteredItems.find((item) => item.claimId === selectedClaimId) ?? null;
 
   const openClaims = items.length;
   const needsReview = items.filter((item) => item.claimStatus.includes("Review")).length;
@@ -239,9 +248,18 @@ export function QueueClient({ items }: QueueClientProps) {
                         >
                           {claim.claimNumber}
                         </Link>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {claim.claimType ?? "Unspecified"}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{claim.patientName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{claim.payerName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        <div>{claim.payerName}</div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {claim.countryCode ?? "US"} / {claim.jurisdiction?.toUpperCase() ?? "US"}
+                          {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <StatusPill variant={statusVariantFromText(claim.claimStatus)}>
                           {claim.claimStatus}
@@ -301,12 +319,17 @@ export function QueueClient({ items }: QueueClientProps) {
                   <div className="mb-3 flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       {getPriorityIcon(claim.priority)}
-                      <Link
-                        href={`/app/claim/${claim.claimId}`}
-                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                      >
-                        {claim.claimNumber}
-                      </Link>
+                      <div>
+                        <Link
+                          href={`/app/claim/${claim.claimId}`}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                        >
+                          {claim.claimNumber}
+                        </Link>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {claim.claimType ?? "Unspecified"}
+                        </div>
+                      </div>
                     </div>
                     <button className="rounded p-1 hover:bg-gray-100">
                       <MoreHorizontal className="h-4 w-4 text-gray-600" />
@@ -319,6 +342,10 @@ export function QueueClient({ items }: QueueClientProps) {
                       <StatusPill variant={statusVariantFromText(claim.claimStatus)}>
                         {claim.claimStatus}
                       </StatusPill>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {claim.countryCode ?? "US"} / {claim.jurisdiction?.toUpperCase() ?? "US"}
+                      {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
                     </div>
                     <div className="text-sm text-gray-700">{claim.nextAction}</div>
                   </div>

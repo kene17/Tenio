@@ -12,7 +12,12 @@ import type { ClaimsListItemView } from "../../../lib/pilot-api";
 type ClaimsClientProps = {
   items: ClaimsListItemView[];
   organizationId: string;
-  payerOptions: Array<{ id: string; label: string }>;
+  payerOptions: Array<{
+    id: string;
+    label: string;
+    jurisdiction: "us" | "ca";
+    countryCode: "US" | "CA";
+  }>;
 };
 
 type SortOption =
@@ -120,6 +125,9 @@ export function ClaimsClient({
               item.claimNumber,
               item.payerName,
               item.patientName,
+              item.claimType ?? "",
+              item.provinceOfService ?? "",
+              item.countryCode,
               item.owner ?? "",
               item.followUpReason,
               item.serviceDate
@@ -244,8 +252,17 @@ export function ClaimsClient({
                       >
                         {item.claimNumber}
                       </Link>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {item.claimType ?? "Unspecified"}
+                        {item.provinceOfService ? ` · ${item.provinceOfService}` : ""}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.payerName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div>{item.payerName}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {item.countryCode} / {item.jurisdiction.toUpperCase()}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{item.serviceDate}</td>
                     <td className="px-4 py-3">
                       <StatusPill variant={statusVariantFromText(item.currentStatus)}>

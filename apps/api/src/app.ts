@@ -5,8 +5,8 @@ import type { ExecutionCandidate } from "@tenio/contracts";
 import { canManagePayerConfiguration } from "./auth.js";
 import { checkDatabaseHealth } from "./database.js";
 import { initializeStore } from "./domain/store.js";
-import type { ClaimImportRowInput } from "./domain/imports.js";
 import { appConfig, getEvidenceStorageHealthMetadata } from "./config.js";
+import type { ImportProfileId, RawImportRow } from "./import/pms/index.js";
 import { ReviewPolicyService } from "./services/review-policy-service.js";
 import { WorkflowService } from "./services/workflow-service.js";
 
@@ -275,10 +275,17 @@ export async function buildApp() {
       return reply.code(403).send({ message: "Authenticated user required" });
     }
 
-    const body = request.body as { rows?: ClaimImportRowInput[] } | null;
+    const body = request.body as {
+      rows?: RawImportRow[];
+      importProfile?: ImportProfileId;
+    } | null;
 
     return {
-      item: await workflow.previewClaimImport(body?.rows ?? [], actor)
+      item: await workflow.previewClaimImport(
+        body?.rows ?? [],
+        actor,
+        body?.importProfile
+      )
     };
   });
 
@@ -290,10 +297,17 @@ export async function buildApp() {
       return reply.code(403).send({ message: "Authenticated user required" });
     }
 
-    const body = request.body as { rows?: ClaimImportRowInput[] } | null;
+    const body = request.body as {
+      rows?: RawImportRow[];
+      importProfile?: ImportProfileId;
+    } | null;
 
     return {
-      item: await workflow.commitClaimImport(body?.rows ?? [], actor)
+      item: await workflow.commitClaimImport(
+        body?.rows ?? [],
+        actor,
+        body?.importProfile
+      )
     };
   });
 
@@ -310,6 +324,10 @@ export async function buildApp() {
       payerId: string;
       claimNumber: string;
       patientName: string;
+      jurisdiction?: "us" | "ca";
+      countryCode?: "US" | "CA";
+      provinceOfService?: string | null;
+      claimType?: string | null;
       priority: "low" | "normal" | "high" | "urgent";
       owner?: string | null;
       notes?: string | null;
@@ -339,7 +357,8 @@ export async function buildApp() {
         | "approve_review"
         | "resolve_claim"
         | "escalate_claim"
-        | "reopen_claim";
+        | "reopen_claim"
+        | "mark_call_required";
       assignee?: string;
       note?: string;
     };
@@ -396,6 +415,201 @@ export async function buildApp() {
     };
   });
 
+  app.post("/internal/agent-runs/:runId/heartbeat", async (request, reply) => {
+    const auth = getRequestAuth(request);
+
+    if (auth?.kind !== "worker-service") {
+      return reply.code(403).send({ message: "Worker service token required" });
+    }
+
+    const { runId } = request.params as { runId: string };
+    const body = (request.body as { workerName?: string } | null) ?? {};
+
+    try {
+      return {
+        item: await workflow.heartbeatAgentRun(runId, body.workerName ?? "worker-1")
+      };
+    } catch (error) {
+      return reply.code(400).send({
+        message: error instanceof Error ? error.message : "Agent heartbeat failed"
+      });
+    }
+  });
+
+  app.post("/internal/agent-runs/:runId/steps/start", async (request, reply) => {
+    const auth = getRequestAuth(request);
+
+    if (auth?.kind !== "worker-service") {
+      return reply.code(403).send({ message: "Worker service token required" });
+    }
+
+    const { runId } = request.params as { runId: string };
+    const body = request.body as {
+      workerName?: string;
+      stepNumber: number;
+      toolName: "execute_connector";
+      toolArgs: {
+        connectorId: string;
+        mode: "browser" | "api";
+        attemptLabel: string;
+      };
+      publicReason: string;
+      idempotencyKey: string;
+      plannerUsage: {
+        provider: string;
+        model: string;
+        inputTokens: number;
+        outputTokens: number;
+      };
+    };
+
+    try {
+      return {
+        item: await workflow.startAgentToolStep(
+          runId,
+          {
+            stepNumber: body.stepNumber,
+            toolName: body.toolName,
+            toolArgs: body.toolArgs,
+            publicReason: body.publicReason,
+            idempotencyKey: body.idempotencyKey,
+            plannerUsage: body.plannerUsage
+          },
+          body.workerName ?? "worker-1"
+        )
+      };
+    } catch (error) {
+      return reply.code(400).send({
+        message: error instanceof Error ? error.message : "Agent step start failed"
+      });
+    }
+  });
+
+  app.post("/internal/agent-runs/:runId/steps/:stepNumber/complete", async (request, reply) => {
+    const auth = getRequestAuth(request);
+
+    if (auth?.kind !== "worker-service") {
+      return reply.code(403).send({ message: "Worker service token required" });
+    }
+
+    const { runId, stepNumber } = request.params as { runId: string; stepNumber: string };
+    const body = request.body as {
+      workerName?: string;
+      result: {
+        observation?: {
+          observationVersion: 1;
+          connectorId: string;
+          connectorName: string;
+          connectorVersion?: string | null;
+          executionMode: "browser" | "api";
+          observedAt: string;
+          durationMs: number;
+          success: boolean;
+          retryable: boolean;
+          failureCategory: ExecutionCandidate["execution"]["failureCategory"];
+          summary: string;
+          portalTextSnippet?: string | null;
+          screenshotUrls?: string[];
+          evidenceArtifactIds?: string[];
+          evidenceArtifacts?: ExecutionCandidate["evidence"];
+          connectorPayloadJson?: string | null;
+        } | null;
+        summary: string;
+        evidenceArtifactIds?: string[];
+        retryable?: boolean;
+        failureCategory?: ExecutionCandidate["execution"]["failureCategory"];
+        finalCandidate?: ExecutionCandidate | null;
+        retryAfterSeconds?: number | null;
+        terminalReason?:
+          | "resolved_candidate"
+          | "review_required"
+          | "retry_scheduled"
+          | "budget_exhausted_incomplete"
+          | "budget_exhausted_conflict"
+          | "provider_unavailable_retry"
+          | "provider_unavailable_review"
+          | "fallback_policy_review"
+          | null;
+      };
+    };
+
+    try {
+      return {
+        item: await workflow.completeAgentToolStep(
+          runId,
+          Number(stepNumber),
+          {
+            ...body.result,
+            evidenceArtifactIds: body.result.evidenceArtifactIds ?? [],
+            observation: body.result.observation
+                ? {
+                    ...body.result.observation,
+                    failureCategory: body.result.observation.failureCategory ?? null,
+                    screenshotUrls: body.result.observation.screenshotUrls ?? [],
+                    evidenceArtifactIds: body.result.observation.evidenceArtifactIds ?? [],
+                    evidenceArtifacts: body.result.observation.evidenceArtifacts ?? []
+                  }
+              : body.result.observation
+          },
+          body.workerName ?? "worker-1"
+        )
+      };
+    } catch (error) {
+      return reply.code(400).send({
+        message: error instanceof Error ? error.message : "Agent step completion failed"
+      });
+    }
+  });
+
+  app.post("/internal/agent-runs/:runId/steps/terminal", async (request, reply) => {
+    const auth = getRequestAuth(request);
+
+    if (auth?.kind !== "worker-service") {
+      return reply.code(403).send({ message: "Worker service token required" });
+    }
+
+    const { runId } = request.params as { runId: string };
+    const body = request.body as {
+      workerName?: string;
+      stepNumber: number;
+      directiveKind: "final" | "retry";
+      publicReason: string;
+      idempotencyKey: string;
+      plannerUsage: {
+        provider: string;
+        model: string;
+        inputTokens: number;
+        outputTokens: number;
+      };
+      summary: string;
+      terminalReason:
+        | "resolved_candidate"
+        | "review_required"
+        | "retry_scheduled"
+        | "budget_exhausted_incomplete"
+        | "budget_exhausted_conflict"
+        | "provider_unavailable_retry"
+        | "provider_unavailable_review"
+        | "fallback_policy_review";
+      finalCandidate?: ExecutionCandidate | null;
+      retryAfterSeconds?: number | null;
+    };
+
+    try {
+      return {
+        item: await workflow.recordAgentTerminalStep(
+          runId,
+          body,
+          body.workerName ?? "worker-1"
+        )
+      };
+    } catch (error) {
+      return reply.code(400).send({
+        message: error instanceof Error ? error.message : "Agent terminal step failed"
+      });
+    }
+  });
+
   app.post("/internal/retrieval-jobs/:jobId/complete", async (request, reply) => {
     const auth = getRequestAuth(request);
 
@@ -435,19 +649,33 @@ export async function buildApp() {
       error?: string;
       failureCategory?: ExecutionCandidate["execution"]["failureCategory"];
       retryable?: boolean;
+      retryAfterSeconds?: number;
       connectorId?: string;
       connectorName?: string;
+      executionMode?: "browser" | "api";
       observedAt?: string;
       durationMs?: number;
+      terminalReason?:
+        | "resolved_candidate"
+        | "review_required"
+        | "retry_scheduled"
+        | "budget_exhausted_incomplete"
+        | "budget_exhausted_conflict"
+        | "provider_unavailable_retry"
+        | "provider_unavailable_review"
+        | "fallback_policy_review";
     } | null;
     const item = await workflow.failRetrievalJob(jobId, {
       error: body?.error ?? "Worker reported an unknown failure.",
       failureCategory: body?.failureCategory ?? undefined,
       retryable: body?.retryable ?? undefined,
+      retryAfterSeconds: body?.retryAfterSeconds ?? undefined,
       connectorId: body?.connectorId ?? undefined,
       connectorName: body?.connectorName ?? undefined,
+      executionMode: body?.executionMode ?? undefined,
       observedAt: body?.observedAt ?? undefined,
-      durationMs: body?.durationMs ?? undefined
+      durationMs: body?.durationMs ?? undefined,
+      terminalReason: body?.terminalReason ?? undefined
     });
 
     return {

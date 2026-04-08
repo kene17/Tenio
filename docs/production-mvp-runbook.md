@@ -4,8 +4,8 @@
 
 - `apps/web`: authenticated product UI
 - `apps/api`: workflow API, auth, queue ownership, audit
-- `apps/worker`: async retrieval worker
-- `services/ai`: AI classification service
+- `apps/worker`: async autonomous retrieval worker
+- `services/ai`: AI planning and interpretation service
 - `postgres`: primary system of record on host port `5433`
 
 ## Required Environment Variables
@@ -49,6 +49,9 @@
 ### AI
 
 - `TENIO_AI_SERVICE_TOKEN`
+- `OPENAI_API_KEY` (required when `TENIO_AGENT_PROVIDER=openai`; used automatically in `auto` mode when present)
+- `TENIO_AGENT_PROVIDER` (optional; `auto`, `openai`, or `heuristic`; defaults to `auto`)
+- `TENIO_AGENT_MODEL` (optional; defaults to `gpt-5-mini`)
 
 ## Local Startup
 
@@ -65,6 +68,9 @@
 
 ## Trusted Connector Mode
 
+- The worker now runs a single-claim autonomous retrieval loop with durable `agent_run` / `agent_step` state in the workflow database.
+- Planner output is limited to retrieval-and-recovery directives plus a final `ExecutionCandidate`; workflow remains authoritative for official claim state.
+- In local development, `services/ai` loads `.env`, `apps/api/.env`, `services/ai/.env`, and `apps/web/.env.local` as fallback env sources so a local `OPENAI_API_KEY` can be picked up without manual export.
 - `payer_aetna` now uses the structured `aetna-claim-status-api` connector path.
 - When `TENIO_AETNA_API_BASE_URL` and `TENIO_AETNA_API_TOKEN` are both set, the worker calls the live upstream API.
 - When either variable is unset, the worker stays in local fixture mode for deterministic development and smoke tests.

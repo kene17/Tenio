@@ -159,6 +159,9 @@ export function ConfigurationClient({
                   </span>
                 ) : null}
               </div>
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                {payer.countryCode} / {payer.jurisdiction}
+              </div>
               <div className="mb-2">{statusBadge(payer.status)}</div>
               <div className="text-xs text-gray-600">
                 {payer.enabledWorkflows.length} workflows •{" "}
@@ -186,6 +189,9 @@ export function ConfigurationClient({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <span>
+                Jurisdiction: {currentPayer.countryCode} / {currentPayer.jurisdiction}
+              </span>
               <span>Last verified: {new Date(currentPayer.lastVerifiedAt).toLocaleString()}</span>
               <span>Review threshold: {Math.round(currentPayer.reviewThreshold * 100)}%</span>
               <span>Escalation threshold: {Math.round(currentPayer.escalationThreshold * 100)}%</span>

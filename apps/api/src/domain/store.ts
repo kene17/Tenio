@@ -1,8 +1,21 @@
-import type { EvidenceArtifact, ExecutionCandidate } from "@tenio/contracts";
+import type {
+  AgentDirectiveKind,
+  AgentRunBudget,
+  AgentRunTerminalReason,
+  AgentStepHistoryItem,
+  AgentStepResult,
+  AgentToolName,
+  ConnectorMode,
+  EvidenceArtifact,
+  ExecutionCandidate,
+  ExecutionFailureCategory
+} from "@tenio/contracts";
 import type {
   ClaimDetail,
   ClaimSummary,
+  CountryCode,
   IntakeClaim,
+  Jurisdiction,
   Priority,
   QueueItem
 } from "@tenio/domain";
@@ -30,9 +43,13 @@ import {
   buildClaimsList,
   buildPerformanceMetrics,
   createSeedPayerConfigurations,
+  findMissingSeedPayerConfigurations,
   derivePayerConfigurationIssues,
   derivePayerConfigurationStatus,
   type AppUserRecord,
+  type AgentRunRecord,
+  type AgentRunStatus,
+  type AgentStepRecord,
   type ClaimsListItemView,
   type PayerConfigurationRecord,
   type PerformanceMetricsView,
@@ -60,12 +77,34 @@ import {
 } from "./pilot-state.js";
 import {
   previewClaimImportRows,
-  type ClaimImportPreviewResult,
-  type ClaimImportRowInput
+  type ClaimImportPreviewResult
 } from "./imports.js";
+import { adaptImportRows, type ImportProfileId, type RawImportRow } from "../import/pms/index.js";
 
 let initialized = false;
 type DbExecutor = PoolClient | ReturnType<typeof getPool>;
+
+export type AgentRunView = {
+  id: string;
+  status: AgentRunStatus;
+  protocolVersion: 1;
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
+  heartbeatAt: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  modelProvider: string | null;
+  modelName: string | null;
+  modelCallsUsed: number;
+  inputTokensUsed: number;
+  outputTokensUsed: number;
+  totalTokensUsed: number;
+  connectorSwitchCount: number;
+  budget: AgentRunBudget;
+  terminalReason: AgentRunTerminalReason | null;
+  lastError: string | null;
+  steps: AgentStepHistoryItem[];
+};
 
 function parsePayloadRow<T>(row: { payload: T }) {
   return row.payload;
@@ -93,6 +132,18 @@ function normalizeResultRecord(result: ResultRecord): ResultRecord {
   };
 }
 
+function normalizeClaimRecord(claim: ClaimRecord): ClaimRecord {
+  return {
+    ...claim,
+    claimType: claim.claimType ?? "Professional",
+    jurisdiction: claim.jurisdiction ?? "us",
+    countryCode: claim.countryCode ?? (claim.jurisdiction === "ca" ? "CA" : "US"),
+    provinceOfService: claim.provinceOfService ?? null,
+    requiresPhoneCall: claim.requiresPhoneCall ?? false,
+    phoneCallRequiredAt: claim.phoneCallRequiredAt ?? null
+  };
+}
+
 function normalizeRetrievalJob(job: RetrievalJobRecord): RetrievalJobRecord {
   return {
     ...job,
@@ -108,11 +159,57 @@ function normalizeRetrievalJob(job: RetrievalJobRecord): RetrievalJobRecord {
   };
 }
 
+const agentRunBudgetDefaults: AgentRunBudget = {
+  maxToolSteps: 5,
+  maxModelCalls: 6,
+  maxWallTimeMs: 90_000,
+  maxTotalTokens: 25_000,
+  maxConnectorSwitches: 1
+};
+const agentRunLeaseDurationMs = 120_000;
+
+function normalizeAgentRun(run: AgentRunRecord): AgentRunRecord {
+  return {
+    ...run,
+    leaseOwner: run.leaseOwner ?? null,
+    leaseExpiresAt: run.leaseExpiresAt ?? null,
+    heartbeatAt: run.heartbeatAt ?? null,
+    completedAt: run.completedAt ?? null,
+    modelProvider: run.modelProvider ?? null,
+    modelName: run.modelName ?? null,
+    modelCallsUsed: run.modelCallsUsed ?? 0,
+    inputTokensUsed: run.inputTokensUsed ?? 0,
+    outputTokensUsed: run.outputTokensUsed ?? 0,
+    totalTokensUsed: run.totalTokensUsed ?? 0,
+    connectorSwitchCount: run.connectorSwitchCount ?? 0,
+    terminalReason: run.terminalReason ?? null,
+    finalCandidate: run.finalCandidate ?? null,
+    lastError: run.lastError ?? null,
+    budget: run.budget ?? agentRunBudgetDefaults
+  };
+}
+
+function normalizeAgentStep(step: AgentStepRecord): AgentStepRecord {
+  return {
+    ...step,
+    toolName: step.toolName ?? null,
+    toolArgs: step.toolArgs ?? null,
+    plannerProvider: step.plannerProvider ?? null,
+    plannerModel: step.plannerModel ?? null,
+    plannerInputTokens: step.plannerInputTokens ?? 0,
+    plannerOutputTokens: step.plannerOutputTokens ?? 0,
+    result: step.result ?? null,
+    completedAt: step.completedAt ?? null
+  };
+}
+
 function normalizePayerConfigurationRecord(
   config: PayerConfigurationRecord
 ): PayerConfigurationRecord {
   const hydrated: PayerConfigurationRecord = {
     ...config,
+    jurisdiction: config.jurisdiction ?? "us",
+    countryCode: config.countryCode ?? (config.jurisdiction === "ca" ? "CA" : "US"),
     escalationThreshold:
       config.escalationThreshold ?? Math.max(0.5, (config.reviewThreshold ?? 0.85) - 0.25),
     defaultSlaHours: config.defaultSlaHours ?? 24,
@@ -130,6 +227,85 @@ function normalizePayerConfigurationRecord(
   }
 
   return hydrated;
+}
+
+function toAgentStepHistoryItem(step: AgentStepRecord): AgentStepHistoryItem {
+  return {
+    stepNumber: step.stepNumber,
+    directiveKind: step.directiveKind,
+    toolName: step.toolName,
+    status: step.status,
+    idempotencyKey: step.idempotencyKey,
+    publicReason: step.publicReason,
+    toolArgs: step.toolArgs,
+    plannerUsage:
+      step.plannerProvider && step.plannerModel
+        ? {
+            provider: step.plannerProvider,
+            model: step.plannerModel,
+            inputTokens: step.plannerInputTokens,
+            outputTokens: step.plannerOutputTokens
+          }
+        : null,
+    result: step.result,
+    startedAt: step.startedAt,
+    completedAt: step.completedAt
+  };
+}
+
+function buildAgentRunView(run: AgentRunRecord, steps: AgentStepRecord[]): AgentRunView {
+  return {
+    id: run.id,
+    status: run.status,
+    protocolVersion: run.protocolVersion,
+    leaseOwner: run.leaseOwner,
+    leaseExpiresAt: run.leaseExpiresAt,
+    heartbeatAt: run.heartbeatAt,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    modelProvider: run.modelProvider,
+    modelName: run.modelName,
+    modelCallsUsed: run.modelCallsUsed,
+    inputTokensUsed: run.inputTokensUsed,
+    outputTokensUsed: run.outputTokensUsed,
+    totalTokensUsed: run.totalTokensUsed,
+    connectorSwitchCount: run.connectorSwitchCount,
+    budget: run.budget,
+    terminalReason: run.terminalReason,
+    lastError: run.lastError,
+    steps: steps.map(toAgentStepHistoryItem)
+  };
+}
+
+function buildNewAgentRun(job: RetrievalJobRecord, workerName: string): AgentRunRecord {
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: `run_${job.id}_${randomUUID().slice(0, 8)}`,
+    organizationId: job.organizationId,
+    retrievalJobId: job.id,
+    claimId: job.claimId,
+    status: "running",
+    protocolVersion: 1,
+    leaseOwner: workerName,
+    leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+    heartbeatAt: nowIso,
+    startedAt: nowIso,
+    completedAt: null,
+    modelProvider: null,
+    modelName: null,
+    modelCallsUsed: 0,
+    inputTokensUsed: 0,
+    outputTokensUsed: 0,
+    totalTokensUsed: 0,
+    connectorSwitchCount: 0,
+    terminalReason: null,
+    finalCandidate: null,
+    budget: agentRunBudgetDefaults,
+    lastError: null,
+    createdAt: nowIso,
+    updatedAt: nowIso
+  };
 }
 
 function initials(value: string) {
@@ -360,6 +536,93 @@ async function upsertRetrievalJob(client: PoolClient, job: RetrievalJobRecord) {
   );
 }
 
+async function upsertAgentRun(client: PoolClient, run: AgentRunRecord) {
+  await client.query(
+    `
+      INSERT INTO agent_runs (
+        id,
+        organization_id,
+        retrieval_job_id,
+        claim_id,
+        status,
+        lease_owner,
+        lease_expires_at,
+        heartbeat_at,
+        started_at,
+        completed_at,
+        updated_at,
+        payload
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz,
+        $9::timestamptz, $10::timestamptz, $11::timestamptz, $12::jsonb
+      )
+      ON CONFLICT (id)
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        lease_owner = EXCLUDED.lease_owner,
+        lease_expires_at = EXCLUDED.lease_expires_at,
+        heartbeat_at = EXCLUDED.heartbeat_at,
+        completed_at = EXCLUDED.completed_at,
+        updated_at = EXCLUDED.updated_at,
+        payload = EXCLUDED.payload
+    `,
+    [
+      run.id,
+      run.organizationId,
+      run.retrievalJobId,
+      run.claimId,
+      run.status,
+      run.leaseOwner,
+      run.leaseExpiresAt,
+      run.heartbeatAt,
+      run.startedAt,
+      run.completedAt,
+      run.updatedAt,
+      JSON.stringify(run)
+    ]
+  );
+}
+
+async function upsertAgentStep(client: PoolClient, step: AgentStepRecord) {
+  await client.query(
+    `
+      INSERT INTO agent_steps (
+        id,
+        agent_run_id,
+        step_number,
+        directive_kind,
+        tool_name,
+        status,
+        idempotency_key,
+        started_at,
+        completed_at,
+        payload
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10::jsonb
+      )
+      ON CONFLICT (id)
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        completed_at = EXCLUDED.completed_at,
+        payload = EXCLUDED.payload
+    `,
+    [
+      step.id,
+      step.agentRunId,
+      step.stepNumber,
+      step.directiveKind,
+      step.toolName,
+      step.status,
+      step.idempotencyKey,
+      step.startedAt,
+      step.completedAt,
+      JSON.stringify(step)
+    ]
+  );
+}
+
 async function syncEvidenceArtifacts(
   client: PoolClient,
   claim: ClaimRecord,
@@ -472,7 +735,7 @@ async function loadClaims() {
     "SELECT payload FROM claims ORDER BY claim_number"
   );
 
-  return result.rows.map(parsePayloadRow);
+  return result.rows.map(parsePayloadRow).map(normalizeClaimRecord);
 }
 
 async function loadQueue() {
@@ -530,7 +793,7 @@ async function loadClaimById(claimId: string) {
     [claimId]
   );
 
-  return result.rows[0]?.payload;
+  return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
 }
 
 async function loadClaimByOrganizationAndClaimNumber(
@@ -550,7 +813,7 @@ async function loadClaimByOrganizationAndClaimNumber(
     [organizationId, claimNumber]
   );
 
-  return result.rows[0]?.payload;
+  return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
 }
 
 async function loadQueueByClaimId(claimId: string, client?: PoolClient) {
@@ -640,6 +903,23 @@ async function loadPayerConfigurations() {
   return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
 }
 
+async function loadPayerConfigurationsByOrganizationInternal(
+  organizationId: string,
+  client?: PoolClient
+) {
+  const result = await getDbExecutor(client).query<{ payload: PayerConfigurationRecord }>(
+    `
+      SELECT payload
+      FROM payer_configurations
+      WHERE organization_id = $1
+      ORDER BY payer_id
+    `,
+    [organizationId]
+  );
+
+  return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+}
+
 async function loadClaimsByOrganization(organizationId: string, client?: PoolClient) {
   await initializeStore();
   const result = await getDbExecutor(client).query<{ payload: ClaimRecord }>(
@@ -652,22 +932,12 @@ async function loadClaimsByOrganization(organizationId: string, client?: PoolCli
     [organizationId]
   );
 
-  return result.rows.map(parsePayloadRow);
+  return result.rows.map(parsePayloadRow).map(normalizeClaimRecord);
 }
 
 async function loadPayerConfigurationsByOrganization(organizationId: string, client?: PoolClient) {
   await initializeStore();
-  const result = await getDbExecutor(client).query<{ payload: PayerConfigurationRecord }>(
-    `
-      SELECT payload
-      FROM payer_configurations
-      WHERE organization_id = $1
-      ORDER BY payer_id
-    `,
-    [organizationId]
-  );
-
-  return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+  return loadPayerConfigurationsByOrganizationInternal(organizationId, client);
 }
 
 async function loadPayerConfigurationByOrganizationAndPayerId(
@@ -697,6 +967,70 @@ async function loadRetrievalJobs() {
   );
 
   return result.rows.map(parsePayloadRow).map(normalizeRetrievalJob);
+}
+
+async function loadAgentStepsByRunId(agentRunId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentStepRecord }>(
+    `
+      SELECT payload
+      FROM agent_steps
+      WHERE agent_run_id = $1
+      ORDER BY step_number ASC
+    `,
+    [agentRunId]
+  );
+
+  return result.rows.map(parsePayloadRow).map(normalizeAgentStep);
+}
+
+async function loadLatestActiveAgentRunByJobId(
+  retrievalJobId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentRunRecord }>(
+    `
+      SELECT payload
+      FROM agent_runs
+      WHERE retrieval_job_id = $1
+        AND status = 'running'
+      ORDER BY started_at DESC
+      LIMIT 1
+    `,
+    [retrievalJobId]
+  );
+
+  return result.rows[0]?.payload ? normalizeAgentRun(result.rows[0].payload) : null;
+}
+
+async function loadLatestAgentRunByJobId(
+  retrievalJobId: string,
+  client?: PoolClient
+) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentRunRecord }>(
+    `
+      SELECT payload
+      FROM agent_runs
+      WHERE retrieval_job_id = $1
+      ORDER BY started_at DESC
+      LIMIT 1
+    `,
+    [retrievalJobId]
+  );
+
+  return result.rows[0]?.payload ? normalizeAgentRun(result.rows[0].payload) : null;
+}
+
+async function loadAgentRunById(runId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{ payload: AgentRunRecord }>(
+    "SELECT payload FROM agent_runs WHERE id = $1 LIMIT 1",
+    [runId]
+  );
+
+  return result.rows[0]?.payload ? normalizeAgentRun(result.rows[0].payload) : null;
 }
 
 function ensureActor(actor: WorkflowActor) {
@@ -782,6 +1116,31 @@ export async function initializeStore() {
     });
   }
 
+  await withTransaction(async (client) => {
+    const seedOrganization = await client.query<{ id: string }>(
+      "SELECT id FROM organizations WHERE id = $1 LIMIT 1",
+      [appConfig.seedOrgId]
+    );
+
+    if (seedOrganization.rowCount === 0) {
+      return;
+    }
+
+    const seedConfigs = createSeedPayerConfigurations(appConfig.seedOrgId);
+    const existingSeedConfigs = await loadPayerConfigurationsByOrganizationInternal(
+      appConfig.seedOrgId,
+      client
+    );
+    const missingSeedConfigs = findMissingSeedPayerConfigurations(
+      existingSeedConfigs,
+      seedConfigs
+    );
+
+    for (const config of missingSeedConfigs) {
+      await upsertPayerConfiguration(client, config);
+    }
+  });
+
   initialized = true;
 }
 
@@ -791,8 +1150,8 @@ export async function listClaims(): Promise<ClaimSummary[]> {
 }
 
 export async function listClaimsList(): Promise<ClaimsListItemView[]> {
-  const claims = await loadClaims();
-  return buildClaimsList(claims);
+  const [claims, queue] = await Promise.all([loadClaims(), loadQueue()]);
+  return buildClaimsList(claims, queue);
 }
 
 export async function listQueue(): Promise<QueueItem[]> {
@@ -814,14 +1173,15 @@ export async function listPilotQueueItems(): Promise<PilotQueueItem[]> {
 export async function getPilotClaimDetail(
   claimId: string
 ): Promise<PilotClaimDetail | null> {
-  const [claims, results, auditEvents, jobs] = await Promise.all([
+  const [claims, results, auditEvents, jobs, queue] = await Promise.all([
     loadClaims(),
     loadResults(),
     loadAuditEvents(),
-    loadRetrievalJobs()
+    loadRetrievalJobs(),
+    loadQueue()
   ]);
 
-  const detail = buildPilotClaimDetail(claimId, claims, results, auditEvents);
+  const detail = buildPilotClaimDetail(claimId, claims, results, auditEvents, queue);
 
   if (!detail) {
     return null;
@@ -835,17 +1195,20 @@ export async function getPilotClaimDetail(
         job.status === "retrying" ||
         job.status === "failed")
   );
+  const activeRun = activeJob ? await loadLatestAgentRunByJobId(activeJob.id) : null;
 
   return {
     ...detail,
     activeRetrievalJob: activeJob
       ? {
           id: activeJob.id,
+          agentRunId: activeRun?.id ?? null,
           status: activeJob.status,
           attempts: activeJob.attempts,
           lastError: activeJob.lastError,
           updatedAt: activeJob.updatedAt,
           connectorName: activeJob.connectorName,
+          traceId: activeJob.agentTraceId,
           failureCategory: activeJob.failureCategory,
           retryable: activeJob.retryable,
           reviewReason: activeJob.reviewReason,
@@ -1088,6 +1451,45 @@ function normalizeIntakeSlaAt(value: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+function normalizeIntakeJurisdiction(
+  value: Jurisdiction | null | undefined,
+  fallback?: Jurisdiction | null
+): Jurisdiction {
+  return value ?? fallback ?? "us";
+}
+
+function deriveCountryCodeFromJurisdiction(jurisdiction: Jurisdiction): CountryCode {
+  return jurisdiction === "ca" ? "CA" : "US";
+}
+
+function normalizeIntakeCountryCode(
+  value: CountryCode | null | undefined,
+  jurisdiction: Jurisdiction,
+  fallback?: CountryCode | null
+): CountryCode {
+  const candidate = value ?? fallback;
+
+  if (
+    candidate &&
+    ((jurisdiction === "ca" && candidate === "CA") ||
+      (jurisdiction === "us" && candidate === "US"))
+  ) {
+    return candidate;
+  }
+
+  return deriveCountryCodeFromJurisdiction(jurisdiction);
+}
+
+function normalizeProvinceOfService(value: string | null | undefined) {
+  const normalized = normalizeOptionalText(value)?.toUpperCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.slice(0, 3);
+}
+
 function deriveDefaultSlaAt(defaultSlaHours: number | undefined) {
   const safeHours = Math.max(1, Math.round(defaultSlaHours ?? 24));
   return new Date(Date.now() + safeHours * 60 * 60 * 1000).toISOString();
@@ -1185,6 +1587,14 @@ async function createClaimRecord(
   const existingQueueItem = existingClaim
     ? await loadQueueByClaimId(existingClaim.id, client)
     : undefined;
+  const jurisdiction = normalizeIntakeJurisdiction(input.jurisdiction, payerConfig?.jurisdiction);
+  const countryCode = normalizeIntakeCountryCode(
+    input.countryCode,
+    jurisdiction,
+    payerConfig?.countryCode
+  );
+  const provinceOfService = normalizeProvinceOfService(input.provinceOfService);
+  const claimType = normalizeOptionalText(input.claimType);
   const claimId = existingClaim?.id ?? buildClaimId(claimNumber);
   const claim: ClaimRecord = existingClaim
     ? {
@@ -1193,6 +1603,10 @@ async function createClaimRecord(
         payerName: payerConfig?.payerName ?? input.payerId,
         claimNumber,
         patientName,
+        jurisdiction,
+        countryCode,
+        provinceOfService: provinceOfService ?? existingClaim.provinceOfService,
+        claimType: claimType ?? existingClaim.claimType,
         owner:
           owner ??
           existingClaim.owner ??
@@ -1212,6 +1626,9 @@ async function createClaimRecord(
         payerName: payerConfig?.payerName ?? input.payerId,
         claimNumber,
         patientName,
+        jurisdiction,
+        countryCode,
+        provinceOfService,
         status: "pending",
         confidence: 0,
         slaAt: providedSlaAt ?? deriveDefaultSlaAt(payerConfig?.defaultSlaHours),
@@ -1224,7 +1641,7 @@ async function createClaimRecord(
         evidence: [],
         reviews: [],
         serviceDate: new Date().toISOString().slice(0, 10),
-        claimType: "Professional",
+        claimType: claimType ?? "Professional",
         allowedAmountCents: null,
         paidAmountCents: null,
         patientResponsibilityCents: null,
@@ -1233,6 +1650,8 @@ async function createClaimRecord(
         currentQueue: owner ? "Assigned Intake" : "Pending Retrieval",
         nextAction: "Queue Retrieval",
         totalTouches: 0,
+        requiresPhoneCall: false,
+        phoneCallRequiredAt: null,
         daysSinceLastFollowUp: 0,
         escalationState: "Not escalated",
         ageDays: 0
@@ -1298,24 +1717,27 @@ export async function createClaim(input: IntakeClaim, actor: WorkflowActor) {
 }
 
 export async function previewClaimImport(
-  rows: ClaimImportRowInput[],
-  actor: WorkflowActor
+  rows: RawImportRow[],
+  actor: WorkflowActor,
+  importProfile: ImportProfileId = "generic_template"
 ): Promise<ClaimImportPreviewResult> {
   const [existingClaims, payerConfigurations] = await Promise.all([
     loadClaimsByOrganization(actor.organizationId),
     loadPayerConfigurationsByOrganization(actor.organizationId)
   ]);
+  const normalizedRows = adaptImportRows(rows, importProfile);
 
   return previewClaimImportRows({
-    rows,
+    rows: normalizedRows,
     existingClaims,
     payerConfigurations
   });
 }
 
 export async function commitClaimImport(
-  rows: ClaimImportRowInput[],
-  actor: WorkflowActor
+  rows: RawImportRow[],
+  actor: WorkflowActor,
+  importProfile: ImportProfileId = "generic_template"
 ) {
   await initializeStore();
 
@@ -1324,8 +1746,9 @@ export async function commitClaimImport(
       loadClaimsByOrganization(actor.organizationId, client),
       loadPayerConfigurationsByOrganization(actor.organizationId, client)
     ]);
+    const normalizedRows = adaptImportRows(rows, importProfile);
     const preview = previewClaimImportRows({
-      rows,
+      rows: normalizedRows,
       existingClaims,
       payerConfigurations
     });
@@ -1341,6 +1764,10 @@ export async function commitClaimImport(
           payerId: row.payerId ?? "",
           claimNumber: row.claimNumber ?? "",
           patientName: row.patientName ?? "",
+          jurisdiction: row.jurisdiction ?? undefined,
+          countryCode: row.countryCode ?? undefined,
+          provinceOfService: row.provinceOfService,
+          claimType: row.claimType,
           priority: row.priority ?? "normal",
           owner: row.owner,
           notes: row.notes,
@@ -1493,7 +1920,9 @@ export async function applyClaimAction(
       "SELECT payload FROM claims WHERE id = $1 FOR UPDATE",
       [claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (!claim) {
       throw new Error("Claim not found");
@@ -1605,7 +2034,12 @@ export async function claimNextRetrievalJob(workerName: string) {
   await initializeStore();
 
   return withTransaction(async (client) => {
-    const jobResult = await client.query<{
+    const nowIso = new Date().toISOString();
+    const nextLeaseExpiresAt = new Date(Date.now() + agentRunLeaseDurationMs).toISOString();
+    let job: RetrievalJobRecord | null = null;
+    let agentRun: AgentRunRecord | null = null;
+
+    const queuedJobResult = await client.query<{
       id: string;
       payload: RetrievalJobRecord;
     }>(
@@ -1618,39 +2052,460 @@ export async function claimNextRetrievalJob(workerName: string) {
         FOR UPDATE SKIP LOCKED
       `
     );
-    const row = jobResult.rows[0];
+    const queuedRow = queuedJobResult.rows[0];
 
-    if (!row) {
-      return null;
+    if (queuedRow) {
+      job = {
+        ...normalizeRetrievalJob(queuedRow.payload),
+        status: "processing",
+        reservedBy: workerName,
+        attempts: queuedRow.payload.attempts + 1,
+        startedAt: nowIso,
+        lastAttemptedAt: nowIso,
+        updatedAt: nowIso
+      };
+      agentRun = buildNewAgentRun(job, workerName);
+      await upsertRetrievalJob(client, job);
+      await upsertAgentRun(client, agentRun);
+    } else {
+      const expiredRunResult = await client.query<{ payload: AgentRunRecord }>(
+        `
+          SELECT payload
+          FROM agent_runs
+          WHERE status = 'running'
+            AND lease_expires_at <= NOW()
+          ORDER BY lease_expires_at ASC
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        `
+      );
+      const expiredRunRow = expiredRunResult.rows[0];
+
+      if (!expiredRunRow?.payload) {
+        return null;
+      }
+
+      const existingRun = normalizeAgentRun(expiredRunRow.payload);
+      const jobResult = await client.query<{ payload: RetrievalJobRecord }>(
+        "SELECT payload FROM retrieval_jobs WHERE id = $1 FOR UPDATE",
+        [existingRun.retrievalJobId]
+      );
+      const existingJob = jobResult.rows[0]?.payload
+        ? normalizeRetrievalJob(jobResult.rows[0].payload)
+        : null;
+
+      if (!existingJob || existingJob.status !== "processing") {
+        return null;
+      }
+
+      job = {
+        ...existingJob,
+        reservedBy: workerName,
+        updatedAt: nowIso
+      };
+      agentRun = {
+        ...existingRun,
+        leaseOwner: workerName,
+        leaseExpiresAt: nextLeaseExpiresAt,
+        heartbeatAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      await upsertRetrievalJob(client, job);
+      await upsertAgentRun(client, agentRun);
     }
-
-    const job: RetrievalJobRecord = {
-      ...normalizeRetrievalJob(row.payload),
-      status: "processing",
-      reservedBy: workerName,
-      attempts: row.payload.attempts + 1,
-      startedAt: new Date().toISOString(),
-      lastAttemptedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    await upsertRetrievalJob(client, job);
 
     const claimResult = await client.query<{ payload: ClaimRecord }>(
       "SELECT payload FROM claims WHERE id = $1",
       [job.claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (!claim) {
       return null;
     }
 
+    const agentSteps = await loadAgentStepsByRunId(agentRun.id, client);
+
     return {
       job,
-      claim: toClaimDetail(claim)
+      claim: toClaimDetail(claim),
+      agentRun: buildAgentRunView(agentRun, agentSteps)
     };
   });
+}
+
+export type StartAgentToolStepInput = {
+  stepNumber: number;
+  toolName: AgentToolName;
+  toolArgs: {
+    connectorId: string;
+    mode: ConnectorMode;
+    attemptLabel: string;
+  };
+  publicReason: string;
+  idempotencyKey: string;
+  plannerUsage: {
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+};
+
+export type RecordAgentTerminalStepInput = {
+  stepNumber: number;
+  directiveKind: Extract<AgentDirectiveKind, "final" | "retry">;
+  publicReason: string;
+  idempotencyKey: string;
+  plannerUsage: {
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+  summary: string;
+  terminalReason: AgentRunTerminalReason;
+  finalCandidate?: ExecutionCandidate | null;
+  retryAfterSeconds?: number | null;
+};
+
+export function assertRunLease(run: AgentRunRecord, workerName: string, now = Date.now()) {
+  if (run.status !== "running") {
+    throw new Error("Agent run is not active.");
+  }
+
+  if (run.leaseOwner !== workerName) {
+    throw new Error("Agent run lease is held by another worker.");
+  }
+
+  const leaseExpiresAtMs = run.leaseExpiresAt ? new Date(run.leaseExpiresAt).getTime() : NaN;
+
+  if (!run.leaseExpiresAt || Number.isNaN(leaseExpiresAtMs) || leaseExpiresAtMs <= now) {
+    throw new Error("Agent run lease has expired.");
+  }
+}
+
+export async function heartbeatAgentRun(runId: string, workerName: string) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+    const nowIso = new Date().toISOString();
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso
+    };
+
+    await upsertAgentRun(client, updatedRun);
+    const steps = await loadAgentStepsByRunId(runId, client);
+    return buildAgentRunView(updatedRun, steps);
+  });
+}
+
+export async function startAgentToolStep(
+  runId: string,
+  input: StartAgentToolStepInput,
+  workerName: string
+) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+
+    const stepResult = await client.query<{ payload: AgentStepRecord }>(
+      "SELECT payload FROM agent_steps WHERE agent_run_id = $1 AND step_number = $2 FOR UPDATE",
+      [runId, input.stepNumber]
+    );
+    const existingStep = stepResult.rows[0]?.payload
+      ? normalizeAgentStep(stepResult.rows[0].payload)
+      : null;
+
+    if (existingStep) {
+      if (
+        existingStep.idempotencyKey !== input.idempotencyKey ||
+        existingStep.toolName !== input.toolName
+      ) {
+        throw new Error("Agent step already exists with different identity.");
+      }
+
+      return {
+        run: buildAgentRunView(run, await loadAgentStepsByRunId(runId, client)),
+        step: toAgentStepHistoryItem(existingStep)
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const step: AgentStepRecord = {
+      id: `${runId}_step_${input.stepNumber}`,
+      agentRunId: runId,
+      stepNumber: input.stepNumber,
+      directiveKind: "tool_call",
+      toolName: input.toolName,
+      status: "started",
+      idempotencyKey: input.idempotencyKey,
+      publicReason: input.publicReason,
+      toolArgs: input.toolArgs,
+      plannerProvider: input.plannerUsage.provider,
+      plannerModel: input.plannerUsage.model,
+      plannerInputTokens: input.plannerUsage.inputTokens,
+      plannerOutputTokens: input.plannerUsage.outputTokens,
+      result: null,
+      startedAt: nowIso,
+      completedAt: null
+    };
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      modelProvider: input.plannerUsage.provider,
+      modelName: input.plannerUsage.model,
+      modelCallsUsed: run.modelCallsUsed + 1,
+      inputTokensUsed: run.inputTokensUsed + input.plannerUsage.inputTokens,
+      outputTokensUsed: run.outputTokensUsed + input.plannerUsage.outputTokens,
+      totalTokensUsed:
+        run.totalTokensUsed + input.plannerUsage.inputTokens + input.plannerUsage.outputTokens,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso
+    };
+
+    await upsertAgentStep(client, step);
+    await upsertAgentRun(client, updatedRun);
+
+    return {
+      run: buildAgentRunView(updatedRun, [...(await loadAgentStepsByRunId(runId, client))]),
+      step: toAgentStepHistoryItem(step)
+    };
+  });
+}
+
+export async function completeAgentToolStep(
+  runId: string,
+  stepNumber: number,
+  result: AgentStepResult,
+  workerName: string
+) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+
+    const stepResult = await client.query<{ payload: AgentStepRecord }>(
+      "SELECT payload FROM agent_steps WHERE agent_run_id = $1 AND step_number = $2 FOR UPDATE",
+      [runId, stepNumber]
+    );
+    const existingStep = stepResult.rows[0]?.payload
+      ? normalizeAgentStep(stepResult.rows[0].payload)
+      : null;
+
+    if (!existingStep) {
+      throw new Error("Agent step not found.");
+    }
+
+    if (existingStep.status === "completed") {
+      return {
+        run: buildAgentRunView(run, await loadAgentStepsByRunId(runId, client)),
+        step: toAgentStepHistoryItem(existingStep)
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const stepsBefore = await loadAgentStepsByRunId(runId, client);
+    const previousObservation = [...stepsBefore]
+      .filter((step) => step.stepNumber < stepNumber && step.result?.observation)
+      .map((step) => step.result?.observation ?? null)
+      .filter((step): step is NonNullable<AgentStepResult["observation"]> => Boolean(step))
+      .at(-1);
+    const currentObservation = result.observation ?? null;
+    const connectorSwitchIncrement =
+      currentObservation &&
+      previousObservation &&
+      (currentObservation.executionMode !== previousObservation.executionMode ||
+        currentObservation.connectorId !== previousObservation.connectorId)
+        ? 1
+        : 0;
+    const completedStep: AgentStepRecord = {
+      ...existingStep,
+      status: "completed",
+      result,
+      completedAt: nowIso
+    };
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      connectorSwitchCount: run.connectorSwitchCount + connectorSwitchIncrement,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso,
+      lastError:
+        result.failureCategory && result.summary
+          ? result.summary
+          : run.lastError
+    };
+
+    await upsertAgentStep(client, completedStep);
+    await upsertAgentRun(client, updatedRun);
+
+    return {
+      run: buildAgentRunView(updatedRun, await loadAgentStepsByRunId(runId, client)),
+      step: toAgentStepHistoryItem(completedStep)
+    };
+  });
+}
+
+export async function recordAgentTerminalStep(
+  runId: string,
+  input: RecordAgentTerminalStepInput,
+  workerName: string
+) {
+  await initializeStore();
+
+  return withTransaction(async (client) => {
+    const runResult = await client.query<{ payload: AgentRunRecord }>(
+      "SELECT payload FROM agent_runs WHERE id = $1 FOR UPDATE",
+      [runId]
+    );
+    const run = runResult.rows[0]?.payload ? normalizeAgentRun(runResult.rows[0].payload) : null;
+
+    if (!run) {
+      return null;
+    }
+
+    assertRunLease(run, workerName);
+
+    const stepResult = await client.query<{ payload: AgentStepRecord }>(
+      "SELECT payload FROM agent_steps WHERE agent_run_id = $1 AND step_number = $2 FOR UPDATE",
+      [runId, input.stepNumber]
+    );
+    const existingStep = stepResult.rows[0]?.payload
+      ? normalizeAgentStep(stepResult.rows[0].payload)
+      : null;
+
+    if (existingStep) {
+      if (existingStep.idempotencyKey !== input.idempotencyKey) {
+        throw new Error("Terminal agent step already exists with different identity.");
+      }
+
+      return {
+        run: buildAgentRunView(run, await loadAgentStepsByRunId(runId, client)),
+        step: toAgentStepHistoryItem(existingStep)
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const step: AgentStepRecord = {
+      id: `${runId}_step_${input.stepNumber}`,
+      agentRunId: runId,
+      stepNumber: input.stepNumber,
+      directiveKind: input.directiveKind,
+      toolName: null,
+      status: "completed",
+      idempotencyKey: input.idempotencyKey,
+      publicReason: input.publicReason,
+      toolArgs: null,
+      plannerProvider: input.plannerUsage.provider,
+      plannerModel: input.plannerUsage.model,
+      plannerInputTokens: input.plannerUsage.inputTokens,
+      plannerOutputTokens: input.plannerUsage.outputTokens,
+      result: {
+        summary: input.summary,
+        evidenceArtifactIds: input.finalCandidate?.evidence.map((artifact) => artifact.id) ?? [],
+        failureCategory: null,
+        finalCandidate: input.finalCandidate ?? null,
+        retryAfterSeconds: input.retryAfterSeconds ?? null,
+        terminalReason: input.terminalReason
+      },
+      startedAt: nowIso,
+      completedAt: nowIso
+    };
+    const updatedRun: AgentRunRecord = {
+      ...run,
+      modelProvider: input.plannerUsage.provider,
+      modelName: input.plannerUsage.model,
+      modelCallsUsed: run.modelCallsUsed + 1,
+      inputTokensUsed: run.inputTokensUsed + input.plannerUsage.inputTokens,
+      outputTokensUsed: run.outputTokensUsed + input.plannerUsage.outputTokens,
+      totalTokensUsed:
+        run.totalTokensUsed + input.plannerUsage.inputTokens + input.plannerUsage.outputTokens,
+      heartbeatAt: nowIso,
+      leaseExpiresAt: new Date(Date.now() + agentRunLeaseDurationMs).toISOString(),
+      updatedAt: nowIso
+    };
+
+    await upsertAgentStep(client, step);
+    await upsertAgentRun(client, updatedRun);
+
+    return {
+      run: buildAgentRunView(updatedRun, await loadAgentStepsByRunId(runId, client)),
+      step: toAgentStepHistoryItem(step)
+    };
+  });
+}
+
+async function finalizeAgentRunForJob(
+  client: PoolClient,
+  retrievalJobId: string,
+  params: {
+    status: AgentRunStatus;
+    terminalReason: AgentRunTerminalReason | null;
+    finalCandidate?: ExecutionCandidate | null;
+    lastError?: string | null;
+  }
+) {
+  const existingRun = await loadLatestActiveAgentRunByJobId(retrievalJobId, client);
+
+  if (!existingRun) {
+    return null;
+  }
+
+  const nowIso = new Date().toISOString();
+  const updatedRun: AgentRunRecord = {
+    ...existingRun,
+    status: params.status,
+    terminalReason: params.terminalReason ?? existingRun.terminalReason,
+    finalCandidate: params.finalCandidate ?? existingRun.finalCandidate,
+    lastError: params.lastError ?? existingRun.lastError,
+    leaseOwner: null,
+    leaseExpiresAt: null,
+    heartbeatAt: nowIso,
+    completedAt: nowIso,
+    updatedAt: nowIso
+  };
+
+  await upsertAgentRun(client, updatedRun);
+  return updatedRun;
 }
 
 export async function failRetrievalJob(
@@ -1659,10 +2514,13 @@ export async function failRetrievalJob(
     error: string;
     failureCategory?: RetrievalJobRecord["failureCategory"];
     retryable?: boolean;
+    retryAfterSeconds?: number;
     connectorId?: string;
     connectorName?: string;
+    executionMode?: RetrievalJobRecord["executionMode"];
     observedAt?: string;
     durationMs?: number;
+    terminalReason?: AgentRunTerminalReason;
   }
 ) {
   await initializeStore();
@@ -1687,12 +2545,13 @@ export async function failRetrievalJob(
       status: exhausted ? "failed" : "retrying",
       availableAt: exhausted
         ? new Date().toISOString()
-        : new Date(Date.now() + 60 * 1000).toISOString(),
+        : new Date(Date.now() + Math.max(1, failure.retryAfterSeconds ?? 60) * 1000).toISOString(),
       lastError: failure.error,
       failureCategory: failure.failureCategory ?? null,
       retryable: failure.retryable ?? !exhausted,
       connectorId: failure.connectorId ?? job.connectorId,
       connectorName: failure.connectorName ?? job.connectorName,
+      executionMode: failure.executionMode ?? job.executionMode,
       lastAttemptedAt: observedAt,
       updatedAt: new Date().toISOString(),
       attemptHistory: [
@@ -1700,7 +2559,7 @@ export async function failRetrievalJob(
           attempt: job.attempts,
           connectorId: failure.connectorId ?? job.connectorId,
           connectorName: failure.connectorName ?? job.connectorName,
-          executionMode: job.executionMode,
+          executionMode: failure.executionMode ?? job.executionMode,
           startedAt: job.startedAt ?? observedAt,
           finishedAt: observedAt,
           status: exhausted ? "failed" : "retrying",
@@ -1713,12 +2572,21 @@ export async function failRetrievalJob(
     };
 
     await upsertRetrievalJob(client, updatedJob);
+    await finalizeAgentRunForJob(client, job.id, {
+      status: exhausted ? "failed" : "retry_scheduled",
+      terminalReason:
+        failure.terminalReason ??
+        (exhausted ? "fallback_policy_review" : "retry_scheduled"),
+      lastError: failure.error
+    });
 
     const claimResult = await client.query<{ payload: ClaimRecord }>(
       "SELECT payload FROM claims WHERE id = $1",
       [job.claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (claim) {
       await insertAuditEvent(client, {
@@ -1757,7 +2625,9 @@ export async function applyRetrievalOutcome(
       "SELECT payload FROM claims WHERE id = $1 FOR UPDATE",
       [claimId]
     );
-    const claim = claimResult.rows[0]?.payload;
+    const claim = claimResult.rows[0]?.payload
+      ? normalizeClaimRecord(claimResult.rows[0].payload)
+      : undefined;
 
     if (!claim) {
       return null;
@@ -1843,6 +2713,13 @@ export async function applyRetrievalOutcome(
             },
             ...job.attemptHistory
           ]
+        });
+        await finalizeAgentRunForJob(client, job.id, {
+          status: decision.nextStatus === "resolved" ? "completed" : "review_required",
+          terminalReason:
+            decision.nextStatus === "resolved" ? "resolved_candidate" : "review_required",
+          finalCandidate: storedCandidate,
+          lastError: null
         });
       }
     }

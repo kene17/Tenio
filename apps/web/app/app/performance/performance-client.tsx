@@ -66,7 +66,7 @@ export function PerformanceClient({ data }: { data: PerformanceView }) {
             value={String(data.summary.claimsResolved)}
             variant="success"
           />
-          <KPICard label="Touches Removed" value={String(data.summary.touchesRemoved)} />
+          <KPICard label="Avg Touches / Claim" value={data.summary.avgTouchesPerClaim} />
         </div>
 
         <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
@@ -75,6 +75,21 @@ export function PerformanceClient({ data }: { data: PerformanceView }) {
           <KPICard label="Retry Queue" value={String(data.agentOverview.retryQueue)} variant="warning" />
           <KPICard label="Failed Runs" value={String(data.agentOverview.failedRuns)} variant="warning" />
           <KPICard label="Low Confidence Rate" value={data.agentOverview.lowConfidenceRate} />
+        </div>
+
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+          <KPICard label="Touches Removed" value={String(data.summary.touchesRemoved)} />
+          <KPICard
+            label="Claims Requiring Call"
+            value={String(data.summary.claimsRequiringCall)}
+            variant="warning"
+          />
+          <KPICard label="Call-Required Rate" value={data.summary.phoneCallRate} variant="warning" />
+          <KPICard
+            label="Primary Connector Success"
+            value={data.connectorHealth[0]?.successRate ?? "0%"}
+            variant="success"
+          />
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -185,7 +200,7 @@ export function PerformanceClient({ data }: { data: PerformanceView }) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Payer", "Open Claims", "Avg Resolution Time", "SLA Risk", "Needs Review %", "Last Delay"].map((header) => (
+                  {["Payer", "Open Claims", "Avg Resolution Time", "SLA Risk", "Needs Review %", "Call Required %", "Last Delay"].map((header) => (
                     <th key={header} className="px-4 py-3 text-left text-xs font-medium text-gray-600">
                       {header}
                     </th>
@@ -200,6 +215,7 @@ export function PerformanceClient({ data }: { data: PerformanceView }) {
                     <td className="px-4 py-3 text-sm text-gray-700">{item.avgResolutionTime}</td>
                     <td className="px-4 py-3">{riskBadge(item.risk)}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.reviewRate}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.phoneCallRate}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{item.lastDelay}</td>
                   </tr>
                 ))}

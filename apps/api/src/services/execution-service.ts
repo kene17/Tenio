@@ -11,6 +11,8 @@ export class ExecutionService {
       claimId: claim.id,
       payerId: claim.payerId,
       payerName: claim.payerName,
+      jurisdiction: claim.jurisdiction,
+      countryCode: claim.countryCode,
       portalText: claim.normalizedStatusText,
       screenshotUrls: claim.evidence.map((artifact) => artifact.url),
       metadata: {

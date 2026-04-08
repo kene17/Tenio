@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { adaptImportRows } from "./import/pms/index.js";
 import { previewClaimImportRows } from "./domain/imports.js";
 import { createSeedState } from "./domain/pilot-state.js";
 import { createSeedPayerConfigurations } from "./domain/prod-state.js";
@@ -74,4 +75,63 @@ test("previewClaimImportRows does not let an invalid earlier row poison a later 
   assert.equal(preview.summary.duplicateInFileCount, 0);
   assert.equal(preview.rows[0]?.action, "invalid");
   assert.equal(preview.rows[1]?.action, "create");
+});
+
+test("previewClaimImportRows preserves Canada metadata and derives jurisdiction defaults from payer configuration", () => {
+  const payerConfigurations = [
+    {
+      ...createSeedPayerConfigurations("org_demo")[0]!,
+      payerId: "payer_sun_life",
+      payerName: "Sun Life",
+      jurisdiction: "ca" as const,
+      countryCode: "CA" as const
+    }
+  ];
+
+  const preview = previewClaimImportRows({
+    rows: [
+      {
+        claimNumber: "CLM-CA-1001",
+        patientName: "Marie Tremblay",
+        payerId: "payer_sun_life",
+        provinceOfService: "on",
+        claimType: "Dental",
+        priority: "high"
+      }
+    ],
+    existingClaims: [],
+    payerConfigurations
+  });
+
+  assert.equal(preview.summary.createCount, 1);
+  assert.equal(preview.rows[0]?.action, "create");
+  assert.equal(preview.rows[0]?.jurisdiction, "ca");
+  assert.equal(preview.rows[0]?.countryCode, "CA");
+  assert.equal(preview.rows[0]?.provinceOfService, "ON");
+  assert.equal(preview.rows[0]?.claimType, "dental");
+});
+
+test("adaptImportRows maps the Dentrix shell headers into Tenio import rows", () => {
+  const [row] = adaptImportRows(
+    [
+      {
+        "Claim #": "DENT-1001",
+        "Patient Name": "Julie Bouchard",
+        Carrier: "Sun Life / PSHCP",
+        Province: "on",
+        "Assigned To": "Ottawa Pilot",
+        Status: "Pending coordination review",
+        Notes: "Federal employee dental claim",
+      }
+    ],
+    "dentrix_csv_shell"
+  );
+
+  assert.equal(row?.claimNumber, "DENT-1001");
+  assert.equal(row?.patientName, "Julie Bouchard");
+  assert.equal(row?.payerName, "Sun Life / PSHCP");
+  assert.equal(row?.provinceOfService, "on");
+  assert.equal(row?.claimType, "dental");
+  assert.equal(row?.owner, "Ottawa Pilot");
+  assert.equal(row?.sourceStatus, "Pending coordination review");
 });

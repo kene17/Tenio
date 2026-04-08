@@ -18,7 +18,8 @@ async function postAction(
       | "approve_review"
       | "resolve_claim"
       | "escalate_claim"
-      | "reopen_claim";
+      | "reopen_claim"
+      | "mark_call_required";
     assignee?: string;
     note?: string;
   }
@@ -122,6 +123,16 @@ export function ClaimWorkflowActions({
           className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60"
         >
           Escalate
+        </button>
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() =>
+            handleAction({ action: "mark_call_required", note: note.trim() || undefined })
+          }
+          className="rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+        >
+          Mark Call Required
         </button>
         <button
           type="button"
