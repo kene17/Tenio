@@ -10,16 +10,19 @@ import type {
   ExecutionCandidate,
   ExecutionFailureCategory
 } from "@tenio/contracts";
-import type {
-  ClaimDetail,
-  ClaimSummary,
-  CountryCode,
-  IntakeClaim,
-  Jurisdiction,
-  Priority,
-  QueueItem
+import {
+  hasPermission,
+  normalizeUserRole,
+  type ClaimDetail,
+  type ClaimSummary,
+  type CountryCode,
+  type IntakeClaim,
+  type Jurisdiction,
+  type Priority,
+  type QueueItem,
+  type UserRole
 } from "@tenio/domain";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import type { PoolClient } from "pg";
 
@@ -31,8 +34,7 @@ import {
   readStoredEvidence
 } from "../evidence-storage.js";
 import {
-  canManagePayerConfiguration,
-  type AppRole,
+  hashPassword,
   type UserSession,
   verifyPassword
 } from "../auth.js";
@@ -72,6 +74,7 @@ import {
   type ResultDetailView,
   type ResultRecord,
   type ResultSummaryView,
+  statusLabel,
   toClaimDetail,
   toClaimSummary
 } from "./pilot-state.js";
@@ -104,6 +107,34 @@ export type AgentRunView = {
   terminalReason: AgentRunTerminalReason | null;
   lastError: string | null;
   steps: AgentStepHistoryItem[];
+};
+
+export type UserSummaryView = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+};
+
+export type InvitedUserView = {
+  user: UserSummaryView;
+  temporaryPassword: string;
+};
+
+export type AccountSummaryView = {
+  organizationId: string;
+  organizationName: string;
+  billingMode: "pilot_managed";
+};
+
+export type StatusSummaryView = {
+  lastImportAt: string | null;
+  lastImportOutcome: "success" | "failure" | null;
+  lastImportRowCount: number | null;
+  lastQueueSyncAt: string | null;
+  failedActionsLast24h: number;
+  openClaimsCount: number;
 };
 
 function parsePayloadRow<T>(row: { payload: T }) {
@@ -320,6 +351,18 @@ function initials(value: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function auditActorType(role: UserRole): WorkflowActor["type"] {
+  return role === "owner" ? "owner" : "human";
+}
+
+function auditSourceForRole(role: UserRole) {
+  return role === "owner" ? "Owner" : "Human";
+}
+
+function generateTemporaryPassword() {
+  return randomBytes(12).toString("base64url");
 }
 
 async function upsertOrganization(client: PoolClient, id: string, name: string) {
@@ -705,11 +748,11 @@ async function createSession(
 function createSeedUsers() {
   return [
     {
-      id: "user_admin",
+      id: "user_owner",
       organizationId: appConfig.seedOrgId,
-      email: appConfig.seedAdminEmail,
-      fullName: appConfig.seedAdminName,
-      role: "admin",
+      email: appConfig.seedOwnerEmail,
+      fullName: appConfig.seedOwnerName,
+      role: "owner",
       passwordHash: "",
       isActive: true
     },
@@ -732,6 +775,18 @@ function createSeedUsers() {
       isActive: true
     }
   ] satisfies Array<Omit<AppUserRecord, "passwordHash"> & { passwordHash: string }>;
+}
+
+function passwordForSeedRole(role: UserRole) {
+  if (role === "owner") {
+    return appConfig.seedOwnerPassword;
+  }
+
+  if (role === "manager") {
+    return appConfig.seedManagerPassword;
+  }
+
+  return appConfig.seedOperatorPassword;
 }
 
 async function loadClaims() {
@@ -775,12 +830,13 @@ async function loadEvidenceArtifactById(artifactId: string, organizationId: stri
   const result = await getPool().query<{
     id: string;
     organization_id: string;
+    claim_id: string;
     storage_key: string;
     external_url: string;
     payload: EvidenceArtifact;
   }>(
     `
-      SELECT id, organization_id, storage_key, external_url, payload
+      SELECT id, organization_id, claim_id, storage_key, external_url, payload
       FROM evidence_artifacts
       WHERE id = $1
         AND organization_id = $2
@@ -796,6 +852,22 @@ async function loadClaimById(claimId: string) {
   const result = await getPool().query<{ payload: ClaimRecord }>(
     "SELECT payload FROM claims WHERE id = $1",
     [claimId]
+  );
+
+  return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
+}
+
+async function loadClaimByIdForOrganization(claimId: string, organizationId: string) {
+  await initializeStore();
+  const result = await getPool().query<{ payload: ClaimRecord }>(
+    `
+      SELECT payload
+      FROM claims
+      WHERE id = $1
+        AND organization_id = $2
+      LIMIT 1
+    `,
+    [claimId, organizationId]
   );
 
   return result.rows[0]?.payload ? normalizeClaimRecord(result.rows[0].payload) : undefined;
@@ -839,17 +911,36 @@ async function loadResultByClaimId(claimId: string) {
   return result.rows[0]?.payload;
 }
 
-async function loadUsers() {
-  await initializeStore();
-  const result = await getPool().query<{
-    id: string;
-    organization_id: string;
-    email: string;
-    full_name: string;
-    role: AppRole;
-    password_hash: string;
-    is_active: boolean;
-  }>(
+type UserRow = {
+  id: string;
+  organization_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  password_hash: string;
+  is_active: boolean;
+};
+
+function toUserRecord(row: UserRow): AppUserRecord | null {
+  const role = normalizeUserRole(row.role);
+
+  if (!role) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    email: row.email,
+    fullName: row.full_name,
+    role,
+    passwordHash: row.password_hash,
+    isActive: row.is_active
+  };
+}
+
+async function loadUsersInternal(client?: PoolClient) {
+  const result = await getDbExecutor(client).query<UserRow>(
     `
       SELECT id, organization_id, email, full_name, role, password_hash, is_active
       FROM users
@@ -857,15 +948,116 @@ async function loadUsers() {
     `
   );
 
-  return result.rows.map((row) => ({
+  return result.rows.flatMap((row) => {
+    const user = toUserRecord(row);
+    return user ? [user] : [];
+  });
+}
+
+async function loadUsers() {
+  await initializeStore();
+  return loadUsersInternal();
+}
+
+async function loadOrganizationById(organizationId: string) {
+  await initializeStore();
+  const result = await getPool().query<{ id: string; name: string }>(
+    "SELECT id, name FROM organizations WHERE id = $1 LIMIT 1",
+    [organizationId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+async function loadUsersByOrganizationInternal(organizationId: string, client?: PoolClient) {
+  const result = await getDbExecutor(client).query<UserRow>(
+    `
+      SELECT id, organization_id, email, full_name, role, password_hash, is_active
+      FROM users
+      WHERE organization_id = $1
+      ORDER BY full_name
+    `,
+    [organizationId]
+  );
+
+  return result.rows.flatMap((row) => {
+    const user = toUserRecord(row);
+    return user ? [user] : [];
+  });
+}
+
+async function loadUsersByOrganization(organizationId: string) {
+  await initializeStore();
+  return loadUsersByOrganizationInternal(organizationId);
+}
+
+async function loadUserById(userId: string, client?: PoolClient) {
+  await initializeStore();
+  const result = await getDbExecutor(client).query<{
+    id: string;
+    organization_id: string;
+    email: string;
+    full_name: string;
+    role: string;
+    password_hash: string;
+    is_active: boolean;
+  }>(
+    `
+      SELECT id, organization_id, email, full_name, role, password_hash, is_active
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [userId]
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  const role = normalizeUserRole(row.role);
+
+  if (!role) {
+    return null;
+  }
+
+  return {
     id: row.id,
     organizationId: row.organization_id,
     email: row.email,
     fullName: row.full_name,
-    role: row.role,
+    role,
     passwordHash: row.password_hash,
     isActive: row.is_active
-  }));
+  } satisfies AppUserRecord;
+}
+
+async function loadAuditEventsByOrganization(organizationId: string) {
+  await initializeStore();
+  const result = await getPool().query<{ payload: AuditEventRecord }>(
+    `
+      SELECT payload
+      FROM audit_events
+      WHERE organization_id = $1
+      ORDER BY occurred_at DESC
+    `,
+    [organizationId]
+  );
+
+  return result.rows.map(parsePayloadRow);
+}
+
+async function revokeSessionsByUserId(userId: string, client: PoolClient) {
+  await client.query(
+    `
+      UPDATE user_sessions
+      SET revoked_at = NOW()
+      WHERE user_id = $1
+        AND revoked_at IS NULL
+    `,
+    [userId]
+  );
 }
 
 async function loadSessionById(sessionId: string) {
@@ -906,6 +1098,44 @@ async function loadPayerConfigurations() {
   );
 
   return result.rows.map(parsePayloadRow).map(normalizePayerConfigurationRecord);
+}
+
+function toUserSummary(user: AppUserRecord): UserSummaryView {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive
+  };
+}
+
+async function loadLatestQueueSyncAt(organizationId: string) {
+  await initializeStore();
+  const queueResult = await getPool().query<{ updated_at: string | null }>(
+    `
+      SELECT MAX(queue_items.updated_at)::text AS updated_at
+      FROM queue_items
+      INNER JOIN claims ON claims.id = queue_items.claim_id
+      WHERE claims.organization_id = $1
+    `,
+    [organizationId]
+  );
+
+  if (queueResult.rows[0]?.updated_at) {
+    return queueResult.rows[0].updated_at;
+  }
+
+  const claimResult = await getPool().query<{ updated_at: string | null }>(
+    `
+      SELECT MAX(updated_at)::text AS updated_at
+      FROM claims
+      WHERE organization_id = $1
+    `,
+    [organizationId]
+  );
+
+  return claimResult.rows[0]?.updated_at ?? null;
 }
 
 async function loadPayerConfigurationsByOrganizationInternal(
@@ -1041,7 +1271,7 @@ async function loadAgentRunById(runId: string, client?: PoolClient) {
 function ensureActor(actor: WorkflowActor) {
   return {
     ...actor,
-    type: actor.role === "admin" ? "admin" : actor.type
+    type: actor.role === "owner" ? "owner" : actor.type
   };
 }
 
@@ -1069,15 +1299,9 @@ export async function initializeStore() {
     existingConfigs.rows[0]?.count === "0"
   ) {
     const seed = createSeedState();
-    const { hashPassword } = await import("../auth.js");
     const seedUsers = createSeedUsers().map((user) => ({
       ...user,
-      passwordHash:
-        user.role === "admin"
-          ? hashPassword(appConfig.seedAdminPassword)
-          : user.role === "manager"
-            ? hashPassword(appConfig.seedManagerPassword)
-            : hashPassword(appConfig.seedOperatorPassword)
+      passwordHash: hashPassword(passwordForSeedRole(user.role))
     }));
     const payerConfigurations = createSeedPayerConfigurations(appConfig.seedOrgId);
 
@@ -1131,6 +1355,14 @@ export async function initializeStore() {
       return;
     }
 
+    const desiredSeedUsers = createSeedUsers().map((user) => ({
+      ...user,
+      passwordHash: hashPassword(passwordForSeedRole(user.role))
+    }));
+    const existingSeedUsers = await loadUsersByOrganizationInternal(
+      appConfig.seedOrgId,
+      client
+    );
     const seedConfigs = createSeedPayerConfigurations(appConfig.seedOrgId);
     const existingSeedConfigs = await loadPayerConfigurationsByOrganizationInternal(
       appConfig.seedOrgId,
@@ -1144,55 +1376,131 @@ export async function initializeStore() {
     for (const config of missingSeedConfigs) {
       await upsertPayerConfiguration(client, config);
     }
+
+    const activeOwner =
+      existingSeedUsers.find((user) => user.isActive && user.role === "owner") ?? null;
+    const ownerSeed = desiredSeedUsers.find((user) => user.role === "owner");
+
+    if (ownerSeed) {
+      if (activeOwner) {
+        await upsertUser(client, {
+          ...activeOwner,
+          email: ownerSeed.email,
+          fullName: ownerSeed.fullName,
+          passwordHash: ownerSeed.passwordHash,
+          isActive: true
+        });
+      } else {
+        await upsertUser(client, ownerSeed);
+      }
+    }
+
+    for (const seedUser of desiredSeedUsers.filter((user) => user.role !== "owner")) {
+      const existingUser =
+        existingSeedUsers.find((user) => user.id === seedUser.id) ??
+        existingSeedUsers.find(
+          (user) => user.email.toLowerCase() === seedUser.email.toLowerCase()
+        );
+
+      if (existingUser) {
+        await upsertUser(client, {
+          ...existingUser,
+          email: seedUser.email,
+          fullName: seedUser.fullName,
+          role: seedUser.role,
+          passwordHash: seedUser.passwordHash,
+          isActive: true
+        });
+      } else {
+        await upsertUser(client, seedUser);
+      }
+    }
   });
 
   initialized = true;
 }
 
-export async function listClaims(): Promise<ClaimSummary[]> {
-  const claims = await loadClaims();
+export async function listClaims(organizationId?: string): Promise<ClaimSummary[]> {
+  const claims = organizationId
+    ? await loadClaimsByOrganization(organizationId)
+    : await loadClaims();
   return claims.map(toClaimSummary);
 }
 
-export async function listClaimsList(): Promise<ClaimsListItemView[]> {
-  const [claims, queue] = await Promise.all([loadClaims(), loadQueue()]);
-  return buildClaimsList(claims, queue);
+export async function listClaimsList(
+  organizationId?: string
+): Promise<ClaimsListItemView[]> {
+  const [claims, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadQueue()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildClaimsList(
+    claims,
+    queue.filter((item) => claimIds.has(item.claimId))
+  );
 }
 
-export async function listQueue(): Promise<QueueItem[]> {
-  return loadQueue();
+export async function listQueue(organizationId?: string): Promise<QueueItem[]> {
+  const [claims, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadQueue()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return queue.filter((item) => claimIds.has(item.claimId));
 }
 
 export async function getClaimDetail(
-  claimId: string
+  claimId: string,
+  organizationId?: string
 ): Promise<ClaimDetail | undefined> {
-  const claim = await loadClaimById(claimId);
+  const claim = organizationId
+    ? await loadClaimByIdForOrganization(claimId, organizationId)
+    : await loadClaimById(claimId);
   return claim ? toClaimDetail(claim) : undefined;
 }
 
-export async function listPilotQueueItems(): Promise<PilotQueueItem[]> {
-  const [claims, queue] = await Promise.all([loadClaims(), loadQueue()]);
-  return buildPilotQueueItems(claims, queue);
+export async function listPilotQueueItems(
+  organizationId?: string
+): Promise<PilotQueueItem[]> {
+  const [claims, queue] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadQueue()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  const visibleQueue = queue.filter((item) => claimIds.has(item.claimId));
+  return buildPilotQueueItems(claims, visibleQueue);
 }
 
 export async function getPilotClaimDetail(
-  claimId: string
+  claimId: string,
+  organizationId?: string
 ): Promise<PilotClaimDetail | null> {
   const [claims, results, auditEvents, jobs, queue] = await Promise.all([
-    loadClaims(),
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
     loadResults(),
-    loadAuditEvents(),
+    organizationId ? loadAuditEventsByOrganization(organizationId) : loadAuditEvents(),
     loadRetrievalJobs(),
     loadQueue()
   ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  const visibleQueue = queue.filter((item) => claimIds.has(item.claimId));
+  const visibleResults = results.filter((result) => claimIds.has(result.claimId));
+  const visibleJobs = jobs.filter((job) => claimIds.has(job.claimId));
 
-  const detail = buildPilotClaimDetail(claimId, claims, results, auditEvents, queue);
+  const detail = buildPilotClaimDetail(
+    claimId,
+    claims,
+    visibleResults,
+    auditEvents,
+    visibleQueue
+  );
 
   if (!detail) {
     return null;
   }
 
-  const activeJob = jobs.find(
+  const activeJob = visibleJobs.find(
     (job) =>
       job.claimId === claimId &&
       (job.status === "queued" ||
@@ -1224,21 +1532,40 @@ export async function getPilotClaimDetail(
   } as PilotClaimDetail;
 }
 
-export async function listResultSummaries(): Promise<ResultSummaryView[]> {
-  const [claims, results] = await Promise.all([loadClaims(), loadResults()]);
-  return buildResultSummaries(claims, results);
+export async function listResultSummaries(
+  organizationId?: string
+): Promise<ResultSummaryView[]> {
+  const [claims, results] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadResults()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildResultSummaries(
+    claims,
+    results.filter((result) => claimIds.has(result.claimId))
+  );
 }
 
 export async function getResultDetail(
-  resultId: string
+  resultId: string,
+  organizationId?: string
 ): Promise<ResultDetailView | null> {
-  const [claims, results] = await Promise.all([loadClaims(), loadResults()]);
-  return buildResultDetail(resultId, claims, results);
+  const [claims, results] = await Promise.all([
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
+    loadResults()
+  ]);
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildResultDetail(
+    resultId,
+    claims,
+    results.filter((result) => claimIds.has(result.claimId))
+  );
 }
 
 export async function getEvidenceArtifactContent(
   artifactId: string,
-  organizationId: string
+  organizationId: string,
+  actor?: WorkflowActor
 ) {
   const artifact = await loadEvidenceArtifactById(artifactId, organizationId);
 
@@ -1260,6 +1587,37 @@ export async function getEvidenceArtifactContent(
     throw error;
   }
 
+  if (actor) {
+    await withTransaction(async (client) => {
+      await insertAuditEvent(client, {
+        id: `AUD-${Date.now()}`,
+        at: new Date().toISOString(),
+        organizationId,
+        actor: {
+          name: actor.name,
+          type: auditActorType(actor.role),
+          avatar: initials(actor.name)
+        },
+        eventType: "evidence.downloaded",
+        userId: actor.id,
+        action: "Downloaded Evidence",
+        object: "Evidence",
+        objectId: artifactId,
+        source: auditSourceForRole(actor.role),
+        payer: "Evidence Artifact",
+        summary: `${actor.name} downloaded evidence artifact ${artifact.payload.label}.`,
+        sensitivity: "high-risk",
+        category: "Evidence Access",
+        outcome: "success",
+        detail: {
+          claimId: artifact.claim_id,
+          fileName: path.basename(artifact.storage_key)
+        },
+        claimId: artifact.claim_id
+      });
+    });
+  }
+
   return {
     body,
     mimeType:
@@ -1273,8 +1631,12 @@ export async function getEvidenceArtifactContent(
   };
 }
 
-export async function listAuditEvents(): Promise<AuditEventView[]> {
-  const auditEvents = await loadAuditEvents();
+export async function listAuditEvents(
+  organizationId?: string
+): Promise<AuditEventView[]> {
+  const auditEvents = organizationId
+    ? await loadAuditEventsByOrganization(organizationId)
+    : await loadAuditEvents();
   return buildAuditLog(auditEvents);
 }
 
@@ -1286,14 +1648,225 @@ export async function listPayerConfigurations(organizationId?: string) {
   return loadPayerConfigurations();
 }
 
-export async function getPerformanceMetrics(): Promise<PerformanceMetricsView> {
+export async function listUsersByOrganization(
+  organizationId: string
+): Promise<UserSummaryView[]> {
+  const users = await loadUsersByOrganization(organizationId);
+  return users.map(toUserSummary);
+}
+
+export async function inviteUserToOrganization(
+  actor: WorkflowActor,
+  input: {
+    email: string;
+    fullName: string;
+    role: UserRole;
+    temporaryPassword?: string | null;
+  }
+): Promise<InvitedUserView> {
+  const email = input.email.trim().toLowerCase();
+  const fullName = input.fullName.trim();
+
+  if (!email || !fullName) {
+    throw new Error("Email and full name are required.");
+  }
+
+  if (input.role === "owner") {
+    throw new Error("Owner invites are not supported in the pilot workflow.");
+  }
+
+  const existingUsers = await loadUsers();
+  const existingUser = existingUsers.find(
+    (user) => user.email.toLowerCase() === email
+  );
+
+  if (existingUser?.organizationId && existingUser.organizationId !== actor.organizationId) {
+    throw new Error("That email already belongs to another organization.");
+  }
+
+  if (existingUser?.isActive) {
+    throw new Error("That user already has workspace access.");
+  }
+
+  const temporaryPassword =
+    input.temporaryPassword?.trim() || generateTemporaryPassword();
+  const user: AppUserRecord = {
+    id: existingUser?.id ?? `user_${randomUUID().slice(0, 10)}`,
+    organizationId: actor.organizationId,
+    email,
+    fullName,
+    role: input.role,
+    passwordHash: hashPassword(temporaryPassword),
+    isActive: true
+  };
+  const nowIso = new Date().toISOString();
+
+  await withTransaction(async (client) => {
+    await upsertUser(client, user);
+    await revokeSessionsByUserId(user.id, client);
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: nowIso,
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: auditActorType(actor.role),
+        avatar: initials(actor.name)
+      },
+      eventType: "user.invited",
+      userId: actor.id,
+      action: "Invited User",
+      object: "User",
+      objectId: user.id,
+      source: auditSourceForRole(actor.role),
+      payer: "All Payers",
+      summary: `${actor.name} invited ${user.fullName} as ${user.role}.`,
+      sensitivity: "high-risk",
+      category: "Access Control",
+      outcome: "success",
+      detail: {
+        invitedRole: user.role,
+        invitedEmail: user.email
+      },
+      reason: "Workspace access granted by owner."
+    });
+  });
+
+  return {
+    user: toUserSummary(user),
+    temporaryPassword
+  };
+}
+
+export async function removeUserFromOrganization(
+  actor: WorkflowActor,
+  userId: string
+): Promise<UserSummaryView> {
+  if (actor.id === userId) {
+    throw new Error("Owners cannot remove themselves.");
+  }
+
+  const existingUser = await loadUserById(userId);
+
+  if (!existingUser || existingUser.organizationId !== actor.organizationId) {
+    throw new Error("User not found.");
+  }
+
+  const organizationUsers = await loadUsersByOrganization(actor.organizationId);
+  const activeOwners = organizationUsers.filter(
+    (user) => user.isActive && user.role === "owner"
+  );
+
+  if (existingUser.role === "owner" && activeOwners.length <= 1) {
+    throw new Error("Each organization must retain one active owner.");
+  }
+
+  const deactivatedUser: AppUserRecord = {
+    ...existingUser,
+    isActive: false
+  };
+  const nowIso = new Date().toISOString();
+
+  await withTransaction(async (client) => {
+    await upsertUser(client, deactivatedUser);
+    await revokeSessionsByUserId(existingUser.id, client);
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: nowIso,
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: auditActorType(actor.role),
+        avatar: initials(actor.name)
+      },
+      eventType: "user.removed",
+      userId: actor.id,
+      action: "Removed User",
+      object: "User",
+      objectId: existingUser.id,
+      source: auditSourceForRole(actor.role),
+      payer: "All Payers",
+      summary: `${actor.name} removed ${existingUser.fullName} from the workspace.`,
+      sensitivity: "high-risk",
+      category: "Access Control",
+      outcome: "success",
+      detail: {
+        removedRole: existingUser.role,
+        removedEmail: existingUser.email
+      },
+      reason: "Workspace access revoked by owner."
+    });
+  });
+
+  return toUserSummary(deactivatedUser);
+}
+
+export async function getAccountSummary(
+  organizationId: string
+): Promise<AccountSummaryView | null> {
+  const organization = await loadOrganizationById(organizationId);
+
+  if (!organization) {
+    return null;
+  }
+
+  return {
+    organizationId: organization.id,
+    organizationName: organization.name,
+    billingMode: "pilot_managed"
+  };
+}
+
+export async function getStatusSummary(
+  organizationId: string
+): Promise<StatusSummaryView> {
+  const [auditEvents, claims, lastQueueSyncAt] = await Promise.all([
+    loadAuditEventsByOrganization(organizationId),
+    loadClaimsByOrganization(organizationId),
+    loadLatestQueueSyncAt(organizationId)
+  ]);
+
+  const lastImportEvent = auditEvents.find((event) => event.eventType === "import.commit");
+  const failedActionsLast24h = auditEvents.filter((event) => {
+    if (event.outcome !== "failure") {
+      return false;
+    }
+
+    return Date.now() - new Date(event.at).getTime() <= 24 * 60 * 60 * 1000;
+  }).length;
+  const importRowCount =
+    typeof lastImportEvent?.detail?.rowCount === "number"
+      ? lastImportEvent.detail.rowCount
+      : typeof lastImportEvent?.detail?.rowsCreated === "number"
+        ? lastImportEvent.detail.rowsCreated
+        : null;
+
+  return {
+    lastImportAt: lastImportEvent?.at ?? null,
+    lastImportOutcome: lastImportEvent?.outcome ?? null,
+    lastImportRowCount: importRowCount,
+    lastQueueSyncAt,
+    failedActionsLast24h,
+    openClaimsCount: claims.filter((claim) => claim.status !== "resolved").length
+  };
+}
+
+export async function getPerformanceMetrics(
+  organizationId?: string
+): Promise<PerformanceMetricsView> {
   const [claims, queue, results, jobs] = await Promise.all([
-    loadClaims(),
+    organizationId ? loadClaimsByOrganization(organizationId) : loadClaims(),
     loadQueue(),
     loadResults(),
     loadRetrievalJobs()
   ]);
-  return buildPerformanceMetrics({ claims, queue, results, jobs });
+  const claimIds = new Set(claims.map((claim) => claim.id));
+  return buildPerformanceMetrics({
+    claims,
+    queue: queue.filter((item) => claimIds.has(item.claimId)),
+    results: results.filter((result) => claimIds.has(result.claimId)),
+    jobs: jobs.filter((job) => claimIds.has(job.claimId))
+  });
 }
 
 export async function previewResultsExport(actor: WorkflowActor) {
@@ -1338,17 +1911,24 @@ export async function exportResults(actor: WorkflowActor) {
       organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "export.requested",
+      userId: actor.id,
       action: "Exported",
       object: "Result",
       objectId: `export_${Date.now()}`,
-      source: "Human",
+      source: auditSourceForRole(actor.role),
       payer: "Mixed",
       summary: `${actor.name} exported ${exportableResults.length} structured results for downstream delivery.`,
       sensitivity: "normal",
       category: "Result Export",
+      outcome: "success",
+      detail: {
+        rowCount: exportableResults.length,
+        exportedAt
+      },
       reason: "Batch export requested from the results workspace."
     });
   });
@@ -1374,10 +1954,13 @@ export async function authenticateUser(email: string, password: string) {
     return null;
   }
 
+  const organization = await loadOrganizationById(user.organizationId);
+
   const session: UserSession = {
     id: `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     userId: user.id,
     organizationId: user.organizationId,
+    organizationName: organization?.name,
     role: user.role,
     fullName: user.fullName,
     email: user.email,
@@ -1394,17 +1977,24 @@ export async function authenticateUser(email: string, password: string) {
       organizationId: user.organizationId,
       actor: {
         name: user.fullName,
-        type: user.role === "admin" ? "admin" : "human",
+        type: auditActorType(user.role),
         avatar: initials(user.fullName)
       },
+      eventType: "session.signed_in",
+      userId: user.id,
       action: "Signed In",
       object: "Configuration",
       objectId: session.id,
-      source: "Human",
+      source: auditSourceForRole(user.role),
       payer: "All Payers",
       summary: `${user.fullName} signed in to the Tenio workspace.`,
       sensitivity: "high-risk",
       category: "Access Control",
+      outcome: "success",
+      detail: {
+        sessionId: session.id,
+        email: user.email
+      },
       reason: "Authenticated user session created."
     });
   });
@@ -1577,15 +2167,21 @@ function buildResultsExportCsv(params: {
 }
 
 function assertCanEditPayerConfiguration(actor: WorkflowActor) {
-  if (!canManagePayerConfiguration(actor.role)) {
-    throw new Error("Only managers and admins can update payer workflow policy.");
+  if (!hasPermission(actor.role, "payer:write")) {
+    throw new Error("Only owners can update payer workflow policy.");
   }
 }
 
 async function createClaimRecord(
   client: PoolClient,
   input: IntakeClaim,
-  actor: WorkflowActor
+  actor: WorkflowActor,
+  auditContext?: {
+    eventType?: string;
+    importBatchId?: string | null;
+    rowNumber?: number;
+    source?: "Human" | "Import";
+  }
 ) {
   if (input.organizationId !== actor.organizationId) {
     throw new Error("Claim intake must stay within the authenticated organization.");
@@ -1730,21 +2326,39 @@ async function createClaimRecord(
   await insertAuditEvent(client, {
     id: `AUD-${Date.now()}`,
     at: nowIso,
+    organizationId: claim.organizationId,
     actor: {
       name: actor.name,
-      type: actor.role === "admin" ? "admin" : "human",
+      type: auditActorType(actor.role),
       avatar: initials(actor.name)
     },
+    eventType: auditContext?.eventType ?? (existingClaim ? "claim.intake_updated" : "claim.intaked"),
+    userId: actor.id,
     action: existingClaim ? "Updated Intake" : "Intaked",
     object: "Claim",
     objectId: claim.id,
-    source: "Human",
+    source: auditContext?.source ?? auditSourceForRole(actor.role),
     payer: claim.payerName,
     summary: existingClaim
       ? `${actor.name} refreshed intake details for ${claim.claimNumber}.`
       : `${actor.name} added ${claim.claimNumber} to the claim-status queue.`,
     sensitivity: "normal",
     category: "Claim Intake",
+    outcome: "success",
+    importBatchId: auditContext?.importBatchId ?? null,
+    detail: {
+      rowNumber: auditContext?.rowNumber ?? null,
+      claimNumber: claim.claimNumber,
+      patientName: claim.patientName,
+      payerId: claim.payerId,
+      claimType: claim.claimType,
+      serviceProviderType: claim.serviceProviderType,
+      serviceCode: claim.serviceCode,
+      planNumber: claim.planNumber,
+      memberCertificate: claim.memberCertificate,
+      serviceDate: claim.serviceDate,
+      billedAmountCents: claim.amountCents
+    },
     reason: existingClaim
       ? "Existing claim matched on organization and claim number."
       : "Claim submitted through intake workflow.",
@@ -1766,17 +2380,52 @@ export async function previewClaimImport(
   actor: WorkflowActor,
   importProfile: ImportProfileId = "generic_template"
 ): Promise<ClaimImportPreviewResult> {
+  await initializeStore();
   const [existingClaims, payerConfigurations] = await Promise.all([
     loadClaimsByOrganization(actor.organizationId),
     loadPayerConfigurationsByOrganization(actor.organizationId)
   ]);
   const normalizedRows = adaptImportRows(rows, importProfile);
-
-  return previewClaimImportRows({
+  const preview = previewClaimImportRows({
     rows: normalizedRows,
     existingClaims,
     payerConfigurations
   });
+
+  await withTransaction(async (client) => {
+    await insertAuditEvent(client, {
+      id: `AUD-${Date.now()}`,
+      at: new Date().toISOString(),
+      organizationId: actor.organizationId,
+      actor: {
+        name: actor.name,
+        type: auditActorType(actor.role),
+        avatar: initials(actor.name)
+      },
+      eventType: "import.preview",
+      userId: actor.id,
+      action: "Previewed Import",
+      object: "Configuration",
+      objectId: `preview_${Date.now()}`,
+      source: auditSourceForRole(actor.role),
+      payer: "Mixed",
+      summary: `${actor.name} previewed ${preview.summary.totalRows} import rows with the ${importProfile} profile.`,
+      sensitivity: "normal",
+      category: "Claim Intake",
+      outcome: "success",
+      detail: {
+        importProfile,
+        rowCount: preview.summary.totalRows,
+        createCount: preview.summary.createCount,
+        updateCount: preview.summary.updateCount,
+        invalidCount: preview.summary.invalidCount,
+        duplicateInFileCount: preview.summary.duplicateInFileCount
+      },
+      reason: "Import preview requested from onboarding."
+    });
+  });
+
+  return preview;
 }
 
 export async function commitClaimImport(
@@ -1785,6 +2434,7 @@ export async function commitClaimImport(
   importProfile: ImportProfileId = "generic_template"
 ) {
   await initializeStore();
+  const importBatchId = `import_${Date.now()}`;
 
   const result = await withTransaction(async (client) => {
     const [existingClaims, payerConfigurations] = await Promise.all([
@@ -1825,27 +2475,46 @@ export async function commitClaimImport(
           slaAt: row.slaAt,
           sourceStatus: row.sourceStatus
         },
-        actor
+        actor,
+        {
+          eventType: "claim.imported",
+          importBatchId,
+          rowNumber: row.rowNumber,
+          source: "Import"
+        }
       );
     }
 
     await insertAuditEvent(client, {
-      id: `AUD-${Date.now()}`,
+      id: `AUD-${Date.now()}_commit`,
       at: new Date().toISOString(),
       organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "import.commit",
+      userId: actor.id,
       action: "Imported",
       object: "Configuration",
-      objectId: `import_${Date.now()}`,
-      source: "Human",
+      objectId: importBatchId,
+      source: auditSourceForRole(actor.role),
       payer: "Mixed",
       summary: `${actor.name} imported ${preview.summary.createCount} new claims and refreshed ${preview.summary.updateCount} existing claims.`,
       sensitivity: "normal",
       category: "Claim Intake",
+      outcome: "success",
+      importBatchId,
+      detail: {
+        importProfile,
+        rowCount: preview.summary.totalRows,
+        rowsCreated: preview.summary.createCount,
+        rowsUpdated: preview.summary.updateCount,
+        rowsInvalid: preview.summary.invalidCount,
+        rowsDuplicateInFile: preview.summary.duplicateInFileCount,
+        rowsImported: actionableRows.length
+      },
       reason: `${preview.summary.invalidCount} invalid rows and ${preview.summary.duplicateInFileCount} duplicate rows were excluded.`
     });
     return {
@@ -1920,17 +2589,28 @@ export async function updatePayerConfigurationPolicy(
       organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "payer.policy_updated",
+      userId: actor.id,
       action: "Policy Updated",
       object: "Configuration",
       objectId: updated.id,
-      source: "Human",
+      source: auditSourceForRole(actor.role),
       payer: updated.payerName,
       summary: `${actor.name} updated workflow policy for ${updated.payerName}.`,
       sensitivity: "high-risk",
       category: "Config Change",
+      outcome: "success",
+      detail: {
+        payerId: updated.payerId,
+        reviewThreshold: updated.reviewThreshold,
+        escalationThreshold: updated.escalationThreshold,
+        defaultSlaHours: updated.defaultSlaHours,
+        autoAssignOwner: updated.autoAssignOwner,
+        owner: updated.owner
+      },
       beforeAfter: {
         reviewThreshold: {
           from: `${Math.round(existing.reviewThreshold * 100)}%`,
@@ -2024,6 +2704,43 @@ export async function applyClaimAction(
     }
 
     await insertAuditEvent(client, mutation.auditEvent);
+
+    if (claim.status !== mutation.claim.status) {
+      await insertAuditEvent(client, {
+        id: `AUD-${Date.now()}_status`,
+        at: new Date().toISOString(),
+        organizationId: actor.organizationId,
+        actor: {
+          name: actor.name,
+          type: auditActorType(actor.role),
+          avatar: initials(actor.name)
+        },
+        eventType: "claim.status_updated",
+        userId: actor.id,
+        action: "Status Updated",
+        object: "Claim",
+        objectId: claim.id,
+        source: auditSourceForRole(actor.role),
+        payer: claim.payerName,
+        summary: `${actor.name} changed ${claim.claimNumber} from ${claim.status} to ${mutation.claim.status}.`,
+        sensitivity: "normal",
+        category: "Claim Workflow",
+        outcome: "success",
+        detail: {
+          statusFrom: claim.status,
+          statusTo: mutation.claim.status,
+          normalizedStatusText: mutation.claim.normalizedStatusText
+        },
+        beforeAfter: {
+          status: {
+            from: statusLabel(claim.status, claim.normalizedStatusText),
+            to: statusLabel(mutation.claim.status, mutation.claim.normalizedStatusText)
+          }
+        },
+        claimId: claim.id,
+        resultId: mutation.result?.id
+      });
+    }
   });
 
   return getPilotClaimDetail(claimId);
@@ -2069,19 +2786,27 @@ export async function enqueueRetrievalJob(claimId: string, actor: WorkflowActor)
     await insertAuditEvent(client, {
       id: `AUD-${Date.now()}`,
       at: nowIso,
+      organizationId: actor.organizationId,
       actor: {
         name: actor.name,
-        type: actor.role === "admin" ? "admin" : "human",
+        type: auditActorType(actor.role),
         avatar: initials(actor.name)
       },
+      eventType: "retrieval.queued",
+      userId: actor.id,
       action: "Queued Retrieval",
       object: "Claim",
       objectId: claim.id,
-      source: "Human",
+      source: auditSourceForRole(actor.role),
       payer: claim.payerName,
       summary: `${actor.name} queued a retrieval job for ${claim.claimNumber}.`,
       sensitivity: "normal",
       category: "Retrieval Queue",
+      outcome: "success",
+      detail: {
+        jobId: job.id,
+        claimNumber: claim.claimNumber
+      },
       reason: "Manual re-check requested.",
       claimId: claim.id
     });
@@ -2652,7 +3377,9 @@ export async function failRetrievalJob(
       await insertAuditEvent(client, {
         id: `AUD-${Date.now()}`,
         at: observedAt,
+        organizationId: claim.organizationId,
         actor: { name: "System", type: "system", avatar: "SYS" },
+        eventType: exhausted ? "retrieval.failed" : "retrieval.retry_scheduled",
         action: exhausted ? "Agent Failed" : "Agent Retry Scheduled",
         object: "Claim",
         objectId: claim.id,
@@ -2663,6 +3390,13 @@ export async function failRetrievalJob(
           : `${failure.connectorName ?? "Agent runtime"} scheduled another retrieval attempt.`,
         sensitivity: "normal",
         category: "Retrieval Queue",
+        outcome: exhausted ? "failure" : "success",
+        detail: {
+          connectorId: failure.connectorId ?? null,
+          connectorName: failure.connectorName ?? null,
+          failureCategory: failure.failureCategory ?? null,
+          retryable: failure.retryable ?? !exhausted
+        },
         reason: failure.error,
         claimId: claim.id
       });
@@ -2729,6 +3463,32 @@ export async function applyRetrievalOutcome(
 
     await upsertResult(client, mutation.result);
     await syncEvidenceArtifacts(client, mutation.claim, mutation.result.id);
+
+    for (const artifact of storedEvidence) {
+      await insertAuditEvent(client, {
+        id: `AUD-${Date.now()}_${artifact.id}`,
+        at: artifact.createdAt,
+        organizationId: mutation.claim.organizationId,
+        actor: { name: "System", type: "system", avatar: "SYS" },
+        eventType: "evidence.uploaded",
+        action: "Stored Evidence",
+        object: "Evidence",
+        objectId: artifact.id,
+        source: "System",
+        payer: mutation.claim.payerName,
+        summary: `Stored evidence artifact ${artifact.label} for ${mutation.claim.claimNumber}.`,
+        sensitivity: "normal",
+        category: "Evidence Capture",
+        outcome: "success",
+        detail: {
+          claimId: mutation.claim.id,
+          sizeBytes: artifact.sizeBytes ?? null,
+          kind: artifact.kind
+        },
+        claimId: mutation.claim.id,
+        resultId: mutation.result.id
+      });
+    }
 
     for (const event of mutation.auditEvents) {
       await insertAuditEvent(client, event);

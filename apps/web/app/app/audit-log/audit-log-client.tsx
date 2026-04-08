@@ -21,6 +21,8 @@ type AuditLogClientProps = {
   events: AuditEventView[];
 };
 
+const AUDIT_EXPORT_ENABLED = false;
+
 export function AuditLogClient({ events }: AuditLogClientProps) {
   const [selectedEvent, setSelectedEvent] = useState(events[0]);
   const [showFilters, setShowFilters] = useState(true);
@@ -41,16 +43,18 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
               Live event history for claim routing, retrieval, review, and configuration changes.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
-              <Star className="h-3.5 w-3.5" />
-              Saved Views
-            </button>
-            <button className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
-              <Download className="h-3.5 w-3.5" />
-              Export Log
-            </button>
-          </div>
+          {AUDIT_EXPORT_ENABLED ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                <Star className="h-3.5 w-3.5" />
+                Saved Views
+              </button>
+              <button className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+                <Download className="h-3.5 w-3.5" />
+                Export Log
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -160,7 +164,7 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                                 "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium",
                                 event.actor.type === "human"
                                   ? "bg-blue-100 text-blue-700"
-                                  : event.actor.type === "admin"
+                                  : event.actor.type === "owner"
                                     ? "bg-purple-100 text-purple-700"
                                     : "bg-gray-100 text-gray-700"
                               )}

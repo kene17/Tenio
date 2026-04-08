@@ -41,8 +41,8 @@ export default function PilotGuidePage() {
         <section className="rounded-xl border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">Access And Support Model</h2>
           <div className="mt-4 space-y-3 text-sm text-gray-700">
-            <div>Supported roles: admin, manager, operator, viewer.</div>
-            <div>Role matrix: admin and manager can export results and update payer policy; operator can import, intake, retrieve, and log follow-up; viewer is read-only.</div>
+            <div>Supported roles: owner, manager, operator, viewer.</div>
+            <div>Role matrix: owner can manage payer policy, user access, and pilot-managed account settings; manager can export results and read status/audit surfaces; operator can import, intake, retrieve, and log follow-up; viewer is read-only.</div>
             <div>Evidence access requires an authenticated user session plus organization scope.</div>
             <div>Hosted pilot environments should use environment-specific non-demo accounts. Seeded demo credentials are for local development only.</div>
             <div>

@@ -32,6 +32,7 @@ from .schemas import (
     PlannerDirectiveRetry,
     PlannerDirectiveToolCall,
     SunLifePshcpBrowserPayload,
+    TelusEclaimsPayload,
 )
 
 try:
@@ -69,8 +70,21 @@ app = FastAPI(
 )
 
 AI_SERVICE_TOKEN = os.getenv("TENIO_AI_SERVICE_TOKEN", "tenio-local-ai-service-token")
+PAYER_AETNA = "payer_aetna"
+PAYER_SUN_LIFE = "payer_sun_life"
+PAYER_TELUS_ECLAIMS = "payer_telus_eclaims"
+PAYER_MANULIFE = "payer_manulife"
+PAYER_CANADA_LIFE = "payer_canada_life"
+PAYER_GREEN_SHIELD = "payer_green_shield"
+PAYER_DESJARDINS = "payer_desjardins"
+PAYER_BLUE_CROSS_ON = "payer_blue_cross_on"
+CONNECTOR_AETNA_API = "aetna-claim-status-api"
+CONNECTOR_SUN_LIFE_BROWSER = "sun-life-pshcp-browser"
+CONNECTOR_TELUS_ECLAIMS = "telus-eclaims-api"
+CONNECTOR_PORTAL_FALLBACK = "portal-browser-fallback"
 AETNA_MODEL = "connector-aware-aetna-v1"
 SUN_LIFE_MODEL = "connector-aware-sun-life-v1"
+TELUS_MODEL = "connector-aware-telus-v1"
 GENERIC_MODEL = "generic-portal-interpretation-v1"
 AGENT_PROVIDER = "tenio-heuristic"
 AGENT_MODEL = "heuristic-claim-agent-v1"
@@ -80,6 +94,60 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 RETRY_DELAY_SECONDS = 60
 RATE_LIMIT_RETRY_DELAY_SECONDS = 300
 _openai_client: OpenAI | None = None
+
+PAID_PATTERNS = [
+    "paid",
+    "payment issued",
+    "processed",
+    "payment sent",
+    "eob available",
+    "explanation of benefits",
+    "remittance",
+    "direct deposit",
+    "payment deposited",
+    "claim finalized",
+]
+PENDING_PATTERNS = [
+    "pending",
+    "in process",
+    "under review",
+    "being processed",
+    "received",
+    "adjudicating",
+    "adjudication in progress",
+    "processing",
+    "submitted",
+    "waiting",
+]
+INFO_PATTERNS = [
+    "additional info",
+    "more information",
+    "supplemental",
+    "documentation required",
+    "missing information",
+    "please provide",
+    "we need",
+    "coordinate",
+    "cob required",
+    "coordination of benefits",
+]
+DENIAL_PATTERNS = [
+    "denied",
+    "not covered",
+    "ineligible",
+    "rejected",
+    "not eligible",
+    "benefit exhausted",
+    "maximum reached",
+    "no coverage",
+    "exclusion",
+]
+CANADIAN_PENDING_PATTERNS = ["en traitement", "en cours", "soumis"]
+CANADIAN_PAID_PATTERNS = ["payé", "paiement émis", "remboursé"]
+
+
+def is_telus_payer(payer_id: str) -> bool:
+    return payer_id in (PAYER_TELUS_ECLAIMS, "payer_telus_health")
 
 
 def build_supporting_evidence(
@@ -115,7 +183,11 @@ def build_execution(
         "connectorName": payload.connector_name or "Generic Portal Interpretation",
         "executionMode": payload.execution_mode or "browser",
         "observedAt": now,
-        "durationMs": 180 if payload.connector_id == "aetna-claim-status-api" else 250,
+        "durationMs": (
+            180
+            if payload.connector_id in {CONNECTOR_AETNA_API, CONNECTOR_TELUS_ECLAIMS}
+            else 250
+        ),
         "attempt": 1,
         "maxAttempts": 1,
         "outcome": (
@@ -167,7 +239,7 @@ def parse_aetna_payload_json(payload_json: str | None) -> AetnaClaimStatusApiPay
 
 
 def parse_aetna_payload(payload: AiClaimStatusAnalysisRequest) -> AetnaClaimStatusApiPayload | None:
-    if payload.connector_id != "aetna-claim-status-api":
+    if payload.connector_id != CONNECTOR_AETNA_API:
         return None
 
     return parse_aetna_payload_json(payload.connector_payload_json)
@@ -188,10 +260,29 @@ def parse_sun_life_payload_json(
 def parse_sun_life_payload(
     payload: AiClaimStatusAnalysisRequest,
 ) -> SunLifePshcpBrowserPayload | None:
-    if payload.connector_id != "sun-life-pshcp-browser":
+    if payload.connector_id != CONNECTOR_SUN_LIFE_BROWSER:
         return None
 
     return parse_sun_life_payload_json(payload.connector_payload_json)
+
+
+def parse_telus_payload_json(payload_json: str | None) -> TelusEclaimsPayload | None:
+    if not payload_json:
+        return None
+
+    try:
+        return TelusEclaimsPayload.model_validate_json(payload_json)
+    except (ValidationError, ValueError):
+        return None
+
+
+def parse_telus_payload(
+    payload: AiClaimStatusAnalysisRequest,
+) -> TelusEclaimsPayload | None:
+    if payload.connector_id != CONNECTOR_TELUS_ECLAIMS:
+        return None
+
+    return parse_telus_payload_json(payload.connector_payload_json)
 
 
 def analyze_aetna_payload(
@@ -370,13 +461,13 @@ def analyze_sun_life_payload(
             trace_id,
             normalized_status_text="Pending adjudication",
             confidence=0.79,
-            recommended_action="review",
+            recommended_action="retry",
             raw_notes=raw_notes,
             rationale=(
-                "Sun Life returned a pending adjudication state with no posted payment outcome."
+                "Sun Life PSHCP claim is pending adjudication and does not yet have a posted payment outcome."
             ),
             route_reason=(
-                "Pending federal-benefits claims should remain in governed follow-up review."
+                "Pending federal-benefits claims should be retried instead of resolved prematurely."
             ),
         )
 
@@ -390,7 +481,8 @@ def analyze_sun_life_payload(
             recommended_action="review",
             raw_notes=raw_notes,
             rationale=(
-                "Sun Life explicitly marked the claim as requiring coordination of benefits before payment."
+                "Sun Life PSHCP requires coordination of benefits with another plan. "
+                "Operator must confirm primary and secondary payer sequence before resubmitting."
             ),
             route_reason=(
                 "COB handling is an operator workflow and should remain in governed review."
@@ -407,7 +499,8 @@ def analyze_sun_life_payload(
             recommended_action="review",
             raw_notes=raw_notes,
             rationale=(
-                "The federal benefits workflow returned an explicit not-covered status that needs human handling."
+                "Sun Life PSHCP returned a not-covered status. Operator should verify the "
+                "service code and whether the service is included in the PSHCP schedule."
             ),
             route_reason=(
                 "Coverage denials should remain in governed review before any downstream action."
@@ -476,82 +569,193 @@ def analyze_invalid_sun_life_payload(
     )
 
 
-def analyze_generic_payload(
-    payload: AiClaimStatusAnalysisRequest, now: str, trace_id: str
+def analyze_telus_payload(
+    payload: AiClaimStatusAnalysisRequest,
+    connector_payload: TelusEclaimsPayload,
+    now: str,
+    trace_id: str,
 ) -> ExecutionCandidate:
-    portal_text = payload.portal_text.lower()
+    status = (connector_payload.claim_status or "").upper()
+    raw_notes = json.dumps(connector_payload.model_dump(by_alias=True), sort_keys=True)
 
-    if any(signal in portal_text for signal in ["additional info", "supplemental", "retry"]):
+    if status in {"PAID", "PAYMENT_ISSUED", "FINALIZED"}:
         return build_candidate(
             payload,
             now,
             trace_id,
-            normalized_status_text="Awaiting payer data",
-            confidence=0.49,
-            recommended_action="retry",
-            raw_notes=(
-                "Generic interpretation saw incomplete payer language and returned a retry "
-                "recommendation."
-            ),
+            normalized_status_text="Claim paid",
+            confidence=0.92,
+            recommended_action="resolve",
+            raw_notes=raw_notes,
             rationale=(
-                "Portal text indicates the payer record is incomplete, so the workflow layer "
-                "should schedule another attempt."
+                f"TELUS eClaims returned {status}. Payment amount: "
+                f"{connector_payload.paid_amount_cents}c. Processed: {connector_payload.processed_at}."
             ),
-            route_reason="Generic text fallback could not support a final result yet.",
+            route_reason="telus-paid",
         )
 
-    if "denied" in portal_text:
+    if status in {"PENDING", "IN_PROCESS", "RECEIVED", "ADJUDICATING"}:
         return build_candidate(
             payload,
             now,
             trace_id,
-            normalized_status_text="Denied",
-            confidence=0.66,
-            recommended_action="review",
-            raw_notes="Generic interpretation detected denial-oriented payer language.",
-            rationale="Denied outcomes remain reviewable when only text-based context is available.",
-            route_reason="Text-only denial language requires governed review.",
+            normalized_status_text="Claim pending with payer",
+            confidence=0.75,
+            recommended_action="retry",
+            raw_notes=raw_notes,
+            rationale=f"TELUS eClaims returned {status}. Claim is still being processed.",
+            route_reason="telus-pending",
         )
 
-    if any(signal in portal_text for signal in ["pending", "review", "in process"]):
+    if status in {"MORE_INFO_REQUIRED", "DOCUMENTATION_REQUIRED", "COB_REQUIRED"}:
         return build_candidate(
             payload,
             now,
             trace_id,
-            normalized_status_text="Pending payer review",
-            confidence=0.72,
+            normalized_status_text="Additional information required",
+            confidence=0.88,
             recommended_action="review",
-            raw_notes="Generic interpretation detected pending or review-oriented language.",
-            rationale="Portal text contains uncertainty or review language.",
-            route_reason="Low-certainty payer language requires governed human review.",
+            raw_notes=raw_notes,
+            rationale=(
+                "TELUS eClaims requires additional information: "
+                f"{connector_payload.info_required or status}."
+            ),
+            route_reason="telus-more-info",
+        )
+
+    if status in {"DENIED", "REJECTED", "NOT_COVERED"}:
+        return build_candidate(
+            payload,
+            now,
+            trace_id,
+            normalized_status_text="Claim denied",
+            confidence=0.9,
+            recommended_action="review",
+            raw_notes=raw_notes,
+            rationale=(
+                f"TELUS eClaims returned {status}. Denial reason: "
+                f"{connector_payload.denial_reason or 'not specified'}."
+            ),
+            route_reason="telus-denied",
         )
 
     return build_candidate(
         payload,
         now,
         trace_id,
-        normalized_status_text="Processed",
-        confidence=0.9,
-        recommended_action="resolve",
+        normalized_status_text="Unknown TELUS status — manual review required",
+        confidence=0.4,
+        recommended_action="review",
+        raw_notes=raw_notes,
+        rationale=f"Unhandled TELUS status code: {status or 'missing'}. Routing to manual review.",
+        route_reason="telus-unhandled",
+    )
+
+
+def analyze_invalid_telus_payload(
+    payload: AiClaimStatusAnalysisRequest, now: str, trace_id: str
+) -> ExecutionCandidate:
+    return build_candidate(
+        payload,
+        now,
+        trace_id,
+        normalized_status_text="Awaiting connector retry",
+        confidence=0.28,
+        recommended_action="retry",
         raw_notes=(
-            "Generic interpretation found no conflicting signal in the portal text and "
-            "returned a conservative resolve recommendation."
+            "The TELUS eClaims connector context was missing or malformed, so the AI layer "
+            "refused to treat the payload as a trusted final status."
         ),
-        rationale="Portal text indicates a processed outcome with no conflicting signal.",
-        route_reason="Signal is strong enough for workflow policy to consider resolution.",
+        rationale=(
+            "TELUS eClaims response could not be parsed. Awaiting connector retry instead of "
+            "downgrading into a text-only interpretation."
+        ),
+        route_reason="telus-invalid-payload",
+    )
+
+
+def analyze_generic_payload(
+    payload: AiClaimStatusAnalysisRequest, now: str, trace_id: str
+) -> ExecutionCandidate:
+    portal_text = (payload.portal_text or "").lower()
+
+    if any(signal in portal_text for signal in DENIAL_PATTERNS):
+        return build_candidate(
+            payload,
+            now,
+            trace_id,
+            normalized_status_text="Claim denied",
+            confidence=0.85,
+            recommended_action="review",
+            raw_notes=payload.portal_text[:500] if payload.portal_text else "",
+            rationale="Portal text contains denial-oriented language that requires manual review.",
+            route_reason="generic-denial-pattern",
+        )
+
+    if any(signal in portal_text for signal in INFO_PATTERNS):
+        return build_candidate(
+            payload,
+            now,
+            trace_id,
+            normalized_status_text="Additional information required",
+            confidence=0.8,
+            recommended_action="retry",
+            raw_notes=payload.portal_text[:500] if payload.portal_text else "",
+            rationale=(
+                "Portal text indicates that the payer needs more information before a final decision."
+            ),
+            route_reason="generic-info-required-pattern",
+        )
+
+    if any(signal in portal_text for signal in [*PENDING_PATTERNS, *CANADIAN_PENDING_PATTERNS]):
+        return build_candidate(
+            payload,
+            now,
+            trace_id,
+            normalized_status_text="Claim pending with payer",
+            confidence=0.75,
+            recommended_action="retry",
+            raw_notes=payload.portal_text[:500] if payload.portal_text else "",
+            rationale="Portal text indicates the claim is still pending with the payer.",
+            route_reason="generic-pending-pattern",
+        )
+
+    if any(signal in portal_text for signal in [*PAID_PATTERNS, *CANADIAN_PAID_PATTERNS]):
+        return build_candidate(
+            payload,
+            now,
+            trace_id,
+            normalized_status_text="Claim processed",
+            confidence=0.8,
+            recommended_action="resolve",
+            raw_notes=payload.portal_text[:500] if payload.portal_text else "",
+            rationale="Portal text indicates the claim has been processed with no conflicting signal.",
+            route_reason="generic-paid-pattern",
+        )
+
+    return build_candidate(
+        payload,
+        now,
+        trace_id,
+        normalized_status_text="Status unclear — manual review required",
+        confidence=0.4,
+        recommended_action="review",
+        raw_notes=payload.portal_text[:500] if payload.portal_text else "",
+        rationale="Portal text did not match any known status pattern. Manual review required.",
+        route_reason="generic-fallback-conservative",
     )
 
 
 def analyze_request(
     payload: AiClaimStatusAnalysisRequest, now: str, trace_id: str
 ) -> tuple[ExecutionCandidate, str]:
-    if payload.connector_id == "aetna-claim-status-api":
+    if payload.connector_id == CONNECTOR_AETNA_API:
         connector_payload = parse_aetna_payload(payload)
         if connector_payload is None:
             return analyze_invalid_aetna_payload(payload, now, trace_id), AETNA_MODEL
         return analyze_aetna_payload(payload, connector_payload, now, trace_id), AETNA_MODEL
 
-    if payload.connector_id == "sun-life-pshcp-browser":
+    if payload.connector_id == CONNECTOR_SUN_LIFE_BROWSER:
         connector_payload = parse_sun_life_payload(payload)
         if connector_payload is None:
             return analyze_invalid_sun_life_payload(payload, now, trace_id), SUN_LIFE_MODEL
@@ -559,6 +763,12 @@ def analyze_request(
             analyze_sun_life_payload(payload, connector_payload, now, trace_id),
             SUN_LIFE_MODEL,
         )
+
+    if is_telus_payer(payload.payer_id) and payload.connector_id == CONNECTOR_TELUS_ECLAIMS:
+        connector_payload = parse_telus_payload(payload)
+        if connector_payload is None:
+            return analyze_invalid_telus_payload(payload, now, trace_id), TELUS_MODEL
+        return analyze_telus_payload(payload, connector_payload, now, trace_id), TELUS_MODEL
 
     return analyze_generic_payload(payload, now, trace_id), GENERIC_MODEL
 
@@ -1084,7 +1294,9 @@ def count_consecutive_failures(
     return count
 
 
-def infer_outcome_class(observation: AgentObservation) -> str:
+def infer_outcome_class(
+    observation: AgentObservation, payer_id: str | None = None
+) -> str:
     payload = parse_aetna_payload_json(observation.connector_payload_json)
     if payload is not None:
         if payload.status_code == "PAID_IN_FULL":
@@ -1105,21 +1317,32 @@ def infer_outcome_class(observation: AgentObservation) -> str:
             return "pending"
         return "incomplete"
 
-    text = truncate_untrusted_text(observation.portal_text_snippet or observation.summary).lower()
-    if any(signal in text for signal in ["additional info", "supplemental", "retry", "incomplete"]):
+    telus_payload = parse_telus_payload_json(observation.connector_payload_json)
+    if telus_payload is not None and is_telus_payer(payer_id or ""):
+        status = (telus_payload.claim_status or "").upper()
+        if status in {"PAID", "PAYMENT_ISSUED", "FINALIZED"}:
+            return "resolved"
+        if status in {"DENIED", "REJECTED", "NOT_COVERED"}:
+            return "denied"
+        if status in {"PENDING", "IN_PROCESS", "RECEIVED", "ADJUDICATING", "COB_REQUIRED"}:
+            return "pending"
         return "incomplete"
-    if "denied" in text:
+
+    text = truncate_untrusted_text(observation.portal_text_snippet or observation.summary).lower()
+    if any(signal in text for signal in INFO_PATTERNS):
+        return "incomplete"
+    if any(signal in text for signal in DENIAL_PATTERNS):
         return "denied"
-    if any(signal in text for signal in ["pending", "review", "in process"]):
+    if any(signal in text for signal in [*PENDING_PATTERNS, *CANADIAN_PENDING_PATTERNS]):
         return "pending"
-    if any(signal in text for signal in ["paid", "processed", "resolved"]):
+    if any(signal in text for signal in [*PAID_PATTERNS, *CANADIAN_PAID_PATTERNS]):
         return "resolved"
     return "unknown"
 
 
 def has_conflicting_successes(context: AgentRunContext) -> bool:
     classes = {
-        infer_outcome_class(step.result.observation)
+        infer_outcome_class(step.result.observation, context.payer_id)
         for step in context.steps
         if step.result and step.result.observation and step.result.observation.success
     }
@@ -1128,7 +1351,7 @@ def has_conflicting_successes(context: AgentRunContext) -> bool:
 
 
 def browser_fallback_available(context: AgentRunContext) -> bool:
-    return context.payer_id == "payer_aetna"
+    return context.payer_id == PAYER_AETNA
 
 
 def can_switch_to_browser(context: AgentRunContext) -> bool:
@@ -1229,6 +1452,64 @@ def build_failure_policy_directive(
         context, observation.connector_id, observation.execution_mode
     )
 
+    if observation.execution_mode == "api" and is_telus_payer(context.payer_id):
+        if failure_category == "rate_limited":
+            return build_retry(
+                public_reason="TELUS eClaims rate limiting should back off instead of switching connectors.",
+                completion_reason="retry_scheduled",
+                retry_after_seconds=120,
+            )
+
+        if failure_category == "authentication":
+            candidate = build_review_candidate_from_observation(
+                context,
+                observation,
+                trace_id,
+                normalized_status_text="TELUS authentication blocked",
+                raw_notes=(
+                    "The TELUS eClaims connector could not authenticate, so the runtime is "
+                    "escalating to governed review."
+                ),
+                rationale="TELUS authentication failures require manual intervention.",
+                route_reason="TELUS authentication failure requires operator attention.",
+            )
+            return build_final(
+                candidate,
+                public_reason="TELUS authentication failure cannot auto-recover.",
+                completion_reason="fallback_policy_review",
+                model=AGENT_MODEL,
+            )
+
+        if failure_category == "network":
+            if retry_count <= 1:
+                return build_tool_call(
+                    connector_id=CONNECTOR_TELUS_ECLAIMS,
+                    mode="api",
+                    public_reason="Retry the TELUS eClaims API once before scheduling a delayed retry.",
+                    attempt_label="telus-network-retry",
+                )
+            return build_retry(
+                public_reason="TELUS network failure remained unresolved, so schedule a delayed retry.",
+                completion_reason="retry_scheduled",
+                retry_after_seconds=60,
+            )
+
+        candidate = build_review_candidate_from_observation(
+            context,
+            observation,
+            trace_id,
+            normalized_status_text="TELUS recovery requires review",
+            raw_notes=observation.summary,
+            rationale=f"TELUS returned an unhandled failure mode: {failure_category}.",
+            route_reason="TELUS fallback policy resolved into governed review.",
+        )
+        return build_final(
+            candidate,
+            public_reason="TELUS fallback policy routed this failure into review.",
+            completion_reason="fallback_policy_review",
+            model=AGENT_MODEL,
+        )
+
     if observation.execution_mode == "api":
         if failure_category == "rate_limited":
             return build_retry(
@@ -1240,7 +1521,7 @@ def build_failure_policy_directive(
         if failure_category == "data_missing":
             if browser_fallback_available(context) and can_switch_to_browser(context):
                 return build_tool_call(
-                    connector_id="portal-browser-fallback",
+                    connector_id=CONNECTOR_PORTAL_FALLBACK,
                     mode="browser",
                     public_reason="Structured API output was incomplete, so switch once to the browser fallback path.",
                     attempt_label="browser-fallback-after-data-missing",
@@ -1280,7 +1561,7 @@ def build_failure_policy_directive(
                 )
             if browser_fallback_available(context) and can_switch_to_browser(context):
                 return build_tool_call(
-                    connector_id="portal-browser-fallback",
+                    connector_id=CONNECTOR_PORTAL_FALLBACK,
                     mode="browser",
                     public_reason="The API path failed twice, so switch once to the browser fallback path.",
                     attempt_label="browser-fallback-after-api-failure",
@@ -1335,22 +1616,29 @@ def heuristic_plan_agent_step(
     trace_id: str,
 ) -> AgentDirectiveToolCall | AgentDirectiveFinal | AgentDirectiveRetry:
     if not context.steps:
-        if context.payer_id == "payer_sun_life":
+        if context.payer_id == PAYER_SUN_LIFE:
             return build_tool_call(
-                connector_id="sun-life-pshcp-browser",
+                connector_id=CONNECTOR_SUN_LIFE_BROWSER,
                 mode="browser",
                 public_reason="Start Ottawa federal-benefits follow-up on the structured Sun Life PSHCP validation path.",
                 attempt_label="initial-sun-life-validation",
             )
-        if context.payer_id == "payer_aetna":
+        if context.payer_id == PAYER_AETNA:
             return build_tool_call(
-                connector_id="aetna-claim-status-api",
+                connector_id=CONNECTOR_AETNA_API,
                 mode="api",
                 public_reason="Start with the trusted Aetna API connector before considering browser fallback.",
                 attempt_label="initial-aetna-api-attempt",
             )
+        if is_telus_payer(context.payer_id):
+            return build_tool_call(
+                connector_id=CONNECTOR_TELUS_ECLAIMS,
+                mode="api",
+                public_reason="Start with the TELUS eClaims API connector before considering any manual fallback.",
+                attempt_label="initial-telus-eclaims-attempt",
+            )
         return build_tool_call(
-            connector_id="portal-browser-fallback",
+            connector_id=CONNECTOR_PORTAL_FALLBACK,
             mode="browser",
             public_reason="Start with the browser connector for payers without a trusted API path.",
             attempt_label="initial-browser-attempt",
@@ -1371,12 +1659,12 @@ def heuristic_plan_agent_step(
     if candidate.recommended_action == "retry":
         if (
             latest.execution_mode == "api"
-            and context.payer_id == "payer_aetna"
+            and context.payer_id == PAYER_AETNA
             and browser_fallback_available(context)
             and can_switch_to_browser(context)
         ):
             return build_tool_call(
-                connector_id="portal-browser-fallback",
+                connector_id=CONNECTOR_PORTAL_FALLBACK,
                 mode="browser",
                 public_reason="The API observation remained incomplete, so switch once to browser recovery before scheduling a retry.",
                 attempt_label="browser-fallback-after-incomplete-api",
@@ -1438,6 +1726,33 @@ def health() -> dict[str, object]:
             "openaiConfigured": bool(OPENAI_API_KEY),
             "openaiSdkAvailable": OpenAI is not None,
             "treats_connector_content_as": "untrusted-data",
+        },
+        "supported_payers": {
+            PAYER_AETNA: {
+                "connector": CONNECTOR_AETNA_API,
+                "browser_fallback": True,
+                "status": "production",
+            },
+            PAYER_SUN_LIFE: {
+                "connector": CONNECTOR_SUN_LIFE_BROWSER,
+                "browser_fallback": False,
+                "status": "production",
+            },
+            PAYER_TELUS_ECLAIMS: {
+                "connector": CONNECTOR_TELUS_ECLAIMS,
+                "browser_fallback": False,
+                "status": "stub",
+            },
+            PAYER_MANULIFE: {
+                "connector": CONNECTOR_PORTAL_FALLBACK,
+                "browser_fallback": True,
+                "status": "generic-fallback",
+            },
+            PAYER_GREEN_SHIELD: {
+                "connector": CONNECTOR_PORTAL_FALLBACK,
+                "browser_fallback": True,
+                "status": "generic-fallback",
+            },
         },
     }
 

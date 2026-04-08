@@ -14,13 +14,16 @@ import {
   completeAgentToolStep,
   exportResults,
   failRetrievalJob,
+  getAccountSummary,
   getClaimDetail,
   getEvidenceArtifactContent,
   getPerformanceMetrics,
   getPilotClaimDetail,
   getReviewPolicyForClaim,
   getResultDetail,
+  getStatusSummary,
   getValidatedSession,
+  inviteUserToOrganization,
   listAuditEvents,
   listClaims,
   listClaimsList,
@@ -28,8 +31,10 @@ import {
   listPilotQueueItems,
   listQueue,
   listResultSummaries,
+  listUsersByOrganization,
   previewClaimImport,
   heartbeatAgentRun,
+  removeUserFromOrganization,
   recordAgentTerminalStep,
   startAgentToolStep,
   updatePayerConfigurationPolicy,
@@ -38,20 +43,20 @@ import {
 import type { ImportProfileId, RawImportRow } from "../import/pms/index.js";
 
 export class WorkflowService {
-  async getQueue() {
-    return queueItemSchema.array().parse(await listQueue());
+  async getQueue(organizationId?: string) {
+    return queueItemSchema.array().parse(await listQueue(organizationId));
   }
 
-  async getClaims() {
-    return claimSummarySchema.array().parse(await listClaims());
+  async getClaims(organizationId?: string) {
+    return claimSummarySchema.array().parse(await listClaims(organizationId));
   }
 
-  async getClaimsList() {
-    return listClaimsList();
+  async getClaimsList(organizationId?: string) {
+    return listClaimsList(organizationId);
   }
 
-  async getClaimDetail(claimId: string) {
-    const claim = await getClaimDetail(claimId);
+  async getClaimDetail(claimId: string, organizationId?: string) {
+    const claim = await getClaimDetail(claimId, organizationId);
 
     if (!claim) {
       return null;
@@ -60,36 +65,40 @@ export class WorkflowService {
     return claimDetailSchema.parse(claim);
   }
 
-  async getPilotQueue() {
-    return listPilotQueueItems();
+  async getPilotQueue(organizationId?: string) {
+    return listPilotQueueItems(organizationId);
   }
 
-  async getPilotClaimDetail(claimId: string) {
-    return getPilotClaimDetail(claimId);
+  async getPilotClaimDetail(claimId: string, organizationId?: string) {
+    return getPilotClaimDetail(claimId, organizationId);
   }
 
-  async getResults() {
-    return listResultSummaries();
+  async getResults(organizationId?: string) {
+    return listResultSummaries(organizationId);
   }
 
   async exportResults(...args: Parameters<typeof exportResults>) {
     return exportResults(...args);
   }
 
-  async getResultDetail(resultId: string) {
-    return getResultDetail(resultId);
+  async getResultDetail(resultId: string, organizationId?: string) {
+    return getResultDetail(resultId, organizationId);
   }
 
-  async getEvidenceArtifactContent(artifactId: string, organizationId: string) {
-    return getEvidenceArtifactContent(artifactId, organizationId);
+  async getEvidenceArtifactContent(
+    artifactId: string,
+    organizationId: string,
+    actor?: Parameters<typeof getEvidenceArtifactContent>[2]
+  ) {
+    return getEvidenceArtifactContent(artifactId, organizationId, actor);
   }
 
-  async getAuditLog() {
-    return listAuditEvents();
+  async getAuditLog(organizationId?: string) {
+    return listAuditEvents(organizationId);
   }
 
-  async getPerformanceMetrics() {
-    return getPerformanceMetrics();
+  async getPerformanceMetrics(organizationId?: string) {
+    return getPerformanceMetrics(organizationId);
   }
 
   async getPayerConfigurations(organizationId?: string) {
@@ -102,6 +111,26 @@ export class WorkflowService {
 
   async getValidatedSession(sessionId: string) {
     return getValidatedSession(sessionId);
+  }
+
+  async getUsers(organizationId: string) {
+    return listUsersByOrganization(organizationId);
+  }
+
+  async inviteUser(...args: Parameters<typeof inviteUserToOrganization>) {
+    return inviteUserToOrganization(...args);
+  }
+
+  async removeUser(...args: Parameters<typeof removeUserFromOrganization>) {
+    return removeUserFromOrganization(...args);
+  }
+
+  async getAccount(organizationId: string) {
+    return getAccountSummary(organizationId);
+  }
+
+  async getStatus(organizationId: string) {
+    return getStatusSummary(organizationId);
   }
 
   async createClaim(...args: Parameters<typeof createClaim>) {

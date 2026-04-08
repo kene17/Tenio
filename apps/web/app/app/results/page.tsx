@@ -1,3 +1,4 @@
+import { hasPermission } from "@tenio/domain";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -57,13 +58,13 @@ export default async function ResultsPage() {
   try {
     const [{ items }, session] = await Promise.all([getResults(), getCurrentSession()]);
     const exportedCount = items.filter((item) => item.exportState === "Exported").length;
-    const canExport = session?.role === "admin" || session?.role === "manager";
+    const canExport = session ? hasPermission(session.role, "claims:export") : false;
 
     return (
     <div className="h-full overflow-auto">
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Results</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Resolved</h1>
           <p className="mt-1 text-sm text-gray-600">
             Structured claim-status outputs with evidence, provenance, and export-ready
             formatting.

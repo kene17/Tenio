@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { hasPermission, type UserRole } from "@tenio/domain";
 import { ChevronDown, Download, FileText, Search } from "lucide-react";
 
 import { IntakeClaimForm } from "../../../components/intake-claim-form";
@@ -12,7 +13,7 @@ import type { ClaimsListItemView } from "../../../lib/pilot-api";
 type ClaimsClientProps = {
   items: ClaimsListItemView[];
   organizationId: string;
-  currentRole: "admin" | "manager" | "operator" | "viewer";
+  currentRole: UserRole;
   payerOptions: Array<{
     id: string;
     label: string;
@@ -116,8 +117,8 @@ export function ClaimsClient({
 }: ClaimsClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("ops_default");
-  const canExport = currentRole === "admin" || currentRole === "manager";
-  const canMutate = currentRole !== "viewer";
+  const canExport = hasPermission(currentRole, "claims:export");
+  const canMutate = hasPermission(currentRole, "claims:write");
 
   const filteredItems = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();

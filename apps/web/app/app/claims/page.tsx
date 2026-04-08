@@ -1,26 +1,43 @@
+import { hasPermission } from "@tenio/domain";
+import { redirect } from "next/navigation";
 import { PilotErrorState } from "../../../components/pilot-error-state";
 import {
+  getClaimIntakeOptions,
   getClaimsList,
   getCurrentSession,
-  getPayerConfigurations
 } from "../../../lib/pilot-api";
 import { ClaimsClient } from "./claims-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClaimsPage() {
+  const session = await getCurrentSession();
+
+  if (!session) {
+    redirect("/login");
+  }
+
   try {
-    const [claimsResponse, payerResponse, session] = await Promise.all([
+    const canImport = hasPermission(session.role, "claims:import");
+    const [claimsResponse, payerResponse] = await Promise.all([
       getClaimsList(),
-      getPayerConfigurations(),
-      getCurrentSession()
+      canImport
+        ? getClaimIntakeOptions()
+        : Promise.resolve({
+            items: [] as Array<{
+              payerId: string;
+              payerName: string;
+              jurisdiction: "us" | "ca";
+              countryCode: "US" | "CA";
+            }>
+          })
     ]);
 
     return (
       <ClaimsClient
         items={claimsResponse.items}
-        organizationId={session?.organizationId ?? "org_demo"}
-        currentRole={session?.role ?? "viewer"}
+        organizationId={session.organizationId}
+        currentRole={session.role}
         payerOptions={payerResponse.items.map((payer) => ({
           id: payer.payerId,
           label: payer.payerName,

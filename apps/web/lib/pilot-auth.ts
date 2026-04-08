@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { normalizeUserRole, type UserRole } from "@tenio/domain";
 
 export const PILOT_SESSION_COOKIE = "tenio_session";
 
@@ -6,7 +7,8 @@ export type AppSession = {
   sessionId: string;
   userId: string;
   organizationId: string;
-  role: "admin" | "manager" | "operator" | "viewer";
+  organizationName?: string;
+  role: UserRole;
   fullName: string;
   email: string;
   expiresAt: string;
@@ -29,6 +31,10 @@ export function encodeSession(session: AppSession) {
   const signature = signPayload(payload);
   return `${payload}.${signature}`;
 }
+
+type StoredSession = Omit<AppSession, "role"> & {
+  role: UserRole | "admin";
+};
 
 export function decodeSession(cookieValue: string | undefined | null) {
   if (!cookieValue) {
@@ -54,13 +60,24 @@ export function decodeSession(cookieValue: string | undefined | null) {
   }
 
   try {
-    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as AppSession;
+    const session = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8")
+    ) as StoredSession;
 
     if (new Date(session.expiresAt).getTime() < Date.now()) {
       return null;
     }
 
-    return session;
+    const role = normalizeUserRole(session.role);
+
+    if (!role) {
+      return null;
+    }
+
+    return {
+      ...session,
+      role
+    } satisfies AppSession;
   } catch {
     return null;
   }

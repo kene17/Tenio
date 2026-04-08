@@ -7,9 +7,8 @@ import type {
   ExecutionCandidate,
   ExecutionFailureCategory
 } from "@tenio/contracts";
-import type { QueueItem } from "@tenio/domain";
+import type { QueueItem, UserRole } from "@tenio/domain";
 
-import type { AppRole } from "../auth.js";
 import type { WorkflowDecision } from "../services/review-policy-service.js";
 import {
   claimActivityReference,
@@ -23,10 +22,10 @@ import {
 export type WorkflowActor = {
   id: string;
   name: string;
-  role: AppRole;
+  role: UserRole;
   organizationId: string;
   email?: string;
-  type: "human" | "system" | "admin";
+  type: "human" | "system" | "owner";
 };
 
 export type AppUserRecord = {
@@ -34,7 +33,7 @@ export type AppUserRecord = {
   organizationId: string;
   email: string;
   fullName: string;
-  role: AppRole;
+  role: UserRole;
   passwordHash: string;
   isActive: boolean;
 };
@@ -1080,7 +1079,7 @@ export function applyClaimWorkflowAction(params: {
     at: nowIso,
     actor: {
       name: actor.name,
-      type: actor.type === "admin" ? "admin" : actor.type,
+      type: actor.type === "owner" ? "owner" : actor.type,
       avatar: actor.name
         .split(" ")
         .map((part) => part[0])
@@ -1088,6 +1087,23 @@ export function applyClaimWorkflowAction(params: {
         .slice(0, 2)
         .toUpperCase()
     },
+    eventType:
+      action === "log_follow_up"
+        ? "followup.logged"
+        : action === "assign_owner"
+          ? "claim.assigned"
+          : action === "add_note"
+            ? "claim.noted"
+            : action === "approve_review"
+              ? "claim.review_approved"
+              : action === "resolve_claim"
+                ? "claim.resolved"
+                : action === "escalate_claim"
+                  ? "claim.escalated"
+                  : action === "mark_call_required"
+                    ? "claim.phone_call_required"
+                    : "claim.reopened",
+    userId: actor.id,
     action:
       action === "assign_owner"
         ? "Assigned"
@@ -1106,7 +1122,7 @@ export function applyClaimWorkflowAction(params: {
                   : "Reopened",
     object: "Claim",
     objectId: claim.id,
-    source: "Human",
+    source: actor.type === "owner" ? "Owner" : "Human",
     payer: claim.payerName,
     summary:
       action === "assign_owner"
@@ -1125,6 +1141,24 @@ export function applyClaimWorkflowAction(params: {
           : action === "mark_call_required"
             ? "Manual Follow-up"
             : "Claim Workflow",
+    outcome: "success",
+    detail:
+      action === "log_follow_up"
+        ? {
+            outcome,
+            note,
+            nextAction,
+            followUpAt,
+            statusFrom: claim.status,
+            statusTo: updatedClaim.status
+          }
+        : {
+            action,
+            assignee,
+            note,
+            statusFrom: claim.status,
+            statusTo: updatedClaim.status
+          },
     beforeAfter:
       action === "assign_owner"
         ? {

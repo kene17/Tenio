@@ -1,5 +1,37 @@
 import { z } from "zod";
 
+export const PAYER_AETNA = "payer_aetna";
+export const PAYER_SUN_LIFE = "payer_sun_life";
+export const PAYER_TELUS_ECLAIMS = "payer_telus_eclaims";
+export const PAYER_MANULIFE = "payer_manulife";
+export const PAYER_CANADA_LIFE = "payer_canada_life";
+export const PAYER_GREEN_SHIELD = "payer_green_shield";
+export const PAYER_DESJARDINS = "payer_desjardins";
+export const PAYER_BLUE_CROSS_ON = "payer_blue_cross_on";
+
+export const CONNECTOR_AETNA_API = "aetna-claim-status-api";
+export const CONNECTOR_SUN_LIFE_BROWSER = "sun-life-pshcp-browser";
+export const CONNECTOR_TELUS_ECLAIMS = "telus-eclaims-api";
+export const CONNECTOR_PORTAL_FALLBACK = "portal-browser-fallback";
+
+export const KNOWN_PAYER_IDS = [
+  PAYER_AETNA,
+  PAYER_SUN_LIFE,
+  PAYER_TELUS_ECLAIMS,
+  PAYER_MANULIFE,
+  PAYER_CANADA_LIFE,
+  PAYER_GREEN_SHIELD,
+  PAYER_DESJARDINS,
+  PAYER_BLUE_CROSS_ON
+] as const;
+
+export const KNOWN_CONNECTOR_IDS = [
+  CONNECTOR_AETNA_API,
+  CONNECTOR_SUN_LIFE_BROWSER,
+  CONNECTOR_TELUS_ECLAIMS,
+  CONNECTOR_PORTAL_FALLBACK
+] as const;
+
 export const evidenceArtifactSchema = z.object({
   id: z.string(),
   kind: z.enum(["screenshot", "raw_html", "note"]),
@@ -252,6 +284,10 @@ export const agentStepResponseSchema = z.object({
 });
 
 export type EvidenceArtifact = z.infer<typeof evidenceArtifactSchema>;
+export type KnownPayerId = (typeof KNOWN_PAYER_IDS)[number];
+export type KnownConnectorId = (typeof KNOWN_CONNECTOR_IDS)[number];
+export type PayerId = KnownPayerId | (string & {});
+export type ConnectorId = KnownConnectorId | (string & {});
 export type ExecutionFailureCategory = z.infer<typeof executionFailureCategorySchema>;
 export type AgentExecution = z.infer<typeof agentExecutionSchema>;
 export type ExecutionCandidate = z.infer<typeof executionCandidateSchema>;

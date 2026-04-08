@@ -32,7 +32,7 @@ Tenio currently uses:
 
 Sensitive workflow controls currently verified in the product:
 
-- payer policy edits require manager or admin access
+- payer policy edits require owner access
 - evidence downloads require an authenticated user session scoped to the caller's organization
 - result export requires an authenticated user session
 

@@ -148,7 +148,9 @@ export type AuditEventView = {
   id: string;
   time: string;
   date: string;
-  actor: { name: string; type: "human" | "system" | "admin"; avatar: string };
+  actor: { name: string; type: "human" | "system" | "owner"; avatar: string };
+  eventType?: string;
+  userId?: string | null;
   action: string;
   object: string;
   objectId: string;
@@ -157,6 +159,9 @@ export type AuditEventView = {
   summary: string;
   sensitivity: "normal" | "sensitive" | "high-risk";
   category: string;
+  outcome?: "success" | "failure";
+  importBatchId?: string | null;
+  detail?: Record<string, unknown>;
   beforeAfter?: Record<string, { from: string; to: string }>;
   reason?: string;
   requestId?: string;
@@ -273,6 +278,15 @@ export type PerformanceView = {
   }>;
 };
 
+export type StatusView = {
+  lastImportAt: string | null;
+  lastImportOutcome: "success" | "failure" | null;
+  lastImportRowCount: number | null;
+  lastQueueSyncAt: string | null;
+  failedActionsLast24h: number;
+  openClaimsCount: number;
+};
+
 function getApiBaseUrl() {
   return process.env.TENIO_API_BASE_URL ?? "http://127.0.0.1:4000";
 }
@@ -361,6 +375,21 @@ export async function getPerformance() {
 
 export async function getPayerConfigurations() {
   return apiFetch<{ items: PayerConfigurationView[] }>("/configuration/payers");
+}
+
+export async function getClaimIntakeOptions() {
+  return apiFetch<{
+    items: Array<{
+      payerId: string;
+      payerName: string;
+      jurisdiction: "us" | "ca";
+      countryCode: "US" | "CA";
+    }>;
+  }>("/claim-intake-options");
+}
+
+export async function getStatus() {
+  return apiFetch<{ item: StatusView }>("/status");
 }
 
 export async function createClaimIntake(input: {

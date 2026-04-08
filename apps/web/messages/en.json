@@ -3,11 +3,12 @@
     "navigation": {
       "queue": "Queue",
       "claims": "Claims",
-      "onboarding": "Onboarding",
-      "results": "Results",
+      "onboarding": "Import",
+      "results": "Resolved",
       "performance": "Performance",
       "configuration": "Configuration",
       "auditLog": "Audit Log",
+      "status": "Status",
       "readinessGuide": "Readiness Guide"
     },
     "searchPlaceholder": "Search claims...",
@@ -70,5 +71,12 @@
     "actionCreate": "Create",
     "actionUpdate": "Update",
     "actionSkip": "Skip"
+  },
+  "claim": {
+    "tabs": {
+      "overview": "Overview",
+      "evidence": "Evidence",
+      "timeline": "Timeline"
+    }
   }
 }

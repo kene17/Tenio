@@ -19,6 +19,20 @@ function readOptionalEnv(name: string) {
   return value ? value : null;
 }
 
+function readEnvAlias(name: string, alias: string, fallback?: string) {
+  const value = process.env[name]?.trim() ?? process.env[alias]?.trim();
+
+  if (value) {
+    return value;
+  }
+
+  if (fallback !== undefined) {
+    return fallback;
+  }
+
+  throw new Error(`Missing required environment variable: ${name} (or ${alias})`);
+}
+
 function readBooleanEnv(name: string, fallback: boolean) {
   const value = process.env[name]?.trim().toLowerCase();
 
@@ -92,19 +106,29 @@ export const appConfig = {
   migrationTable: "schema_migrations",
   seedOrgId: readEnv("TENIO_SEED_ORG_ID", "org_demo"),
   seedOrgName: readEnv("TENIO_SEED_ORG_NAME", "Acme Healthcare RCM"),
-  seedAdminEmail: readEnv("TENIO_SEED_ADMIN_EMAIL", "ops.admin@acme-rcm.test"),
-  seedAdminName: readEnv("TENIO_SEED_ADMIN_NAME", "Jordan Diaz"),
-  seedAdminPassword: readEnv("TENIO_SEED_ADMIN_PASSWORD", "tenio-admin-demo"),
+  seedOwnerEmail: readEnvAlias(
+    "TENIO_SEED_OWNER_EMAIL",
+    "TENIO_SEED_ADMIN_EMAIL",
+    "ops.owner@acme-rcm.test"
+  ),
+  seedOwnerName: readEnvAlias(
+    "TENIO_SEED_OWNER_NAME",
+    "TENIO_SEED_ADMIN_NAME",
+    "Jordan Diaz"
+  ),
+  seedOwnerPassword: readEnvAlias(
+    "TENIO_SEED_OWNER_PASSWORD",
+    "TENIO_SEED_ADMIN_PASSWORD",
+    "tenio-owner-demo"
+  ),
   seedManagerEmail: readEnv("TENIO_SEED_MANAGER_EMAIL", "queue.manager@acme-rcm.test"),
   seedManagerName: readEnv("TENIO_SEED_MANAGER_NAME", "Sarah Chen"),
   seedManagerPassword: readEnv("TENIO_SEED_MANAGER_PASSWORD", "tenio-manager-demo"),
   seedOperatorEmail: readEnv("TENIO_SEED_OPERATOR_EMAIL", "operator.one@acme-rcm.test"),
   seedOperatorName: readEnv("TENIO_SEED_OPERATOR_NAME", "Marcus Williams"),
   seedOperatorPassword: readEnv("TENIO_SEED_OPERATOR_PASSWORD", "tenio-operator-demo"),
-  supportEmail: readEnv(
-    "NEXT_PUBLIC_PILOT_SUPPORT_EMAIL",
-    "pilot-support@example.com"
-  )
+  supportEmail: readEnv("NEXT_PUBLIC_PILOT_SUPPORT_EMAIL", "pilot-support@example.com"),
+  sentryDsn: readOptionalEnv("SENTRY_DSN")
 };
 
 export function getDatabaseHealthMetadata() {

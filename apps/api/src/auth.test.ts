@@ -1,35 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { hasPermission } from "@tenio/domain";
 
-import {
-  canExportResults,
-  canImportClaims,
-  canManagePayerConfiguration,
-  canMutateClaims
-} from "./auth.js";
-
-test("canManagePayerConfiguration only allows admins and managers", () => {
-  assert.equal(canManagePayerConfiguration("admin"), true);
-  assert.equal(canManagePayerConfiguration("manager"), true);
-  assert.equal(canManagePayerConfiguration("operator"), false);
-  assert.equal(canManagePayerConfiguration("viewer"), false);
+test("payer read is limited to owner and manager", () => {
+  assert.equal(hasPermission("owner", "payer:read"), true);
+  assert.equal(hasPermission("manager", "payer:read"), true);
+  assert.equal(hasPermission("operator", "payer:read"), false);
+  assert.equal(hasPermission("viewer", "payer:read"), false);
 });
 
-test("claim mutation and import permissions exclude viewers", () => {
-  assert.equal(canMutateClaims("admin"), true);
-  assert.equal(canMutateClaims("manager"), true);
-  assert.equal(canMutateClaims("operator"), true);
-  assert.equal(canMutateClaims("viewer"), false);
+test("claim import and write exclude viewers", () => {
+  assert.equal(hasPermission("owner", "claims:write"), true);
+  assert.equal(hasPermission("manager", "claims:write"), true);
+  assert.equal(hasPermission("operator", "claims:write"), true);
+  assert.equal(hasPermission("viewer", "claims:write"), false);
 
-  assert.equal(canImportClaims("admin"), true);
-  assert.equal(canImportClaims("manager"), true);
-  assert.equal(canImportClaims("operator"), true);
-  assert.equal(canImportClaims("viewer"), false);
+  assert.equal(hasPermission("owner", "claims:import"), true);
+  assert.equal(hasPermission("manager", "claims:import"), true);
+  assert.equal(hasPermission("operator", "claims:import"), true);
+  assert.equal(hasPermission("viewer", "claims:import"), false);
 });
 
-test("result export only allows managers and admins", () => {
-  assert.equal(canExportResults("admin"), true);
-  assert.equal(canExportResults("manager"), true);
-  assert.equal(canExportResults("operator"), false);
-  assert.equal(canExportResults("viewer"), false);
+test("claims export is limited to owner and manager", () => {
+  assert.equal(hasPermission("owner", "claims:export"), true);
+  assert.equal(hasPermission("manager", "claims:export"), true);
+  assert.equal(hasPermission("operator", "claims:export"), false);
+  assert.equal(hasPermission("viewer", "claims:export"), false);
 });

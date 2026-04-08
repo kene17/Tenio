@@ -3,11 +3,12 @@
     "navigation": {
       "queue": "File d'attente",
       "claims": "Réclamations",
-      "onboarding": "Intégration",
-      "results": "Résultats",
+      "onboarding": "Importation",
+      "results": "Résolu",
       "performance": "Performance",
       "configuration": "Configuration",
       "auditLog": "Journal d'audit",
+      "status": "État",
       "readinessGuide": "Guide de préparation"
     },
     "searchPlaceholder": "Rechercher des réclamations...",
@@ -70,5 +71,12 @@
     "actionCreate": "Créer",
     "actionUpdate": "Mettre à jour",
     "actionSkip": "Ignorer"
+  },
+  "claim": {
+    "tabs": {
+      "overview": "Aperçu",
+      "evidence": "Preuves",
+      "timeline": "Historique"
+    }
   }
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { hasPermission, type UserRole } from "@tenio/domain";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -155,7 +156,7 @@ export function OnboardingClient({
 }: {
   locale: Locale;
   messages: TenioMessages["onboarding"];
-  currentRole: "admin" | "manager" | "operator" | "viewer";
+  currentRole: UserRole;
   payers: Array<{
     payerId: string;
     payerName: string;
@@ -164,7 +165,7 @@ export function OnboardingClient({
   }>;
 }) {
   const router = useRouter();
-  const canImport = currentRole !== "viewer";
+  const canImport = hasPermission(currentRole, "claims:import");
   const [rawRows, setRawRows] = useState<RawImportRow[]>([]);
   const [importProfile, setImportProfile] = useState<ImportProfileId>("jane_app_csv");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -316,7 +317,7 @@ export function OnboardingClient({
         </div>
         {!canImport ? (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Onboarding imports are limited to operator, manager, and admin roles.
+            Onboarding imports are limited to owner, manager, and operator roles.
           </div>
         ) : null}
 

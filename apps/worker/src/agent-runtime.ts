@@ -117,6 +117,64 @@ function latestStartedToolStep(run: AgentRunState) {
   return step.toolName === "execute_connector" && step.toolArgs ? step : null;
 }
 
+function latestRawResponse(run: AgentRunState) {
+  const observation = latestObservation(run);
+
+  if (!observation) {
+    return undefined;
+  }
+
+  if (observation.connectorPayloadJson) {
+    return observation.connectorPayloadJson.slice(0, 1200);
+  }
+
+  if (observation.portalTextSnippet) {
+    return truncatePortalText(observation.portalTextSnippet).slice(0, 1200);
+  }
+
+  return undefined;
+}
+
+function terminalOutcomeForDirective(directive: WorkerTerminalDirective) {
+  if (directive.type === "retry") {
+    return "partial" as const;
+  }
+
+  return directive.candidate?.recommendedAction === "resolve"
+    ? ("success" as const)
+    : ("partial" as const);
+}
+
+function logTerminalRun(
+  item: ReservedJob,
+  run: AgentRunState,
+  outcome: "success" | "failure" | "partial",
+  requestId: string,
+  error?: string
+) {
+  const observation = latestObservation(run);
+
+  console.log(
+    JSON.stringify({
+      runId: run.id,
+      orgId: item.claim.organizationId,
+      claimId: item.claim.id,
+      connectorId:
+        observation?.connectorId ??
+        run.steps.at(-1)?.toolArgs?.connectorId ??
+        "unknown",
+      startedAt: run.startedAt,
+      completedAt: run.completedAt ?? new Date().toISOString(),
+      outcome,
+      stepsAttempted: run.steps.length,
+      stepsCompleted: run.steps.filter((step) => step.status === "completed").length,
+      requestId,
+      ...(error ? { error } : {}),
+      ...(latestRawResponse(run) ? { rawResponse: latestRawResponse(run) } : {})
+    })
+  );
+}
+
 function buildToolIdempotencyKey(
   runId: string,
   stepNumber: number,
@@ -715,6 +773,8 @@ async function recordAndApplyTerminalDirective(
     requestId,
     getStopReason
   );
+
+  return recorded.run;
 }
 
 async function executeConnectorStep(
@@ -843,108 +903,157 @@ export async function processReservedAgentJob(
 ) {
   let run = item.agentRun;
 
-  while (true) {
-    throwIfStopped(dependencies.getStopReason);
-    const terminalStep = latestCompletedTerminalStep(run);
-    if (terminalStep) {
-      await applyTerminalSideEffect(
+  try {
+    while (true) {
+      throwIfStopped(dependencies.getStopReason);
+      const terminalStep = latestCompletedTerminalStep(run);
+      if (terminalStep) {
+        await applyTerminalSideEffect(
+          dependencies.workflowApi,
+          item,
+          run,
+          terminalStep,
+          dependencies.requestId,
+          dependencies.getStopReason
+        );
+        logTerminalRun(
+          item,
+          run,
+          terminalStep.directiveKind === "final" &&
+            terminalStep.result?.finalCandidate?.recommendedAction === "resolve"
+            ? "success"
+            : "partial",
+          dependencies.requestId
+        );
+        return;
+      }
+
+      const replayStep = latestStartedToolStep(run);
+      if (replayStep?.toolArgs) {
+        run = await executeConnectorStep(
+          dependencies.workflowApi,
+          item,
+          run,
+          dependencies.workerName,
+          dependencies.requestId,
+          {
+            stepNumber: replayStep.stepNumber,
+            connectorId: replayStep.toolArgs.connectorId,
+            mode: replayStep.toolArgs.mode,
+            attemptLabel: replayStep.toolArgs.attemptLabel,
+            publicReason: replayStep.publicReason,
+            plannerUsage: replayStep.plannerUsage ?? runtimePlannerUsage()
+          },
+          { skipStart: true, getStopReason: dependencies.getStopReason }
+        );
+        continue;
+      }
+
+      if (budgetExceeded(run)) {
+        const directive = buildBudgetTerminalDirective(
+          item,
+          run,
+          dependencies.requestId
+        );
+        run = await recordAndApplyTerminalDirective(
+          dependencies.workflowApi,
+          item,
+          run,
+          directive,
+          dependencies.workerName,
+          dependencies.requestId,
+          dependencies.getStopReason
+        );
+        logTerminalRun(
+          item,
+          run,
+          terminalOutcomeForDirective(directive),
+          dependencies.requestId
+        );
+        return;
+      }
+
+      throwIfStopped(dependencies.getStopReason);
+      const plannerRequest: AgentStepRequest = {
+        context: buildAgentContext(item, run)
+      };
+      const plannerResponse = await dependencies.aiClient.planAgentStep(
+        plannerRequest,
+        dependencies.requestId
+      );
+
+      if (!plannerResponse) {
+        const directive = buildProviderUnavailableTerminalDirective(
+          item,
+          run,
+          dependencies.requestId
+        );
+        run = await recordAndApplyTerminalDirective(
+          dependencies.workflowApi,
+          item,
+          run,
+          directive,
+          dependencies.workerName,
+          dependencies.requestId,
+          dependencies.getStopReason
+        );
+        logTerminalRun(
+          item,
+          run,
+          terminalOutcomeForDirective(directive),
+          dependencies.requestId
+        );
+        return;
+      }
+
+      const directive = plannerResponse.directive;
+
+      if (directive.type === "tool_call") {
+        run = await executeConnectorStep(
+          dependencies.workflowApi,
+          item,
+          run,
+          dependencies.workerName,
+          dependencies.requestId,
+          {
+            stepNumber: nextStepNumber(run),
+            connectorId: directive.toolCall.args.connectorId,
+            mode: directive.toolCall.args.mode,
+            attemptLabel: directive.toolCall.args.attemptLabel,
+            publicReason: directive.publicReason,
+            plannerUsage: directive.plannerUsage
+          },
+          { getStopReason: dependencies.getStopReason }
+        );
+        continue;
+      }
+
+      const workerDirective = toWorkerTerminalDirective(directive);
+      run = await recordAndApplyTerminalDirective(
         dependencies.workflowApi,
         item,
         run,
-        terminalStep,
+        workerDirective,
+        dependencies.workerName,
         dependencies.requestId,
         dependencies.getStopReason
       );
-      return;
-    }
-
-    const replayStep = latestStartedToolStep(run);
-    if (replayStep?.toolArgs) {
-      run = await executeConnectorStep(
-        dependencies.workflowApi,
+      logTerminalRun(
         item,
         run,
-        dependencies.workerName,
-        dependencies.requestId,
-        {
-          stepNumber: replayStep.stepNumber,
-          connectorId: replayStep.toolArgs.connectorId,
-          mode: replayStep.toolArgs.mode,
-          attemptLabel: replayStep.toolArgs.attemptLabel,
-          publicReason: replayStep.publicReason,
-          plannerUsage: replayStep.plannerUsage ?? runtimePlannerUsage()
-        },
-        { skipStart: true, getStopReason: dependencies.getStopReason }
-      );
-      continue;
-    }
-
-    if (budgetExceeded(run)) {
-      await recordAndApplyTerminalDirective(
-        dependencies.workflowApi,
-        item,
-        run,
-        buildBudgetTerminalDirective(item, run, dependencies.requestId),
-        dependencies.workerName,
-        dependencies.requestId,
-        dependencies.getStopReason
+        terminalOutcomeForDirective(workerDirective),
+        dependencies.requestId
       );
       return;
     }
-
-    throwIfStopped(dependencies.getStopReason);
-    const plannerRequest: AgentStepRequest = {
-      context: buildAgentContext(item, run)
-    };
-    const plannerResponse = await dependencies.aiClient.planAgentStep(
-      plannerRequest,
-      dependencies.requestId
-    );
-
-    if (!plannerResponse) {
-      await recordAndApplyTerminalDirective(
-        dependencies.workflowApi,
-        item,
-        run,
-        buildProviderUnavailableTerminalDirective(item, run, dependencies.requestId),
-        dependencies.workerName,
-        dependencies.requestId,
-        dependencies.getStopReason
-      );
-      return;
-    }
-
-    const directive = plannerResponse.directive;
-
-    if (directive.type === "tool_call") {
-      run = await executeConnectorStep(
-        dependencies.workflowApi,
-        item,
-        run,
-        dependencies.workerName,
-        dependencies.requestId,
-        {
-          stepNumber: nextStepNumber(run),
-          connectorId: directive.toolCall.args.connectorId,
-          mode: directive.toolCall.args.mode,
-          attemptLabel: directive.toolCall.args.attemptLabel,
-          publicReason: directive.publicReason,
-          plannerUsage: directive.plannerUsage
-        },
-        { getStopReason: dependencies.getStopReason }
-      );
-      continue;
-    }
-
-    await recordAndApplyTerminalDirective(
-      dependencies.workflowApi,
+  } catch (error) {
+    logTerminalRun(
       item,
       run,
-      toWorkerTerminalDirective(directive),
-      dependencies.workerName,
+      "failure",
       dependencies.requestId,
-      dependencies.getStopReason
+      error instanceof Error ? error.message : "Worker runtime failed"
     );
-    return;
+    throw error;
   }
 }

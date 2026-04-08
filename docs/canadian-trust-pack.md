@@ -52,7 +52,7 @@ Current access model to explain to a Canadian buyer:
 - authenticated user sessions for human access
 - service-to-service tokens for web, worker, and AI internal calls
 - organization-scoped claim, result, and evidence access
-- manager/admin gating for payer-configuration changes
+- owner-only gating for payer-configuration changes
 - app-mediated evidence download only
 
 Operational rule:

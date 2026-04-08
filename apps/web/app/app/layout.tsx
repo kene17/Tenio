@@ -1,3 +1,5 @@
+import type { UserRole } from "@tenio/domain";
+
 import { DashboardShell } from "../../components/dashboard-shell";
 import { getLocaleMessages } from "../../lib/locale";
 import { getCurrentSession } from "../../lib/pilot-api";
@@ -5,6 +7,7 @@ import { getCurrentSession } from "../../lib/pilot-api";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getCurrentSession();
   const { locale, messages } = await getLocaleMessages();
+  const organizationName = session?.organizationName ?? "My Organization";
 
   return (
     <DashboardShell
@@ -19,8 +22,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           .slice(0, 2)
           .toUpperCase() ?? "WU"
       }
-      organizationName="Acme Healthcare RCM"
-      roleLabel={session?.role ?? "viewer"}
+      organizationName={organizationName}
+      currentRole={(session?.role ?? "viewer") as UserRole}
+      userId={session?.userId ?? null}
+      userEmail={session?.email ?? null}
+      organizationId={session?.organizationId ?? null}
     >
       {children}
     </DashboardShell>

@@ -7,6 +7,7 @@ from services.ai.app.main import (
     AETNA_MODEL,
     GENERIC_MODEL,
     SUN_LIFE_MODEL,
+    TELUS_MODEL,
     analyze_request,
     plan_agent_step,
 )
@@ -101,6 +102,38 @@ def build_sun_life_request(**overrides: object) -> AiClaimStatusAnalysisRequest:
     return AiClaimStatusAnalysisRequest.model_validate(payload)
 
 
+def build_telus_request(**overrides: object) -> AiClaimStatusAnalysisRequest:
+    payload = {
+        "claimId": "CLM-TELUS-10001",
+        "payerId": "payer_telus_eclaims",
+        "payerName": "TELUS Health eClaims",
+        "jurisdiction": "ca",
+        "countryCode": "CA",
+        "provinceOfService": "ON",
+        "claimType": "paramedical",
+        "portalText": "TELUS eClaims API payload",
+        "screenshotUrls": [],
+        "connectorId": "telus-eclaims-api",
+        "connectorName": "TELUS eClaims API",
+        "executionMode": "api",
+        "connectorPayloadJson": json.dumps(
+            {
+                "claimNumber": "TELUS-10001",
+                "claimStatus": "PAID",
+                "paidAmountCents": 18500,
+                "processedAt": "2026-04-02T12:00:00+00:00",
+                "denialReason": None,
+                "infoRequired": None,
+                "insurerReference": "TELUS-REF-91844",
+                "rawResponse": {"status": "PAID"},
+            }
+        ),
+        "metadata": {"requestId": "req-telus"},
+    }
+    payload.update(overrides)
+    return AiClaimStatusAnalysisRequest.model_validate(payload)
+
+
 class AnalyzeRequestTests(unittest.TestCase):
     def test_aetna_paid_in_full_resolves(self) -> None:
         candidate, model = analyze_request(
@@ -134,7 +167,7 @@ class AnalyzeRequestTests(unittest.TestCase):
         self.assertEqual(candidate.normalized_status_text, "Awaiting supplemental payer data")
         self.assertLess(candidate.confidence, 0.5)
 
-    def test_generic_text_fallback_reviews_pending_language(self) -> None:
+    def test_generic_text_fallback_retries_pending_language(self) -> None:
         candidate, model = analyze_request(
             build_request(
                 payerId="payer_uhc",
@@ -150,8 +183,90 @@ class AnalyzeRequestTests(unittest.TestCase):
         )
 
         self.assertEqual(model, GENERIC_MODEL)
+        self.assertEqual(candidate.recommended_action, "retry")
+        self.assertEqual(candidate.normalized_status_text, "Claim pending with payer")
+        self.assertLess(candidate.confidence, 0.85)
+
+    def test_generic_text_fallback_reviews_denial_language(self) -> None:
+        candidate, model = analyze_request(
+            build_request(
+                payerId="payer_green_shield",
+                payerName="Green Shield",
+                connectorId=None,
+                connectorName=None,
+                executionMode="browser",
+                connectorPayloadJson=None,
+                portalText="Claim denied because the service is not covered under the plan.",
+            ),
+            "2026-04-02T12:30:00+00:00",
+            "trace-generic-denied",
+        )
+
+        self.assertEqual(model, GENERIC_MODEL)
         self.assertEqual(candidate.recommended_action, "review")
-        self.assertEqual(candidate.normalized_status_text, "Pending payer review")
+        self.assertEqual(candidate.normalized_status_text, "Claim denied")
+        self.assertGreater(candidate.confidence, 0.8)
+
+    def test_generic_text_fallback_retries_french_pending_language(self) -> None:
+        candidate, model = analyze_request(
+            build_request(
+                payerId="payer_manulife",
+                payerName="Manulife",
+                connectorId=None,
+                connectorName=None,
+                executionMode="browser",
+                connectorPayloadJson=None,
+                portalText="Réclamation en traitement par l'assureur, paiement non émis.",
+            ),
+            "2026-04-02T12:30:00+00:00",
+            "trace-generic-fr-pending",
+        )
+
+        self.assertEqual(model, GENERIC_MODEL)
+        self.assertEqual(candidate.recommended_action, "retry")
+        self.assertEqual(candidate.normalized_status_text, "Claim pending with payer")
+
+    def test_generic_text_fallback_resolves_paid_language(self) -> None:
+        candidate, model = analyze_request(
+            build_request(
+                payerId="payer_blue_cross_on",
+                payerName="Blue Cross Ontario",
+                connectorId=None,
+                connectorName=None,
+                executionMode="browser",
+                connectorPayloadJson=None,
+                portalText="Payment issued. Explanation of benefits available and remittance posted.",
+            ),
+            "2026-04-02T12:30:00+00:00",
+            "trace-generic-paid",
+        )
+
+        self.assertEqual(model, GENERIC_MODEL)
+        self.assertEqual(candidate.recommended_action, "resolve")
+        self.assertEqual(candidate.normalized_status_text, "Claim processed")
+        self.assertGreater(candidate.confidence, 0.75)
+
+    def test_generic_text_fallback_reviews_ambiguous_language(self) -> None:
+        candidate, model = analyze_request(
+            build_request(
+                payerId="payer_green_shield",
+                payerName="Green Shield",
+                connectorId=None,
+                connectorName=None,
+                executionMode="browser",
+                connectorPayloadJson=None,
+                portalText="Reference available in customer portal. Check details online.",
+            ),
+            "2026-04-02T12:30:00+00:00",
+            "trace-generic-ambiguous",
+        )
+
+        self.assertEqual(model, GENERIC_MODEL)
+        self.assertEqual(candidate.recommended_action, "review")
+        self.assertEqual(
+            candidate.normalized_status_text, "Status unclear — manual review required"
+        )
+        self.assertLessEqual(candidate.confidence, 0.4)
 
     def test_invalid_aetna_payload_stays_on_trusted_retry_path(self) -> None:
         candidate, model = analyze_request(
@@ -196,6 +311,23 @@ class AnalyzeRequestTests(unittest.TestCase):
         self.assertEqual(candidate.normalized_status_text, "Coordination of benefits required")
         self.assertEqual(candidate.recommended_action, "review")
 
+    def test_sun_life_pending_adjudication_retries(self) -> None:
+        payload = json.loads(build_sun_life_request().connector_payload_json)
+        payload["statusCode"] = "PENDING_ADJUDICATION"
+        payload["statusLabel"] = "Pending adjudication"
+        payload["processedAt"] = None
+        payload["paidAmountCents"] = None
+
+        candidate, model = analyze_request(
+            build_sun_life_request(connectorPayloadJson=json.dumps(payload)),
+            "2026-04-02T12:30:00+00:00",
+            "trace-sun-life-pending",
+        )
+
+        self.assertEqual(model, SUN_LIFE_MODEL)
+        self.assertEqual(candidate.recommended_action, "retry")
+        self.assertEqual(candidate.normalized_status_text, "Pending adjudication")
+
     def test_sun_life_incomplete_payload_retries(self) -> None:
         payload = json.loads(build_sun_life_request().connector_payload_json)
         payload["statusCode"] = "PORTAL_INCOMPLETE"
@@ -213,6 +345,108 @@ class AnalyzeRequestTests(unittest.TestCase):
         self.assertEqual(model, SUN_LIFE_MODEL)
         self.assertEqual(candidate.recommended_action, "retry")
         self.assertEqual(candidate.normalized_status_text, "Awaiting Sun Life retry")
+
+    def test_telus_paid_resolves(self) -> None:
+        candidate, model = analyze_request(
+            build_telus_request(),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-paid",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "resolve")
+        self.assertEqual(candidate.normalized_status_text, "Claim paid")
+        self.assertGreater(candidate.confidence, 0.9)
+
+    def test_legacy_telus_alias_resolves_on_structured_connector(self) -> None:
+        candidate, model = analyze_request(
+            build_telus_request(payerId="payer_telus_health"),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-legacy-paid",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "resolve")
+        self.assertEqual(candidate.normalized_status_text, "Claim paid")
+
+    def test_telus_pending_retries(self) -> None:
+        payload = json.loads(build_telus_request().connector_payload_json)
+        payload["claimStatus"] = "PENDING"
+        payload["paidAmountCents"] = None
+        payload["processedAt"] = None
+
+        candidate, model = analyze_request(
+            build_telus_request(connectorPayloadJson=json.dumps(payload)),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-pending",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "retry")
+        self.assertEqual(candidate.normalized_status_text, "Claim pending with payer")
+
+    def test_telus_more_info_routes_to_review(self) -> None:
+        payload = json.loads(build_telus_request().connector_payload_json)
+        payload["claimStatus"] = "MORE_INFO_REQUIRED"
+        payload["infoRequired"] = "Provider receipt required"
+        payload["paidAmountCents"] = None
+        payload["processedAt"] = None
+
+        candidate, model = analyze_request(
+            build_telus_request(connectorPayloadJson=json.dumps(payload)),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-more-info",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "review")
+        self.assertEqual(candidate.normalized_status_text, "Additional information required")
+
+    def test_telus_denied_routes_to_review(self) -> None:
+        payload = json.loads(build_telus_request().connector_payload_json)
+        payload["claimStatus"] = "DENIED"
+        payload["denialReason"] = "Benefit exhausted"
+        payload["paidAmountCents"] = None
+
+        candidate, model = analyze_request(
+            build_telus_request(connectorPayloadJson=json.dumps(payload)),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-denied",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "review")
+        self.assertEqual(candidate.normalized_status_text, "Claim denied")
+
+    def test_invalid_telus_payload_stays_on_retry_path(self) -> None:
+        candidate, model = analyze_request(
+            build_telus_request(connectorPayloadJson="{not-json}"),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-invalid",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "retry")
+        self.assertEqual(candidate.normalized_status_text, "Awaiting connector retry")
+
+    def test_unknown_telus_status_reviews(self) -> None:
+        payload = json.loads(build_telus_request().connector_payload_json)
+        payload["claimStatus"] = "UNKNOWN_STATUS"
+        payload["paidAmountCents"] = None
+        payload["processedAt"] = None
+
+        candidate, model = analyze_request(
+            build_telus_request(connectorPayloadJson=json.dumps(payload)),
+            "2026-04-02T12:30:00+00:00",
+            "trace-telus-unknown",
+        )
+
+        self.assertEqual(model, TELUS_MODEL)
+        self.assertEqual(candidate.recommended_action, "review")
+        self.assertEqual(
+            candidate.normalized_status_text, "Unknown TELUS status — manual review required"
+        )
+        self.assertLessEqual(candidate.confidence, 0.45)
 
 
 def build_agent_context(
@@ -301,10 +535,12 @@ def build_completed_step(
                     if connector_id == "aetna-claim-status-api"
                     else "Sun Life PSHCP Browser Workflow"
                     if connector_id == "sun-life-pshcp-browser"
+                    else "TELUS eClaims API"
+                    if connector_id == "telus-eclaims-api"
                     else "Portal Browser Fallback"
                 ),
                 "connectorVersion": "2026-04-connector-v1"
-                if connector_id == "aetna-claim-status-api"
+                if connector_id in {"aetna-claim-status-api", "telus-eclaims-api"}
                 else None,
                 "executionMode": mode,
                 "observedAt": "2026-04-02T12:01:00+00:00",
@@ -364,6 +600,66 @@ class PlannerTests(unittest.TestCase):
 
         self.assertEqual(directive.type, "tool_call")
         self.assertEqual(directive.tool_call.args.connector_id, "sun-life-pshcp-browser")
+        self.assertEqual(directive.tool_call.args.mode, "browser")
+
+    def test_planner_starts_telus_on_api_connector(self) -> None:
+        with patch.object(ai_main, "AGENT_PROVIDER_MODE", "heuristic"):
+            directive = plan_agent_step(
+                build_agent_context(
+                    payer_id="payer_telus_eclaims",
+                    payer_name="TELUS Health eClaims",
+                    claim_number="TELUS-10001",
+                    patient_name="Alex Example",
+                    jurisdiction="ca",
+                    country_code="CA",
+                    province_of_service="ON",
+                    claim_type="paramedical",
+                ),
+                "trace-telus-start",
+            )
+
+        self.assertEqual(directive.type, "tool_call")
+        self.assertEqual(directive.tool_call.args.connector_id, "telus-eclaims-api")
+        self.assertEqual(directive.tool_call.args.mode, "api")
+
+    def test_planner_starts_legacy_telus_alias_on_api_connector(self) -> None:
+        with patch.object(ai_main, "AGENT_PROVIDER_MODE", "heuristic"):
+            directive = plan_agent_step(
+                build_agent_context(
+                    payer_id="payer_telus_health",
+                    payer_name="TELUS Health",
+                    claim_number="TELUS-20002",
+                    patient_name="Pat Example",
+                    jurisdiction="ca",
+                    country_code="CA",
+                    province_of_service="ON",
+                    claim_type="paramedical",
+                ),
+                "trace-telus-legacy-start",
+            )
+
+        self.assertEqual(directive.type, "tool_call")
+        self.assertEqual(directive.tool_call.args.connector_id, "telus-eclaims-api")
+        self.assertEqual(directive.tool_call.args.mode, "api")
+
+    def test_planner_starts_manulife_on_browser_fallback(self) -> None:
+        with patch.object(ai_main, "AGENT_PROVIDER_MODE", "heuristic"):
+            directive = plan_agent_step(
+                build_agent_context(
+                    payer_id="payer_manulife",
+                    payer_name="Manulife",
+                    claim_number="MAN-10001",
+                    patient_name="Taylor Example",
+                    jurisdiction="ca",
+                    country_code="CA",
+                    province_of_service="ON",
+                    claim_type="paramedical",
+                ),
+                "trace-manulife-start",
+            )
+
+        self.assertEqual(directive.type, "tool_call")
+        self.assertEqual(directive.tool_call.args.connector_id, "portal-browser-fallback")
         self.assertEqual(directive.tool_call.args.mode, "browser")
 
     def test_planner_switches_incomplete_aetna_api_to_browser_fallback(self) -> None:
@@ -432,6 +728,90 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(directive.type, "final")
         self.assertEqual(directive.completion_reason, "fallback_policy_review")
         self.assertEqual(directive.candidate.recommended_action, "review")
+
+    def test_telus_rate_limit_schedules_retry_with_shorter_backoff(self) -> None:
+        with patch.object(ai_main, "AGENT_PROVIDER_MODE", "heuristic"):
+            directive = plan_agent_step(
+                build_agent_context(
+                    payer_id="payer_telus_eclaims",
+                    payer_name="TELUS Health eClaims",
+                    jurisdiction="ca",
+                    country_code="CA",
+                    province_of_service="ON",
+                    claim_type="paramedical",
+                    steps=[
+                        build_completed_step(
+                            connector_id="telus-eclaims-api",
+                            success=False,
+                            retryable=True,
+                            failure_category="rate_limited",
+                            summary="TELUS eClaims API was rate limited.",
+                            connector_payload_json=None,
+                        )
+                    ],
+                ),
+                "trace-telus-rate-limited",
+            )
+
+        self.assertEqual(directive.type, "retry")
+        self.assertEqual(directive.retry_after_seconds, 120)
+        self.assertEqual(directive.completion_reason, "retry_scheduled")
+
+    def test_telus_auth_failure_routes_into_review(self) -> None:
+        with patch.object(ai_main, "AGENT_PROVIDER_MODE", "heuristic"):
+            directive = plan_agent_step(
+                build_agent_context(
+                    payer_id="payer_telus_eclaims",
+                    payer_name="TELUS Health eClaims",
+                    jurisdiction="ca",
+                    country_code="CA",
+                    province_of_service="ON",
+                    claim_type="paramedical",
+                    steps=[
+                        build_completed_step(
+                            connector_id="telus-eclaims-api",
+                            success=False,
+                            retryable=False,
+                            failure_category="authentication",
+                            summary="TELUS eClaims authentication failed.",
+                            connector_payload_json=None,
+                        )
+                    ],
+                ),
+                "trace-telus-auth-review",
+            )
+
+        self.assertEqual(directive.type, "final")
+        self.assertEqual(directive.completion_reason, "fallback_policy_review")
+        self.assertEqual(directive.candidate.recommended_action, "review")
+
+    def test_telus_network_retries_same_connector_first(self) -> None:
+        with patch.object(ai_main, "AGENT_PROVIDER_MODE", "heuristic"):
+            directive = plan_agent_step(
+                build_agent_context(
+                    payer_id="payer_telus_eclaims",
+                    payer_name="TELUS Health eClaims",
+                    jurisdiction="ca",
+                    country_code="CA",
+                    province_of_service="ON",
+                    claim_type="paramedical",
+                    steps=[
+                        build_completed_step(
+                            connector_id="telus-eclaims-api",
+                            success=False,
+                            retryable=True,
+                            failure_category="network",
+                            summary="TELUS eClaims network timeout.",
+                            connector_payload_json=None,
+                        )
+                    ],
+                ),
+                "trace-telus-network-retry",
+            )
+
+        self.assertEqual(directive.type, "tool_call")
+        self.assertEqual(directive.tool_call.args.connector_id, "telus-eclaims-api")
+        self.assertEqual(directive.tool_call.args.mode, "api")
 
     def test_openai_planner_directive_is_used_in_auto_mode(self) -> None:
         class FakeResponse:
@@ -506,6 +886,18 @@ class PlannerTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "OpenAI planner is unavailable"):
                 ai_main.plan_agent_step(build_agent_context(), "trace-openai-required")
+
+
+class HealthTests(unittest.TestCase):
+    def test_health_reports_supported_payers(self) -> None:
+        payload = ai_main.health()
+
+        self.assertIn("supported_payers", payload)
+        supported = payload["supported_payers"]
+        self.assertIn("payer_aetna", supported)
+        self.assertIn("payer_sun_life", supported)
+        self.assertIn("payer_telus_eclaims", supported)
+        self.assertEqual(supported["payer_telus_eclaims"]["status"], "stub")
 
 
 if __name__ == "__main__":

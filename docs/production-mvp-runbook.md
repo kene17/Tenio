@@ -82,9 +82,14 @@
 
 ## Seed Credentials
 
-- Admin: `ops.admin@acme-rcm.test` / `tenio-admin-demo`
+- Owner: `ops.owner@acme-rcm.test` / `tenio-owner-demo`
 - Manager: `queue.manager@acme-rcm.test` / `tenio-manager-demo`
 - Operator: `operator.one@acme-rcm.test` / `tenio-operator-demo`
+
+Sentry:
+
+- API: `SENTRY_DSN`
+- Web: `NEXT_PUBLIC_SENTRY_DSN`
 
 Override these in `apps/api/.env` for non-demo environments.
 

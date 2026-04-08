@@ -141,6 +141,17 @@ class SunLifePshcpBrowserPayload(BaseModel):
     data_complete: bool = Field(alias="dataComplete")
 
 
+class TelusEclaimsPayload(BaseModel):
+    claim_number: str | None = Field(default=None, alias="claimNumber")
+    claim_status: str | None = Field(default=None, alias="claimStatus")
+    paid_amount_cents: int | None = Field(default=None, alias="paidAmountCents")
+    processed_at: str | None = Field(default=None, alias="processedAt")
+    denial_reason: str | None = Field(default=None, alias="denialReason")
+    info_required: str | None = Field(default=None, alias="infoRequired")
+    insurer_reference: str | None = Field(default=None, alias="insurerReference")
+    raw_response: dict[str, object] | None = Field(default=None, alias="rawResponse")
+
+
 class AgentPlannerUsage(BaseModel):
     provider: str
     model: str

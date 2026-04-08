@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { hasPermission, roleLabel, type UserRole } from "@tenio/domain";
 import {
+  Activity,
   BarChart3,
   Bell,
   Building2,
@@ -14,15 +16,14 @@ import {
   ListChecks,
   LogOut,
   Menu,
-  Search,
   Settings,
-  Shield,
   Upload,
   X
 } from "lucide-react";
 
 import { cn } from "../lib/cn";
 import type { Locale, TenioMessages } from "../lib/locale";
+import { SentryUserBootstrap } from "./sentry-user-bootstrap";
 
 export function DashboardShell({
   children,
@@ -31,7 +32,10 @@ export function DashboardShell({
   currentUserName,
   currentUserInitials,
   organizationName,
-  roleLabel
+  currentRole,
+  userId,
+  userEmail,
+  organizationId
 }: {
   children: React.ReactNode;
   locale: Locale;
@@ -39,31 +43,43 @@ export function DashboardShell({
   currentUserName: string;
   currentUserInitials: string;
   organizationName: string;
-  roleLabel: string;
+  currentRole: UserRole;
+  userId: string | null;
+  userEmail: string | null;
+  organizationId: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const canMutateClaims = roleLabel !== "viewer";
-  const canManageConfiguration = roleLabel === "admin" || roleLabel === "manager";
+  const canImportClaims = hasPermission(currentRole, "claims:import");
+  const canReadPerformance = hasPermission(currentRole, "performance:read");
+  const canReadPayers = hasPermission(currentRole, "payer:read");
+  const canReadAudit = hasPermission(currentRole, "audit:read");
+  const canReadStatus = hasPermission(currentRole, "status:read");
 
   const navigation = [
     { name: messages.navigation.queue, href: "/app/queue", icon: ListChecks },
     { name: messages.navigation.claims, href: "/app/claims", icon: FileText },
-    ...(canMutateClaims
+    ...(canImportClaims
       ? [{ name: messages.navigation.onboarding, href: "/app/onboarding", icon: Upload }]
       : []),
     { name: messages.navigation.results, href: "/app/results", icon: CheckSquare },
-    { name: messages.navigation.performance, href: "/app/performance", icon: BarChart3 },
-    ...(canManageConfiguration
+    ...(canReadPerformance
+      ? [{ name: messages.navigation.performance, href: "/app/performance", icon: BarChart3 }]
+      : []),
+    ...(canReadPayers
       ? [{ name: messages.navigation.configuration, href: "/app/configuration", icon: Settings }]
       : [])
   ];
 
   const secondaryNavigation = [
-    { name: messages.navigation.auditLog, href: "/app/audit-log", icon: FileSearch },
-    { name: messages.navigation.readinessGuide, href: "/pilot-guide", icon: Shield }
+    ...(canReadAudit
+      ? [{ name: messages.navigation.auditLog, href: "/app/audit-log", icon: FileSearch }]
+      : []),
+    ...(canReadStatus
+      ? [{ name: messages.navigation.status, href: "/app/status", icon: Activity }]
+      : [])
   ];
 
   const isActive = (href: string) => {
@@ -88,6 +104,12 @@ export function DashboardShell({
 
   return (
     <div className="flex h-screen bg-gray-50">
+      <SentryUserBootstrap
+        userId={userId}
+        userEmail={userEmail}
+        orgId={organizationId}
+        role={currentRole}
+      />
       <div className="hidden w-60 flex-col border-r border-gray-200 bg-white lg:flex">
         <div className="flex h-16 items-center border-b border-gray-200 px-6">
           <div className="flex items-center gap-2">
@@ -184,14 +206,6 @@ export function DashboardShell({
               <span className="text-sm text-gray-700 md:hidden">{organizationName.split(" ")[0]}</span>
               <ChevronDown className="h-4 w-4 text-gray-400" />
             </button>
-            <div className="relative max-w-lg flex-1">
-              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder={messages.searchPlaceholder}
-                className="w-full rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
           </div>
           <div className="flex items-center gap-2 lg:gap-3">
             <div className="hidden items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 md:flex">
@@ -222,7 +236,6 @@ export function DashboardShell({
             </div>
             <button className="relative rounded-lg p-2 text-gray-600 hover:bg-gray-50">
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" />
             </button>
             <form action="/api/auth/logout" method="post" className="hidden sm:block">
               <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
@@ -236,7 +249,7 @@ export function DashboardShell({
               </div>
               <span className="text-sm text-gray-700">{currentUserName}</span>
               <span className="rounded border border-gray-200 px-2 py-0.5 text-xs uppercase tracking-wide text-gray-500">
-                {roleLabel}
+                {roleLabel(currentRole)}
               </span>
               <ChevronDown className="h-4 w-4 text-gray-400" />
             </div>

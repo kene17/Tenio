@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { hasPermission, type UserRole } from "@tenio/domain";
 import {
   AlertTriangle,
   CheckCircle,
@@ -50,10 +51,10 @@ export function ConfigurationClient({
 }: {
   payers: PayerConfigurationView[];
   auditEvents: AuditEventView[];
-  currentRole: "admin" | "manager" | "operator" | "viewer";
+  currentRole: UserRole;
 }) {
   const router = useRouter();
-  const canManageConfiguration = currentRole === "admin" || currentRole === "manager";
+  const canManageConfiguration = hasPermission(currentRole, "payer:write");
   const [payerState, setPayerState] = useState(payers);
   const [selectedPayer, setSelectedPayer] = useState(payers[0]?.payerId ?? "");
   const [owner, setOwner] = useState("");
@@ -235,7 +236,7 @@ export function ConfigurationClient({
             ) : null}
             {!canManageConfiguration ? (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Configuration edits are limited to manager and admin roles in partner environments.
+                Configuration edits are limited to owner roles in partner environments.
               </div>
             ) : null}
 

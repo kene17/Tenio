@@ -56,16 +56,16 @@ Tenio currently supports four product roles:
 
 | Role | Primary use |
 | --- | --- |
-| `admin` | environment and workflow oversight |
-| `manager` | queue ownership, review oversight, payer policy management |
+| `owner` | practice or environment oversight, user management, billing/account visibility |
+| `manager` | queue ownership, review oversight, reporting, export |
 | `operator` | daily claim follow-up work |
 | `viewer` | read-oriented access for observation and support workflows |
 
 Verified sensitive access control in the current product:
 
-- payer workflow policy updates require `manager` or `admin`
-- result export requires `manager` or `admin`
-- claim import, claim intake, retrieval requests, and workflow actions require `operator`, `manager`, or `admin`
+- payer workflow policy updates require `owner`
+- result export requires `owner` or `manager`
+- claim import, claim intake, retrieval requests, and workflow actions require `owner`, `manager`, or `operator`
 - evidence download requires an authenticated user session plus organization scope
 
 Seeded demo credentials should be treated as local-development-only. Hosted partner environments should use environment-specific named accounts.

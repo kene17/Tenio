@@ -59,21 +59,26 @@ export type ResultRecord = {
   executionDurationMs: number;
 };
 
-type AuditActorType = "human" | "system" | "admin";
+type AuditActorType = "human" | "system" | "owner";
 
 export type AuditEventRecord = {
   id: string;
   at: string;
   organizationId?: string;
   actor: { name: string; type: AuditActorType; avatar: string };
+  eventType?: string;
+  userId?: string | null;
   action: string;
-  object: "Claim" | "Result" | "Configuration" | "Evidence";
+  object: "Claim" | "Result" | "Configuration" | "Evidence" | "User" | "Account";
   objectId: string;
   source: string;
   payer: string;
   summary: string;
   sensitivity: "normal" | "sensitive" | "high-risk";
   category: string;
+  outcome?: "success" | "failure";
+  importBatchId?: string | null;
+  detail?: Record<string, unknown>;
   beforeAfter?: Record<string, { from: string; to: string }>;
   reason?: string;
   requestId?: string;
@@ -117,6 +122,8 @@ export type AuditEventView = {
   time: string;
   date: string;
   actor: { name: string; type: AuditActorType; avatar: string };
+  eventType?: string;
+  userId?: string | null;
   action: string;
   object: string;
   objectId: string;
@@ -125,6 +132,9 @@ export type AuditEventView = {
   summary: string;
   sensitivity: "normal" | "sensitive" | "high-risk";
   category: string;
+  outcome?: "success" | "failure";
+  importBatchId?: string | null;
+  detail?: Record<string, unknown>;
   beforeAfter?: Record<string, { from: string; to: string }>;
   reason?: string;
   requestId?: string;
@@ -689,15 +699,23 @@ export function createSeedState() {
     {
       id: "AUD-9277",
       at: new Date(now - hours(5)).toISOString(),
-      actor: { name: "Admin", type: "admin", avatar: "AD" },
+      actor: { name: "Owner", type: "owner", avatar: "OW" },
+      eventType: "payer.policy_updated",
+      userId: "user_owner",
       action: "Threshold Updated",
       object: "Configuration",
       objectId: "CFG-AETNA-01",
-      source: "Admin",
+      source: "Owner",
       payer: "Aetna",
       summary: "Review threshold updated from 80% to 85% for Aetna claims.",
       sensitivity: "high-risk",
       category: "Config Change",
+      outcome: "success",
+      detail: {
+        field: "reviewThreshold",
+        from: 0.8,
+        to: 0.85
+      },
       beforeAfter: {
         confidenceThreshold: { from: "80%", to: "85%" }
       },
@@ -810,6 +828,8 @@ export function serializeAuditEvent(event: AuditEventRecord): AuditEventView {
     time: formatTimeLabel(event.at),
     date: formatDateLabel(event.at),
     actor: event.actor,
+    eventType: event.eventType,
+    userId: event.userId ?? null,
     action: event.action,
     object: event.object,
     objectId: event.objectId,
@@ -818,6 +838,9 @@ export function serializeAuditEvent(event: AuditEventRecord): AuditEventView {
     summary: event.summary,
     sensitivity: event.sensitivity,
     category: event.category,
+    outcome: event.outcome,
+    importBatchId: event.importBatchId ?? null,
+    detail: event.detail,
     beforeAfter: event.beforeAfter,
     reason: event.reason,
     requestId: event.requestId
