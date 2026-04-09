@@ -23,6 +23,19 @@ export default function PilotGuidePage() {
             <div>3. Onboarding starts with active inventory import, not full historical migration.</div>
             <div>4. Workflow remains authoritative for routing, review, ownership, and audit.</div>
             <div>5. Evidence is stored durably and served through authenticated app access.</div>
+            <div>6. For the first Canadian pilot, Tenio provisions the initial accounts and supports rollout directly.</div>
+            <div>7. Manual payer portal checks may still be part of pilot start until automated Canadian retrieval is enabled.</div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Design-Partner Go / No-Go Gates</h2>
+          <div className="mt-4 space-y-3 text-sm text-gray-700">
+            <div>1. Tenio provisions the initial owner, manager, and operator accounts.</div>
+            <div>2. One real Jane export has passed preview, commit, queue rendering, and claim-detail validation.</div>
+            <div>3. A non-builder has completed the Tuesday-morning walkthrough with no live guidance.</div>
+            <div>4. PHIPA information-sharing agreement is signed before any real patient-adjacent data is uploaded.</div>
+            <div>5. The hosted pilot environment is in AWS <code className="rounded bg-white px-1.5 py-0.5 text-xs">ca-central-1</code> before go-live.</div>
           </div>
         </section>
 
@@ -45,6 +58,7 @@ export default function PilotGuidePage() {
             <div>Role matrix: owner can manage payer policy, user access, and pilot-managed account settings; manager can export results and read status/audit surfaces; operator can import, intake, retrieve, and log follow-up; viewer is read-only.</div>
             <div>Evidence access requires an authenticated user session plus organization scope.</div>
             <div>Hosted pilot environments should use environment-specific non-demo accounts. Seeded demo credentials are for local development only.</div>
+            <div>The first design-partner rollout is support-led. Tenio should provision the initial named accounts instead of expecting self-serve setup on day one.</div>
             <div>
               Customer support email:{" "}
               <a className="text-blue-600 hover:text-blue-700" href={`mailto:${supportEmail}`}>
@@ -76,6 +90,15 @@ export default function PilotGuidePage() {
             <div>Tuesday-morning walkthrough: log in, upload a CSV, open the queue, open one claim, log a structured follow-up, confirm evidence and timeline, then return to the queue.</div>
             <div>Cold-user criterion: someone who did not build the feature must complete that flow with no live guidance before a design partner gets access.</div>
             <div>If that user gets stuck, treat it as a product bug or UX gap, not a training issue.</div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">How To Position Pilot Start</h2>
+          <div className="mt-4 space-y-3 text-sm text-gray-700">
+            <div>Be explicit that Tenio is the workflow system for queue ownership, evidence, and follow-up from day one.</div>
+            <div>Be equally explicit that automated Canadian retrieval is not yet live at pilot start.</div>
+            <div>Recommended wording: “At pilot start, your team will do status checks through your payer portals and record the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We’re building automated retrieval for TELUS eClaims and expect to enable that during the pilot.”</div>
           </div>
         </section>
 

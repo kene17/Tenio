@@ -35,6 +35,13 @@ The current supported first-customer scope is:
 - active-inventory-first onboarding through CSV import
 - app-mediated evidence access
 
+For a first Canadian design-partner pilot, this also means:
+
+- rollout is support-led, not self-serve
+- Tenio provisions the initial named accounts
+- manual payer portal checks may still be part of the pilot workflow at the start
+- automated Canadian retrieval should be positioned as an in-pilot expansion step, not existing production coverage
+
 Tenio is designed to expand beyond that scope, but tomorrow's supported deployment story is intentionally narrow.
 
 ## Hosted Deployment Model
@@ -49,6 +56,11 @@ The first hosted deployment uses:
 - managed object storage for evidence artifacts
 
 Externally reachable services should be fronted by TLS. Worker and AI traffic stays private to the hosted environment.
+
+For a Canadian pilot handling real patient-adjacent data:
+
+- the hosted environment must be in AWS `ca-central-1` before go-live
+- local or informal environments must not receive real customer claim data
 
 ## Access Model
 
@@ -69,6 +81,11 @@ Verified sensitive access control in the current product:
 - evidence download requires an authenticated user session plus organization scope
 
 Seeded demo credentials should be treated as local-development-only. Hosted partner environments should use environment-specific named accounts.
+
+For the first design-partner rollout, Tenio should assume:
+
+- initial account provisioning is Tenio-operated
+- the customer is not expected to manage user setup alone on day one
 
 ## Security And Data Handling
 
@@ -106,13 +123,19 @@ Environment-specific deployment packets should name the actual infrastructure pr
 
 The current AI provider path is OpenAI-backed when configured. The workflow boundary does not change when that provider is enabled.
 
+Before any real Canadian patient-adjacent data enters a hosted pilot environment:
+
+- a PHIPA information-sharing agreement should be signed by the clinic owner
+- the signed agreement should be attached to the deployment packet
+- the Canadian hosting region and support path should be recorded for that customer
+
 ## Onboarding And Operations
 
 The recommended first rollout path is:
 
 1. import a bounded active inventory through CSV preview + commit
 2. start new claim-status work in Tenio
-3. run the supported Aetna retrieval path
+3. run the supported retrieval path for that environment, or use manual payer portal checks where live automation is not yet enabled
 4. review exceptions inside Tenio
 5. export validated results when needed
 
@@ -128,6 +151,13 @@ Pre-handoff usability bar for a design partner:
 
 - a non-builder must be able to log in, import a file, open the queue, open a claim, record a structured follow-up, inspect evidence, and return to the queue without live guidance
 - if that user gets stuck, treat it as a product bug or UX gap before partner handoff
+
+Pre-go-live gate for a Canadian design partner:
+
+- PHIPA information-sharing agreement signed
+- hosted environment confirmed in AWS `ca-central-1`
+- one real clinic export validated end to end
+- cold-user Tuesday-morning walkthrough passed
 
 ## Support Model
 

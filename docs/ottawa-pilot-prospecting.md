@@ -6,7 +6,7 @@ Internal guide for finding a **first pilot** preferring **Ottawa, Ontario** so w
 
 ## What we’re offering (one sentence)
 
-A **narrow, time-boxed pilot** of Tenio as the **workspace for claim-status follow-up**—queue, retrieval, evidence, and review—with automation underneath, not a full billing-system replacement. Scope matches [`customer-readiness-packet.md`](./customer-readiness-packet.md).
+A **narrow, time-boxed pilot** of Tenio as the **workspace for claim-status follow-up**—queue, evidence, review, and structured follow-up—with automation underneath, not a full billing-system replacement. Scope matches [`customer-readiness-packet.md`](./customer-readiness-packet.md).
 
 ---
 
@@ -31,6 +31,12 @@ A **narrow, time-boxed pilot** of Tenio as the **workspace for claim-status foll
 ## Ottawa context (be honest in conversation)
 
 The National Capital Region has many **OHIP billing** and **provincial** RCM providers. That does **not** disqualify them—it means you must **qualify payer mix** early. If they also serve **US claims**, cross-border, or employer plans with **US payers**, the current product narrative can land. If not, position as **discovery** or **roadmap**, not a false promise on day-one scope.
+
+For the first Canadian pilot conversation, be explicit:
+
+- Tenio can be the workflow system from day one
+- manual payer portal checks may still be used at pilot start
+- automated Canadian retrieval should be framed as an in-pilot expansion step, not live production coverage
 
 ---
 
@@ -93,6 +99,10 @@ Open to coffee in Ottawa this month?
 ### LinkedIn note (connection request size)
 
 Hi [Name]—I’m exploring a **focused pilot** on **claim-status follow-up** for Ottawa-area RCM teams. No pitch deck marathon—just trying to learn if your team’s mix matches what we’re building. Open to a short coffee?
+
+If they ask about automation timing, use this directly:
+
+> “At pilot start, your team may still do status checks through payer portals and log the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We’re building automated retrieval for TELUS eClaims and expect to enable it during the pilot.”
 
 ---
 

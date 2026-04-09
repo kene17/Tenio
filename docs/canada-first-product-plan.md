@@ -292,6 +292,7 @@ Supporting docs:
 
 - [`docs/canadian-trust-pack.md`](./canadian-trust-pack.md)
 - [`docs/telus-integration-readiness.md`](./telus-integration-readiness.md)
+- [`docs/design-partner-go-no-go.md`](./design-partner-go-no-go.md)
 
 ## What To Build First If Canada Is Confirmed
 
