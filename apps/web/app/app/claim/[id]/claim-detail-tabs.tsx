@@ -16,6 +16,7 @@ import { ClaimRetrieveButton } from "../../../../components/claim-retrieve-butto
 import { ClaimWorkflowActions } from "../../../../components/claim-workflow-actions";
 import { ConfidenceBadge } from "../../../../components/confidence-badge";
 import { StatusPill } from "../../../../components/status-pill";
+import type { TenioMessages } from "../../../../lib/locale";
 import type { ClaimDetailView } from "../../../../lib/pilot-api";
 
 type ClaimTab = "overview" | "evidence" | "timeline";
@@ -25,11 +26,9 @@ type ClaimDetailTabsProps = {
   canDownloadEvidence: boolean;
   canWorkClaims: boolean;
   canQueueWork: boolean;
-  labels: {
-    overview: string;
-    evidence: string;
-    timeline: string;
-  };
+  claimMessages: TenioMessages["claim"];
+  followUpMessages: TenioMessages["followUp"];
+  retrieveMessages: TenioMessages["retrieve"];
 };
 
 function formatMoney(value: number | null | undefined) {
@@ -81,43 +80,45 @@ export function ClaimDetailTabs({
   canDownloadEvidence,
   canWorkClaims,
   canQueueWork,
-  labels
+  claimMessages,
+  followUpMessages,
+  retrieveMessages
 }: ClaimDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<ClaimTab>("overview");
 
   const tabs: Array<{ id: ClaimTab; label: string }> = [
-    { id: "overview", label: labels.overview },
-    { id: "evidence", label: labels.evidence },
-    { id: "timeline", label: labels.timeline }
+    { id: "overview", label: claimMessages.tabs.overview },
+    { id: "evidence", label: claimMessages.tabs.evidence },
+    { id: "timeline", label: claimMessages.tabs.timeline }
   ];
 
   const claimOverview = [
-    ["Service Date", claim.serviceDate],
-    ["Claim Type", claim.claimType],
-    ["Service Discipline", formatServiceProviderType(claim.serviceProviderType)],
-    ["Service Code", claim.serviceCode ?? "—"],
-    ["Jurisdiction", `${claim.countryCode} / ${claim.jurisdiction.toUpperCase()}`],
-    ["Province / State", claim.provinceOfService ?? "—"],
-    ["Plan Number", claim.planNumber ?? "—"],
-    ["Member Certificate", claim.memberCertificate ?? "—"],
-    ["Billed Amount", formatMoney(claim.item.amountCents)],
-    ["Allowed Amount", formatMoney(claim.allowedAmountCents)],
-    ["Paid Amount", formatMoney(claim.paidAmountCents)],
-    ["Patient Responsibility", formatMoney(claim.patientResponsibilityCents)],
-    ["Payer Reference Number", claim.payerReferenceNumber ?? "—"],
-    ["Current Payer Response", claim.currentPayerResponse ?? "No response captured"]
+    [claimMessages.overviewFields.serviceDate, claim.serviceDate],
+    [claimMessages.overviewFields.claimType, claim.claimType],
+    [claimMessages.overviewFields.serviceDiscipline, formatServiceProviderType(claim.serviceProviderType)],
+    [claimMessages.overviewFields.serviceCode, claim.serviceCode ?? "—"],
+    [claimMessages.overviewFields.jurisdiction, `${claim.countryCode} / ${claim.jurisdiction.toUpperCase()}`],
+    [claimMessages.overviewFields.provinceState, claim.provinceOfService ?? "—"],
+    [claimMessages.overviewFields.planNumber, claim.planNumber ?? "—"],
+    [claimMessages.overviewFields.memberCertificate, claim.memberCertificate ?? "—"],
+    [claimMessages.overviewFields.billedAmount, formatMoney(claim.item.amountCents)],
+    [claimMessages.overviewFields.allowedAmount, formatMoney(claim.allowedAmountCents)],
+    [claimMessages.overviewFields.paidAmount, formatMoney(claim.paidAmountCents)],
+    [claimMessages.overviewFields.patientResponsibility, formatMoney(claim.patientResponsibilityCents)],
+    [claimMessages.overviewFields.payerReferenceNumber, claim.payerReferenceNumber ?? "—"],
+    [claimMessages.overviewFields.currentPayerResponse, claim.currentPayerResponse ?? claimMessages.common.noResponseCaptured]
   ] as const;
 
   const operationalSummary = [
-    ["Current Queue", claim.currentQueue],
-    ["Next Recommended Action", claim.nextAction],
-    ["Last Touched", claim.lastUpdatedLabel],
-    ["Assigned Owner", claim.item.owner ?? "Unassigned"],
-    ["Total Touches", String(claim.totalTouches)],
-    ["Phone Call Required", claim.requiresPhoneCall ? "Yes" : "No"],
-    ["Days Since Last Follow-up", String(claim.daysSinceLastFollowUp)],
-    ["Review State", claim.item.reviews[0]?.status ?? "No review required"],
-    ["Escalation State", claim.escalationState]
+    [claimMessages.operationalFields.currentQueue, claim.currentQueue],
+    [claimMessages.operationalFields.nextRecommendedAction, claim.nextAction],
+    [claimMessages.operationalFields.lastTouched, claim.lastUpdatedLabel],
+    [claimMessages.operationalFields.assignedOwner, claim.item.owner ?? claimMessages.common.unassigned],
+    [claimMessages.operationalFields.totalTouches, String(claim.totalTouches)],
+    [claimMessages.operationalFields.phoneCallRequired, claim.requiresPhoneCall ? claimMessages.common.yes : claimMessages.common.no],
+    [claimMessages.operationalFields.daysSinceLastFollowUp, String(claim.daysSinceLastFollowUp)],
+    [claimMessages.operationalFields.reviewState, claim.item.reviews[0]?.status ?? claimMessages.common.noReviewRequired],
+    [claimMessages.operationalFields.escalationState, claim.escalationState]
   ] as const;
 
   const sortedReviews = [...claim.item.reviews].sort(
@@ -151,7 +152,9 @@ export function ClaimDetailTabs({
           <div className="col-span-12 space-y-6 xl:col-span-8">
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="text-base font-semibold text-gray-900">Claim Overview</h2>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {claimMessages.sections.overview}
+                </h2>
               </div>
               <div className="grid grid-cols-1 gap-x-8 gap-y-4 px-5 py-4 md:grid-cols-2">
                 {claimOverview.map(([label, value]) => (
@@ -176,19 +179,19 @@ export function ClaimDetailTabs({
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Operational Summary
+                  {claimMessages.sections.operationalSummary}
                 </h2>
               </div>
               <div className="grid grid-cols-1 gap-x-8 gap-y-4 px-5 py-4 md:grid-cols-2">
                 {operationalSummary.map(([label, value]) => (
                   <div key={label}>
                     <div className="mb-1 text-xs font-medium text-gray-600">{label}</div>
-                    {label === "Review State" ? (
+                    {label === claimMessages.operationalFields.reviewState ? (
                       <StatusPill variant="warning">{value}</StatusPill>
                     ) : (
                       <div
                         className={`text-sm ${
-                          label === "Next Recommended Action"
+                          label === claimMessages.operationalFields.nextRecommendedAction
                             ? "font-medium text-blue-700"
                             : "text-gray-900"
                         }`}
@@ -205,50 +208,52 @@ export function ClaimDetailTabs({
           <div className="col-span-12 space-y-6 xl:col-span-4">
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="text-base font-semibold text-gray-900">Agent Interpretation</h2>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {claimMessages.sections.agentInterpretation}
+                </h2>
                 <p className="mt-1 text-xs text-gray-600">
-                  Candidate output from the agentic retrieval layer
+                  {claimMessages.sections.agentInterpretationBody}
                 </p>
               </div>
               <div className="space-y-3 px-5 py-4 text-sm leading-relaxed text-gray-900">
                 <p>{claim.machineSummary}</p>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                    Agent Rationale
+                    {claimMessages.agent.rationale}
                   </div>
                   <p className="text-sm text-gray-700">{claim.agentInsights.rationale}</p>
                 </div>
                 <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-blue-800">
-                  <strong>Why it was routed this way:</strong> {claim.agentInsights.routeReason}
+                  <strong>{claimMessages.agent.whyRouted}:</strong> {claim.agentInsights.routeReason}
                 </div>
                 <p>
-                  <strong>Payment details:</strong> {formatMoney(claim.paidAmountCents)} paid out of{" "}
+                  <strong>{claimMessages.agent.paymentDetails}:</strong> {formatMoney(claim.paidAmountCents)} paid out of{" "}
                   {formatMoney(claim.item.amountCents)} billed.
                 </p>
                 <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
-                  <strong>Recommended action:</strong> {claim.nextAction}.
+                  <strong>{claimMessages.agent.recommendedAction}:</strong> {claim.nextAction}.
                 </p>
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600 sm:grid-cols-2">
                   <div>
-                    <div className="font-medium text-gray-900">Connector</div>
+                    <div className="font-medium text-gray-900">{claimMessages.agent.connector}</div>
                     <div>{claim.agentInsights.connectorName}</div>
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">Execution Mode</div>
+                    <div className="font-medium text-gray-900">{claimMessages.agent.executionMode}</div>
                     <div className="capitalize">{claim.agentInsights.executionMode}</div>
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">Last Observed</div>
+                    <div className="font-medium text-gray-900">{claimMessages.agent.lastObserved}</div>
                     <div>{new Date(claim.agentInsights.lastObservedAt).toLocaleString()}</div>
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">Runtime</div>
+                    <div className="font-medium text-gray-900">{claimMessages.agent.runtime}</div>
                     <div>{claim.agentInsights.executionDurationLabel}</div>
                   </div>
                   <div className="sm:col-span-2">
-                    <div className="font-medium text-gray-900">Trace ID</div>
+                    <div className="font-medium text-gray-900">{claimMessages.agent.traceId}</div>
                     <div className="font-mono text-[11px] text-gray-700">
-                      {claim.agentInsights.traceId ?? "Not captured"}
+                      {claim.agentInsights.traceId ?? claimMessages.common.notCaptured}
                     </div>
                   </div>
                 </div>
@@ -257,7 +262,9 @@ export function ClaimDetailTabs({
 
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="text-base font-semibold text-gray-900">Actions</h2>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {claimMessages.sections.actions}
+                </h2>
               </div>
               <div className="space-y-3 px-5 py-4">
                 {claim.activeRetrievalJob ? (
@@ -267,14 +274,14 @@ export function ClaimDetailTabs({
                       {claim.activeRetrievalJob.attempts}
                     </div>
                     <div className="mt-1 text-xs text-blue-700">
-                      {claim.activeRetrievalJob.connectorName ?? "Agent runtime"}
+                      {claim.activeRetrievalJob.connectorName ?? claimMessages.common.notCaptured}
                       {claim.activeRetrievalJob.nextAttemptAt
                         ? ` · next attempt ${new Date(claim.activeRetrievalJob.nextAttemptAt).toLocaleString()}`
                         : ""}
                     </div>
                     {claim.activeRetrievalJob.reviewReason ? (
                       <div className="mt-2 text-xs text-blue-700">
-                        Workflow reason: {claim.activeRetrievalJob.reviewReason}
+                        {claimMessages.actions.workflowReason} {claim.activeRetrievalJob.reviewReason}
                       </div>
                     ) : null}
                     {claim.activeRetrievalJob.lastError ? (
@@ -287,19 +294,22 @@ export function ClaimDetailTabs({
                     ) : null}
                     <div className="mt-3 space-y-1 rounded border border-blue-200 bg-white/70 px-3 py-2 font-mono text-[11px] text-blue-900">
                       <div>Retrieval Job ID: {claim.activeRetrievalJob.id}</div>
-                      <div>Agent Run ID: {claim.activeRetrievalJob.agentRunId ?? "Pending"}</div>
-                      <div>Trace ID: {claim.activeRetrievalJob.traceId ?? "Not captured"}</div>
+                      <div>Agent Run ID: {claim.activeRetrievalJob.agentRunId ?? claimMessages.common.notCaptured}</div>
+                      <div>{claimMessages.agent.traceId}: {claim.activeRetrievalJob.traceId ?? claimMessages.common.notCaptured}</div>
                     </div>
                   </div>
                 ) : null}
                 {canQueueWork ? (
                   <ClaimRetrieveButton
                     claimId={claim.item.id}
+                    title={retrieveMessages.tooltip}
+                    loadingText={retrieveMessages.loading}
+                    successText={retrieveMessages.completed}
                     className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-70"
                   >
                     <span className="inline-flex items-center gap-2">
                       <RotateCw className="h-4 w-4" />
-                      Request Re-check
+                      {retrieveMessages.label}
                     </span>
                   </ClaimRetrieveButton>
                 ) : null}
@@ -308,18 +318,19 @@ export function ClaimDetailTabs({
                     claimId={claim.item.id}
                     currentOwner={claim.item.owner}
                     currentStatus={claim.statusLabel}
+                    messages={followUpMessages}
                     canWorkClaims
                     showStructuredFollowUp={false}
                   />
                 ) : (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-                    This role can review the claim but cannot change workflow state.
+                    {claimMessages.readOnly}
                   </div>
                 )}
                 {claim.activeRetrievalJob?.history?.length ? (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                      Retry History
+                      {claimMessages.actions.retryHistory}
                     </div>
                     <div className="space-y-2">
                       {claim.activeRetrievalJob.history.slice(0, 3).map((attempt) => (
@@ -329,10 +340,10 @@ export function ClaimDetailTabs({
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="font-medium text-gray-900">
-                              Attempt {attempt.attempt} · {attempt.status}
+                              {claimMessages.actions.attempt} {attempt.attempt} · {attempt.status}
                             </span>
                             <span>
-                              {attempt.connectorName ?? "Agent runtime"}
+                              {attempt.connectorName ?? claimMessages.common.notCaptured}
                               {attempt.executionMode ? ` · ${attempt.executionMode}` : ""}
                             </span>
                           </div>
@@ -358,10 +369,10 @@ export function ClaimDetailTabs({
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Evidence & Provenance
+                  {claimMessages.sections.evidence}
                 </h2>
                 <p className="mt-1 text-xs text-gray-600">
-                  Screenshots, extracts, and source links used to support the claim state
+                  {claimMessages.sections.evidenceBody}
                 </p>
               </div>
               <div className="space-y-3 px-5 py-4">
@@ -404,12 +415,12 @@ export function ClaimDetailTabs({
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
                               >
-                                Open artifact
+                                {claimMessages.openArtifact}
                                 <ExternalLink className="h-3.5 w-3.5" />
                               </a>
                             ) : (
                               <span className="text-xs text-gray-500">
-                                Evidence download is limited to owner, manager, and operator roles.
+                                {claimMessages.downloadRestricted}
                               </span>
                             )}
                           </div>
@@ -418,27 +429,43 @@ export function ClaimDetailTabs({
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    No evidence artifacts have been captured for this claim yet.
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {claimMessages.evidence.emptyTitle}
+                    </h3>
+                    <p className="mt-2 text-sm text-gray-600">{claimMessages.evidence.emptyBody}</p>
+                    {canQueueWork ? (
+                      <div className="mt-4">
+                        <ClaimRetrieveButton
+                          claimId={claim.item.id}
+                          title={retrieveMessages.tooltip}
+                          loadingText={retrieveMessages.loading}
+                          successText={retrieveMessages.completed}
+                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-70"
+                        >
+                          {retrieveMessages.label}
+                        </ClaimRetrieveButton>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                    Field Provenance
+                    {claimMessages.evidence.fieldProvenanceTitle}
                   </div>
                   <div className="space-y-2 text-xs">
                     {[
-                      ["Claim Status", claim.item.evidence[0]?.label ?? "Primary artifact"],
-                      ["Paid Amount", claim.item.evidence[1]?.label ?? "Secondary artifact"],
-                      ["Payer Reference", claim.item.evidence[0]?.label ?? "Primary artifact"],
-                      ["Process Date", claim.item.evidence[0]?.label ?? "Primary artifact"]
+                      [claimMessages.evidence.fieldStatus, claim.item.evidence[0]?.label ?? claimMessages.common.primaryArtifact],
+                      [claimMessages.evidence.fieldPaidAmount, claim.item.evidence[1]?.label ?? claimMessages.common.secondaryArtifact],
+                      [claimMessages.evidence.fieldPayerReference, claim.item.evidence[0]?.label ?? claimMessages.common.primaryArtifact],
+                      [claimMessages.evidence.fieldProcessDate, claim.item.evidence[0]?.label ?? claimMessages.common.primaryArtifact]
                     ].map(([label, value]) => (
                       <div key={label} className="flex justify-between gap-3">
                         <span className="text-gray-600">{label}:</span>
                         <span
                           className={`text-right font-medium ${
-                            label === "Paid Amount" ? "text-amber-700" : "text-gray-900"
+                            label === claimMessages.evidence.fieldPaidAmount ? "text-amber-700" : "text-gray-900"
                           }`}
                         >
                           {value}
@@ -455,22 +482,28 @@ export function ClaimDetailTabs({
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Latest Structured Note
+                  {claimMessages.evidence.latestStructuredNoteTitle}
                 </h2>
               </div>
               <div className="space-y-3 px-5 py-4">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="mb-1 text-xs font-medium text-gray-600">Latest note</div>
+                  <div className="mb-1 text-xs font-medium text-gray-600">
+                    {claimMessages.evidence.latestNote}
+                  </div>
                   <div className="text-sm text-gray-900">
-                    {claim.item.notes ?? "No notes captured"}
+                    {claim.item.notes ?? claimMessages.evidence.noNotes}
                   </div>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="mb-1 text-xs font-medium text-gray-600">Next action</div>
+                  <div className="mb-1 text-xs font-medium text-gray-600">
+                    {claimMessages.evidence.nextAction}
+                  </div>
                   <div className="text-sm font-medium text-blue-700">{claim.nextAction}</div>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <div className="mb-1 text-xs font-medium text-gray-600">Last touched</div>
+                  <div className="mb-1 text-xs font-medium text-gray-600">
+                    {claimMessages.evidence.lastTouched}
+                  </div>
                   <div className="text-sm text-gray-900">{claim.lastUpdatedLabel}</div>
                 </div>
               </div>
@@ -479,7 +512,7 @@ export function ClaimDetailTabs({
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Structured Follow-up
+                  {claimMessages.sections.structuredFollowUp}
                 </h2>
               </div>
               <div className="px-5 py-4">
@@ -488,13 +521,14 @@ export function ClaimDetailTabs({
                     claimId={claim.item.id}
                     currentOwner={claim.item.owner}
                     currentStatus={claim.statusLabel}
+                    messages={followUpMessages}
                     canWorkClaims
                     showOwnerAssignment={false}
                     showReviewNote={false}
                   />
                 ) : (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-                    Structured follow-up is limited to owner, manager, and operator roles.
+                    {followUpMessages.limitedAccess}
                   </div>
                 )}
               </div>
@@ -508,10 +542,12 @@ export function ClaimDetailTabs({
           <div className="col-span-12 space-y-6 xl:col-span-8">
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="text-base font-semibold text-gray-900">Activity Timeline</h2>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {claimMessages.sections.timeline}
+                </h2>
               </div>
               <div className="space-y-4 px-5 py-4">
-                {claim.activityTimeline.map((event, index) => {
+                {claim.activityTimeline.length > 0 ? claim.activityTimeline.map((event, index) => {
                   const { Icon, bg, color } = timelineStyle(event.action);
 
                   return (
@@ -541,14 +577,21 @@ export function ClaimDetailTabs({
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {claimMessages.timeline.emptyTitle}
+                    </h3>
+                    <p className="mt-2 text-sm text-gray-600">{claimMessages.timeline.emptyBody}</p>
+                  </div>
+                )}
               </div>
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Notes & Review Comments
+                  {claimMessages.sections.notes}
                 </h2>
               </div>
               <div className="space-y-4 px-5 py-4">
@@ -581,7 +624,7 @@ export function ClaimDetailTabs({
                   ))
                 ) : (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    No review comments recorded yet.
+                    {claimMessages.timeline.noReviewComments}
                   </div>
                 )}
               </div>
@@ -591,7 +634,9 @@ export function ClaimDetailTabs({
           <div className="col-span-12 space-y-6 xl:col-span-4">
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="text-base font-semibold text-gray-900">Audit Trail</h2>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {claimMessages.sections.auditTrail}
+                </h2>
               </div>
               <div className="space-y-3 px-5 py-4 text-xs">
                 {claim.auditTrail.map((entry) => (
@@ -609,14 +654,16 @@ export function ClaimDetailTabs({
 
             {claim.item.evidence.length > 0 && canDownloadEvidence ? (
               <section className="rounded-lg border border-gray-200 bg-white p-5">
-                <h2 className="mb-4 text-base font-semibold text-gray-900">Quick Links</h2>
+                <h2 className="mb-4 text-base font-semibold text-gray-900">
+                  {claimMessages.timeline.quickLinks}
+                </h2>
                 <div className="space-y-2">
                   <a
                     href={`/api/evidence/${encodeURIComponent(claim.item.evidence[0]?.id ?? "")}`}
                     className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     <Download className="h-4 w-4" />
-                    Export Evidence
+                    {claimMessages.timeline.exportEvidence}
                   </a>
                 </div>
               </section>

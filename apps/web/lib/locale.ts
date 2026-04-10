@@ -33,3 +33,8 @@ export async function getLocaleMessages() {
     messages: getMessagesForLocale(locale)
   };
 }
+
+/** Shared chrome strings for `PilotErrorState` from the active locale. */
+export function getPilotErrorChrome(messages: TenioMessages): TenioMessages["errors"] {
+  return messages.errors ?? getMessagesForLocale("en").errors;
+}

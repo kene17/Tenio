@@ -19,6 +19,8 @@ Default Canadian posture:
 - keep evidence artifacts in Canadian object storage
 - keep backups for PHI-touching systems in Canada unless contractually agreed otherwise
 
+For a real Canadian pilot, `ca-central-1` is a pre-go-live requirement, not a future cleanup step.
+
 Minimum services to document per environment:
 
 - web hosting
@@ -74,6 +76,11 @@ Before go-live, document:
 - deletion process owner
 - customer offboarding export/delete process
 
+Before real patient-adjacent data enters the environment, confirm:
+
+- PHIPA information-sharing agreement is signed
+- the signed copy is stored with the deployment packet
+
 ## Incident And Breach Handling
 
 Tenio should be able to state, before contracting:
@@ -124,7 +131,9 @@ Claims to avoid unless separately proven:
 
 ## Pre-Go-Live Checklist
 
+- PHIPA information-sharing agreement signed before real data enters
 - Canadian region chosen and recorded
+- AWS `ca-central-1` confirmed for PHI-touching services
 - subprocessor list completed
 - retention/delete defaults documented
 - support path documented

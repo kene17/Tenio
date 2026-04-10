@@ -15,21 +15,24 @@ import {
 import { KPICard } from "../../../components/kpi-card";
 import { StatusPill } from "../../../components/status-pill";
 import { cn } from "../../../lib/cn";
+import { getActorTypeLabel } from "../../../lib/display-labels";
+import type { TenioMessages } from "../../../lib/locale";
 import type { AuditEventView } from "../../../lib/pilot-api";
 
 type AuditLogClientProps = {
   events: AuditEventView[];
+  messages: TenioMessages["auditLog"];
 };
 
 const AUDIT_EXPORT_ENABLED = false;
 
-export function AuditLogClient({ events }: AuditLogClientProps) {
+export function AuditLogClient({ events, messages }: AuditLogClientProps) {
   const [selectedEvent, setSelectedEvent] = useState(events[0]);
   const [showFilters, setShowFilters] = useState(true);
 
   if (!selectedEvent) {
     return (
-      <div className="p-6 text-sm text-gray-600">No audit events are available for the pilot yet.</div>
+      <div className="p-6 text-sm text-gray-600">{messages.common.noEvents}</div>
     );
   }
 
@@ -38,10 +41,8 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
       <div className="border-b border-gray-200 bg-white px-4 py-3.5 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Audit Log</h1>
-            <p className="mt-0.5 text-xs text-gray-600">
-              Live event history for claim routing, retrieval, review, and configuration changes.
-            </p>
+            <h1 className="text-xl font-semibold text-gray-900">{messages.heading}</h1>
+            <p className="mt-0.5 text-xs text-gray-600">{messages.subheading}</p>
           </div>
           {AUDIT_EXPORT_ENABLED ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -61,19 +62,19 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
       <div className="flex-1 overflow-auto">
         <div className="space-y-6 p-4 sm:p-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KPICard title="Events Today" value={String(events.length)} subtitle="live records" />
+            <KPICard title={messages.kpis.eventsToday} value={String(events.length)} subtitle="live records" />
             <KPICard
-              title="Human Actions"
+              title={messages.kpis.humanActions}
               value={String(events.filter((event) => event.actor.type === "human").length)}
               subtitle="manual interactions"
             />
             <KPICard
-              title="System Actions"
+              title={messages.kpis.systemActions}
               value={String(events.filter((event) => event.actor.type === "system").length)}
               subtitle="automated decisions"
             />
             <KPICard
-              title="Sensitive Changes"
+              title={messages.kpis.sensitiveChanges}
               value={String(events.filter((event) => event.sensitivity === "high-risk").length)}
               subtitle="requires attention"
             />
@@ -86,7 +87,7 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                   <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search claim ID, actor, note, or action"
+                    placeholder={messages.searchPlaceholder}
                     className="w-full rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -100,19 +101,24 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                   )}
                 >
                   <Filter className="h-4 w-4" />
-                  Filters
+                  {messages.filtersButton}
                 </button>
               </div>
 
               {showFilters ? (
                 <div className="grid grid-cols-1 gap-3 border-t border-gray-200 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {["Date Range", "Actor", "Action Type", "Object Type"].map((label) => (
+                  {[
+                    messages.filterLabels.dateRange,
+                    messages.filterLabels.actor,
+                    messages.filterLabels.actionType,
+                    messages.filterLabels.objectType
+                  ].map((label) => (
                     <div key={label}>
                       <label className="mb-1.5 block text-xs font-medium text-gray-700">
                         {label}
                       </label>
                       <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        <option>All</option>
+                        <option>{messages.filterLabels.all}</option>
                       </select>
                     </div>
                   ))}
@@ -127,7 +133,14 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                 <table className="w-full">
                   <thead className="border-b border-gray-200 bg-gray-50">
                     <tr>
-                      {["Time", "Actor", "Action", "Object", "Summary", "Sensitivity"].map(
+                      {[
+                        messages.tableHeaders.time,
+                        messages.tableHeaders.actor,
+                        messages.tableHeaders.action,
+                        messages.tableHeaders.object,
+                        messages.tableHeaders.summary,
+                        messages.tableHeaders.sensitivity
+                      ].map(
                         (header, index) => (
                           <th key={header} className="px-4 py-3 text-left">
                             {index === 0 ? (
@@ -175,7 +188,9 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                               <div className="text-xs font-medium text-gray-900">
                                 {event.actor.name}
                               </div>
-                              <div className="text-xs text-gray-500">{event.source}</div>
+                              <div className="text-xs text-gray-500">
+                                {getActorTypeLabel(event.actor.type, messages.actorTypes)}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -205,10 +220,10 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                           {event.sensitivity === "high-risk" ? (
                             <div className="flex items-center gap-1.5">
                               <AlertTriangle className="h-4 w-4 text-red-600" />
-                              <span className="text-xs font-medium text-red-700">High Risk</span>
+                              <span className="text-xs font-medium text-red-700">{messages.common.highRisk}</span>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-500">Normal</span>
+                            <span className="text-xs text-gray-500">{messages.common.normal}</span>
                           )}
                         </td>
                       </tr>
@@ -227,24 +242,24 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                         {selectedEvent.action}
                       </h3>
                       <div className="mt-1.5 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">Event ID:</span>
+                        <span className="text-xs text-gray-500">{messages.detail.eventId}:</span>
                         <span className="font-mono text-xs text-gray-700">{selectedEvent.id}</span>
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <div className="mb-1 text-gray-500">Time</div>
+                      <div className="mb-1 text-gray-500">{messages.detail.time}</div>
                       <div className="font-medium text-gray-900">{selectedEvent.time}</div>
                       <div className="text-gray-600">{selectedEvent.date}</div>
                     </div>
                     <div>
-                      <div className="mb-1 text-gray-500">Actor</div>
+                      <div className="mb-1 text-gray-500">{messages.detail.actor}</div>
                       <div className="font-medium text-gray-900">{selectedEvent.actor.name}</div>
-                      <div className="text-gray-600">{selectedEvent.source}</div>
+                      <div className="text-gray-600">{getActorTypeLabel(selectedEvent.actor.type, messages.actorTypes)}</div>
                     </div>
                     <div className="col-span-2">
-                      <div className="mb-1 text-gray-500">Object</div>
+                      <div className="mb-1 text-gray-500">{messages.detail.object}</div>
                       <div className="font-medium text-gray-900">
                         {selectedEvent.object} · {selectedEvent.objectId}
                       </div>
@@ -254,7 +269,7 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
 
                 <div className="border-b border-gray-200 px-5 py-4">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                    Summary
+                    {messages.detail.summary}
                   </h4>
                   <p className="text-sm leading-relaxed text-gray-900">{selectedEvent.summary}</p>
                 </div>
@@ -262,7 +277,7 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                 {selectedEvent.beforeAfter ? (
                   <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
                     <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                      Changes
+                      {messages.detail.changes}
                     </h4>
                     <div className="space-y-4">
                       {Object.entries(selectedEvent.beforeAfter).map(([key, value]) => {
@@ -274,11 +289,11 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="rounded-lg border border-red-200 bg-white p-3">
-                              <div className="mb-2 text-xs font-semibold text-red-700">Before</div>
+                              <div className="mb-2 text-xs font-semibold text-red-700">{messages.detail.before}</div>
                               <div className="text-sm font-medium text-gray-900">{change.from}</div>
                             </div>
                             <div className="rounded-lg border border-green-200 bg-white p-3">
-                              <div className="mb-2 text-xs font-semibold text-green-700">After</div>
+                              <div className="mb-2 text-xs font-semibold text-green-700">{messages.detail.after}</div>
                               <div className="text-sm font-medium text-gray-900">{change.to}</div>
                             </div>
                           </div>
@@ -290,15 +305,15 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
 
                 <div className="bg-gray-50 px-5 py-4">
                   <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                    Metadata
+                    {messages.detail.metadata}
                   </h4>
                   <div className="space-y-2.5 text-xs">
                     {[
-                      ["Event ID", selectedEvent.id],
-                      ["Request ID", selectedEvent.requestId ?? "—"],
-                      ["Category", selectedEvent.category],
-                      ["Organization", "Pilot org"],
-                      ["Payer", selectedEvent.payer]
+                      [messages.detail.eventId, selectedEvent.id],
+                      [messages.detail.requestId, selectedEvent.requestId ?? "—"],
+                      [messages.detail.category, selectedEvent.category],
+                      [messages.detail.organization, messages.common.pilotOrg],
+                      [messages.detail.payer, selectedEvent.payer]
                     ].map(([label, value]) => (
                       <div key={label} className="flex items-center justify-between py-1.5">
                         <span className="text-gray-600">{label}</span>
@@ -312,11 +327,11 @@ export function AuditLogClient({ events }: AuditLogClientProps) {
               <div className="space-y-2 border-t border-gray-200 bg-white px-5 py-4">
                 <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
                   <ExternalLink className="h-4 w-4" />
-                  View {selectedEvent.object}
+                  {messages.detail.viewObject}
                 </button>
                 <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                   <FileText className="h-4 w-4" />
-                  Export Event
+                  {messages.detail.exportEvent}
                 </button>
               </div>
             </div>

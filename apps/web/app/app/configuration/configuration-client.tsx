@@ -14,15 +14,20 @@ import {
   Settings
 } from "lucide-react";
 
+import { PageRoleBanner } from "../../../components/page-role-banner";
 import { cn } from "../../../lib/cn";
+import type { TenioMessages } from "../../../lib/locale";
 import type { AuditEventView, PayerConfigurationView } from "../../../lib/pilot-api";
 
-function statusBadge(status: PayerConfigurationView["status"]) {
+function statusBadge(
+  status: PayerConfigurationView["status"],
+  messages: TenioMessages["configuration"]["status"]
+) {
   if (status === "active") {
     return (
       <span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
         <CheckCircle className="h-3 w-3" />
-        Active
+        {messages.active}
       </span>
     );
   }
@@ -31,7 +36,7 @@ function statusBadge(status: PayerConfigurationView["status"]) {
     return (
       <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
         <AlertTriangle className="h-3 w-3" />
-        Needs Attention
+        {messages.needsAttention}
       </span>
     );
   }
@@ -39,7 +44,7 @@ function statusBadge(status: PayerConfigurationView["status"]) {
   return (
     <span className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-700">
       <Circle className="h-3 w-3" />
-      Inactive
+      {messages.inactive}
     </span>
   );
 }
@@ -47,14 +52,20 @@ function statusBadge(status: PayerConfigurationView["status"]) {
 export function ConfigurationClient({
   payers,
   auditEvents,
-  currentRole
+  currentRole,
+  messages,
+  roleHelpTitle
 }: {
   payers: PayerConfigurationView[];
   auditEvents: AuditEventView[];
   currentRole: UserRole;
+  messages: TenioMessages["configuration"];
+  roleHelpTitle: string;
 }) {
   const router = useRouter();
   const canManageConfiguration = hasPermission(currentRole, "payer:write");
+  const roleHelpBody =
+    currentRole === "manager" ? messages.roleHelp.manager : null;
   const [payerState, setPayerState] = useState(payers);
   const [selectedPayer, setSelectedPayer] = useState(payers[0]?.payerId ?? "");
   const [owner, setOwner] = useState("");
@@ -120,14 +131,14 @@ export function ConfigurationClient({
       };
 
       if (!response.ok || !payload.item) {
-        setError(payload.message ?? "Policy update failed.");
+        setError(payload.message ?? messages.errorMessage);
         return;
       }
 
       setPayerState((existing) =>
         existing.map((payer) => (payer.payerId === payload.item?.payerId ? payload.item : payer))
       );
-      setMessage("Policy saved. New thresholds will apply to future intake and retrieval runs.");
+      setMessage(messages.savedMessage);
       router.refresh();
     });
   }
@@ -136,8 +147,8 @@ export function ConfigurationClient({
     <div className="flex h-full">
       <div className="w-80 shrink-0 overflow-auto border-r border-gray-200 bg-white">
         <div className="border-b border-gray-200 p-4">
-          <h2 className="mb-1 text-lg font-semibold text-gray-900">Payer Profiles</h2>
-          <p className="text-xs text-gray-600">Live payer configuration and rule ownership.</p>
+          <h2 className="mb-1 text-lg font-semibold text-gray-900">{messages.sidebarTitle}</h2>
+          <p className="text-xs text-gray-600">{messages.sidebarBody}</p>
         </div>
         <div className="p-2">
           {payerState.map((payer) => (
@@ -166,7 +177,7 @@ export function ConfigurationClient({
               <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
                 {payer.countryCode} / {payer.jurisdiction}
               </div>
-              <div className="mb-2">{statusBadge(payer.status)}</div>
+              <div className="mb-2">{statusBadge(payer.status, messages.status)}</div>
               <div className="text-xs text-gray-600">
                 {payer.enabledWorkflows.length} workflows •{" "}
                 {new Date(payer.lastVerifiedAt).toLocaleDateString()}
@@ -178,38 +189,38 @@ export function ConfigurationClient({
 
       <div className="flex-1 overflow-auto">
         <div className="p-6">
+          {roleHelpBody ? <PageRoleBanner title={roleHelpTitle} body={roleHelpBody} /> : null}
           <div className="mb-6">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900">{currentPayer.payerName}</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                  Configure payer-specific thresholds, SLA defaults, assignment rules, and
-                  downstream delivery.
+                  {canManageConfiguration ? messages.subheadingOwner : messages.subheadingManager}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {statusBadge(currentPayer.status)}
-                <span className="text-sm text-gray-600">Owner: {currentPayer.owner}</span>
+                {statusBadge(currentPayer.status, messages.status)}
+                <span className="text-sm text-gray-600">
+                  {messages.summary.owner}: {currentPayer.owner}
+                </span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
               <span>
-                Jurisdiction: {currentPayer.countryCode} / {currentPayer.jurisdiction}
+                {messages.summary.jurisdiction}: {currentPayer.countryCode} / {currentPayer.jurisdiction}
               </span>
-              <span>Last verified: {new Date(currentPayer.lastVerifiedAt).toLocaleString()}</span>
-              <span>Review threshold: {Math.round(currentPayer.reviewThreshold * 100)}%</span>
-              <span>Escalation threshold: {Math.round(currentPayer.escalationThreshold * 100)}%</span>
-              <span>Default SLA: {currentPayer.defaultSlaHours}h</span>
+              <span>{messages.summary.lastVerified}: {new Date(currentPayer.lastVerifiedAt).toLocaleString()}</span>
+              <span>{messages.summary.reviewThreshold}: {Math.round(currentPayer.reviewThreshold * 100)}%</span>
+              <span>{messages.summary.escalationThreshold}: {Math.round(currentPayer.escalationThreshold * 100)}%</span>
+              <span>{messages.summary.defaultSla}: {currentPayer.defaultSlaHours}h</span>
             </div>
           </div>
 
           <section className="mb-6 rounded-lg border border-gray-200 bg-white p-5">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Workflow Policy</h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Future intake and retrieval decisions use these payer-level controls.
-                </p>
+                <h3 className="text-sm font-medium text-gray-900">{messages.workflowPolicyHeading}</h3>
+                <p className="mt-1 text-sm text-gray-600">{messages.workflowPolicyBody}</p>
               </div>
               {canManageConfiguration ? (
                 <button
@@ -219,7 +230,7 @@ export function ConfigurationClient({
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" />
-                  Save Policy
+                  {messages.saveButton}
                 </button>
               ) : null}
             </div>
@@ -236,14 +247,14 @@ export function ConfigurationClient({
             ) : null}
             {!canManageConfiguration ? (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Configuration edits are limited to owner roles in partner environments.
+                {messages.readOnlyHelp}
               </div>
             ) : null}
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <label className="block">
                 <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  Default Owner
+                  {messages.fields.defaultOwner}
                 </span>
                 <input
                   value={owner}
@@ -255,7 +266,7 @@ export function ConfigurationClient({
 
               <label className="block">
                 <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  Default SLA Hours
+                  {messages.fields.defaultSla}
                 </span>
                 <input
                   type="number"
@@ -270,7 +281,7 @@ export function ConfigurationClient({
 
               <label className="block">
                 <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  Review Threshold %
+                  {messages.fields.reviewThreshold}
                 </span>
                 <input
                   type="number"
@@ -285,7 +296,7 @@ export function ConfigurationClient({
 
               <label className="block">
                 <span className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  Escalation Threshold %
+                  {messages.fields.escalationThreshold}
                 </span>
                 <input
                   type="number"
@@ -307,13 +318,13 @@ export function ConfigurationClient({
                 disabled={!canManageConfiguration}
                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              Auto-assign new intake and imported claims to the payer owner when no owner is supplied.
+              {messages.fields.autoAssignHelp}
             </label>
           </section>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <section className="rounded-lg border border-gray-200 bg-white p-5">
-              <h3 className="mb-4 text-sm font-medium text-gray-900">Status Mapping Rules</h3>
+              <h3 className="mb-4 text-sm font-medium text-gray-900">{messages.sections.statusMappingRules}</h3>
               <div className="space-y-2">
                 {currentPayer.statusRules.map((rule) => (
                   <div
@@ -328,7 +339,7 @@ export function ConfigurationClient({
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-5">
-              <h3 className="mb-4 text-sm font-medium text-gray-900">Review Rules</h3>
+              <h3 className="mb-4 text-sm font-medium text-gray-900">{messages.sections.reviewRules}</h3>
               <div className="space-y-2">
                 {currentPayer.reviewRules.map((rule) => (
                   <div key={rule} className="rounded border border-gray-200 p-3 text-sm text-gray-900">
@@ -339,7 +350,7 @@ export function ConfigurationClient({
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-5">
-              <h3 className="mb-4 text-sm font-medium text-gray-900">Destinations</h3>
+              <h3 className="mb-4 text-sm font-medium text-gray-900">{messages.sections.destinations}</h3>
               <div className="space-y-2">
                 {currentPayer.destinations.map((destination) => (
                   <div
@@ -362,7 +373,7 @@ export function ConfigurationClient({
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-5">
-              <h3 className="mb-4 text-sm font-medium text-gray-900">Open Issues</h3>
+              <h3 className="mb-4 text-sm font-medium text-gray-900">{messages.sections.openIssues}</h3>
               <div className="space-y-2">
                 {currentPayer.issues.length > 0 ? (
                   currentPayer.issues.map((issue) => (
@@ -375,7 +386,7 @@ export function ConfigurationClient({
                   ))
                 ) : (
                   <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                    No configuration issues detected.
+                    {messages.sections.noIssues}
                   </div>
                 )}
               </div>
@@ -384,10 +395,8 @@ export function ConfigurationClient({
 
           <section className="mt-6 rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-200 px-5 py-4">
-              <h3 className="text-sm font-medium text-gray-900">Configuration Audit Trail</h3>
-              <p className="mt-1 text-xs text-gray-600">
-                Recent configuration changes from the audit log.
-              </p>
+              <h3 className="text-sm font-medium text-gray-900">{messages.sections.auditTrail}</h3>
+              <p className="mt-1 text-xs text-gray-600">{messages.sections.auditTrailBody}</p>
             </div>
             <div className="divide-y divide-gray-100">
               {configurationEvents.map((event) => (

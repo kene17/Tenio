@@ -7,12 +7,20 @@ type ClaimRetrieveButtonProps = {
   claimId: string;
   className?: string;
   children: React.ReactNode;
+  title?: string;
+  loadingText?: string;
+  successText?: string;
+  errorText?: string;
 };
 
 export function ClaimRetrieveButton({
   claimId,
   className,
-  children
+  children,
+  title,
+  loadingText = "Loading...",
+  successText = "Done",
+  errorText = "Unable to request status check."
 }: ClaimRetrieveButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -31,9 +39,11 @@ export function ClaimRetrieveButton({
         throw new Error("Failed to trigger retrieval");
       }
 
-      setStatusText("Queued");
+      setStatusText(successText);
 
       router.refresh();
+    } catch {
+      setStatusText(errorText);
     } finally {
       setIsLoading(false);
     }
@@ -44,9 +54,10 @@ export function ClaimRetrieveButton({
       type="button"
       onClick={handleClick}
       disabled={isLoading}
+      title={title}
       className={className}
     >
-      {isLoading ? "Queuing..." : statusText ?? children}
+      {isLoading ? loadingText : statusText ?? children}
     </button>
   );
 }

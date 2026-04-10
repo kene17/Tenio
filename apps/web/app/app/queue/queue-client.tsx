@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { hasPermission, type UserRole } from "@tenio/domain";
 import {
   AlertCircle,
   AlertTriangle,
@@ -19,6 +20,7 @@ import {
 import { ClaimRetrieveButton } from "../../../components/claim-retrieve-button";
 import { ConfidenceBadge } from "../../../components/confidence-badge";
 import { KPICard } from "../../../components/kpi-card";
+import { PageRoleBanner } from "../../../components/page-role-banner";
 import { StatusPill, statusVariantFromText } from "../../../components/status-pill";
 import { cn } from "../../../lib/cn";
 import type {
@@ -31,6 +33,11 @@ import fallbackMessages from "../../../messages/en.json";
 
 type QueueClientProps = {
   items: QueueItemView[];
+  hasAnyClaims: boolean;
+  currentRole: UserRole;
+  queueMessages: TenioMessages["queue"];
+  retrieveMessages: TenioMessages["retrieve"];
+  roleHelpTitle: string;
   onboardingMessages: TenioMessages["onboarding"];
   onboardingState: OnboardingStateView | null;
 };
@@ -41,12 +48,15 @@ function getPriorityIcon(priority: QueueItemView["priority"]) {
   return <Clock className="h-4 w-4 text-gray-400" />;
 }
 
-function getSLABadge(risk: QueueItemView["slaRisk"]) {
+function getSLABadge(
+  risk: QueueItemView["slaRisk"],
+  messages: TenioMessages["queue"]["sla"]
+) {
   if (risk === "breached") {
     return (
       <span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
         <AlertCircle className="h-3 w-3" />
-        Breached
+        {messages.overdue}
       </span>
     );
   }
@@ -55,7 +65,7 @@ function getSLABadge(risk: QueueItemView["slaRisk"]) {
     return (
       <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
         <AlertTriangle className="h-3 w-3" />
-        At Risk
+        {messages.atRisk}
       </span>
     );
   }
@@ -63,7 +73,7 @@ function getSLABadge(risk: QueueItemView["slaRisk"]) {
   return (
     <span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
       <CheckCircle className="h-3 w-3" />
-      Healthy
+      {messages.onTrack}
     </span>
   );
 }
@@ -142,8 +152,18 @@ function setupStatusBadge(
   );
 }
 
-export function QueueClient({ items, onboardingMessages, onboardingState }: QueueClientProps) {
+export function QueueClient({
+  items,
+  hasAnyClaims,
+  currentRole,
+  queueMessages,
+  retrieveMessages,
+  roleHelpTitle,
+  onboardingMessages,
+  onboardingState
+}: QueueClientProps) {
   const queueOnboardingMessages = onboardingMessages ?? fallbackMessages.onboarding;
+  const messages = queueMessages ?? fallbackMessages.queue;
   const setupMessages = queueOnboardingMessages.setup;
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(items[0]?.claimId ?? null);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
@@ -203,6 +223,10 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
   const shouldShowTour =
     Boolean(setupState?.queueTour.shouldShow) && !shouldShowWelcome && isDesktopLayout;
   const activeTourTarget = shouldShowTour ? queueTourTargets[tourStepIndex] : null;
+  const canRequestStatus = hasPermission(currentRole, "queue:work");
+  const roleHelpBody =
+    currentRole === "owner" ? null : messages.roleHelp[currentRole] ?? null;
+  const isFiltering = searchTerm.trim().length > 0 || activeFilters.length > 0;
 
   useEffect(() => {
     setSetupState(onboardingState);
@@ -390,30 +414,30 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
           ) : null}
 
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900">Claims Work Queue</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Live pilot queue backed by the workflow API and evidence-aware claim state.
-            </p>
+            <h1 className="text-2xl font-semibold text-gray-900">{messages.heading}</h1>
+            <p className="mt-1 text-sm text-gray-600">{messages.subheading}</p>
           </div>
 
+          {roleHelpBody ? <PageRoleBanner title={roleHelpTitle} body={roleHelpBody} /> : null}
+
+          <div className="mb-3 text-sm font-medium text-gray-700">{messages.overviewLabel}</div>
           <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-            <KPICard label="Open Claims" value={String(openClaims)} />
+            <KPICard label={messages.kpis.openClaims} value={String(openClaims)} />
             <KPICard
-              label="Needs Review"
+              label={messages.kpis.needsReview}
               value={String(needsReview)}
               variant="warning"
             />
-            <KPICard label="At-Risk SLA" value={String(atRisk)} variant="warning" />
+            <KPICard label={messages.kpis.atRisk} value={String(atRisk)} variant="warning" />
             <KPICard
-              label="Evidence Attached"
+              label={messages.kpis.evidenceAttached}
               value={String(items.filter((item) => item.evidenceCount > 0).length)}
               variant="success"
             />
-            <KPICard label="Avg Confidence" value={avgConfidence} />
+            <KPICard label={messages.kpis.avgConfidence} value={avgConfidence} />
             <KPICard
-              label="Pilot Org"
+              label={messages.kpis.workspace}
               value="1"
-              subtext="protected workspace"
               variant="success"
             />
           </div>
@@ -426,20 +450,20 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                   type="text"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search by claim ID, patient, payer, owner, or note..."
+                  placeholder={messages.filterPlaceholder}
                   className="w-full rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
               <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
                 <Filter className="h-4 w-4" />
-                Filters
+                {messages.filtersButton}
                 <ChevronDown className="h-4 w-4" />
               </button>
             </div>
 
             {activeFilters.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-600">Active filters:</span>
+                <span className="text-xs text-gray-600">{messages.activeFiltersLabel}</span>
                 {activeFilters.map((filter) => (
                   <span
                     key={filter}
@@ -462,38 +486,70 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                   onClick={() => setActiveFilters([])}
                   className="text-xs text-gray-600 hover:text-gray-900"
                 >
-                  Clear all
+                  {messages.clearAllFilters}
                 </button>
               </div>
             ) : null}
           </div>
 
+          {filteredItems.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-8">
+              <div className="mx-auto max-w-xl text-center">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {isFiltering
+                    ? messages.empty.noMatchesTitle
+                    : hasAnyClaims
+                      ? messages.empty.noAttentionTitle
+                      : messages.empty.noClaimsTitle}
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-gray-600">
+                  {isFiltering
+                    ? messages.empty.noMatchesBody
+                    : hasAnyClaims
+                      ? messages.empty.noAttentionBody
+                      : messages.empty.noClaimsBody}
+                </p>
+                {!isFiltering ? (
+                  <div className="mt-6">
+                    <Link
+                      href="/app/onboarding"
+                      className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      {hasAnyClaims
+                        ? messages.empty.noAttentionCta
+                        : messages.empty.noClaimsCta}
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     {[
-                      "Priority",
-                      "Claim ID",
-                      "Patient",
-                      "Payer",
-                      "Claim Status",
-                      "Next Action",
-                      "Queue / Reason",
-                      "Owner",
-                      "Last Touched",
-                      "Age / SLA",
-                      "Confidence",
-                      "Evidence",
-                      "Actions"
+                      messages.columns.priority,
+                      messages.columns.claimId,
+                      messages.columns.patient,
+                      messages.columns.payer,
+                      messages.columns.status,
+                      messages.columns.nextAction,
+                      messages.columns.queueReason,
+                      messages.columns.owner,
+                      messages.columns.lastTouched,
+                      messages.columns.sla,
+                      messages.columns.confidence,
+                      messages.columns.evidence,
+                      messages.columns.actions
                     ].map((header) => {
                       const target =
-                        header === "Priority"
+                        header === messages.columns.priority
                           ? "priority"
-                          : header === "Claim ID"
+                          : header === messages.columns.claimId
                             ? "claim"
-                            : header === "Age / SLA"
+                            : header === messages.columns.sla
                               ? "sla"
                               : null;
 
@@ -501,15 +557,15 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                       <th
                         key={header}
                         data-tour={target ?? undefined}
-                        className={cn(
-                          "px-4 py-3 text-left text-xs font-medium text-gray-600",
-                          activeTourTarget !== null &&
-                            activeTourTarget === target &&
-                            "relative z-20 rounded-md bg-blue-50 ring-2 ring-blue-500 ring-offset-2"
-                        )}
-                      >
-                        {header}
-                      </th>
+                          className={cn(
+                            "px-4 py-3 text-left text-xs font-medium text-gray-600",
+                            activeTourTarget !== null &&
+                              activeTourTarget === target &&
+                              "relative z-20 rounded-md bg-blue-50 ring-2 ring-blue-500 ring-offset-2"
+                          )}
+                        >
+                          {header}
+                        </th>
                       );
                     })}
                   </tr>
@@ -533,7 +589,7 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                           {claim.claimNumber}
                         </Link>
                         <div className="mt-1 text-xs text-gray-500">
-                          {claim.claimType ?? "Unspecified"}
+                          {claim.claimType ?? messages.common.unspecified}
                           {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
                         </div>
                       </td>
@@ -541,7 +597,7 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                       <td className="px-4 py-3 text-sm text-gray-900">
                         <div>{claim.payerName}</div>
                         <div className="mt-1 text-xs text-gray-500">
-                          {claim.countryCode ?? "US"} / {claim.jurisdiction?.toUpperCase() ?? "US"}
+                          {claim.countryCode ?? "CA"} / {claim.jurisdiction?.toUpperCase() ?? "CA"}
                           {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
                         </div>
                       </td>
@@ -561,14 +617,14 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                             <span className="text-sm text-gray-700">{claim.owner}</span>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">Unassigned</span>
+                          <span className="text-sm text-gray-400">{messages.common.unassigned}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{claim.lastUpdate}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           <span className="text-sm text-gray-900">{claim.age}</span>
-                          {getSLABadge(claim.slaRisk)}
+                          {getSLABadge(claim.slaRisk, messages.sla)}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -612,7 +668,7 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                           {claim.claimNumber}
                         </Link>
                         <div className="mt-1 text-xs text-gray-500">
-                          {claim.claimType ?? "Unspecified"}
+                          {claim.claimType ?? messages.common.unspecified}
                           {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
                         </div>
                       </div>
@@ -630,7 +686,7 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                       </StatusPill>
                     </div>
                     <div className="text-xs text-gray-500">
-                      {claim.countryCode ?? "US"} / {claim.jurisdiction?.toUpperCase() ?? "US"}
+                      {claim.countryCode ?? "CA"} / {claim.jurisdiction?.toUpperCase() ?? "CA"}
                       {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
                     </div>
                     <div className="text-sm text-gray-700">{claim.nextAction}</div>
@@ -640,16 +696,23 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-xs text-gray-600">
-                      {claim.owner ?? "Unassigned"} · {claim.lastUpdate}
+                      {claim.owner ?? messages.common.unassigned} · {claim.lastUpdate}
                     </div>
                     <div className="flex items-center gap-2">
                       <ConfidenceBadge confidence={claim.confidence} />
-                      {getSLABadge(claim.slaRisk)}
+                      {getSLABadge(claim.slaRisk, messages.sla)}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+          )}
+
+          <div className="mt-4">
+            <Link href="/app/claims" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+              {messages.searchAllClaimsCta}
+            </Link>
           </div>
         </div>
       </div>
@@ -671,12 +734,14 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
             </div>
 
             <div className="mb-6">
-              <div className="mb-2 text-xs font-medium text-gray-600">Current Status</div>
+              <div className="mb-2 text-xs font-medium text-gray-600">
+                {messages.currentStatusLabel}
+              </div>
               <StatusPill variant={statusVariantFromText(selectedClaim.claimStatus)} size="md">
                 {selectedClaim.claimStatus}
               </StatusPill>
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-gray-600">Confidence:</span>
+                <span className="text-xs text-gray-600">{messages.columns.confidence}:</span>
                 <ConfidenceBadge confidence={selectedClaim.confidence} />
               </div>
             </div>
@@ -693,24 +758,30 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
 
             <div className="mb-6 space-y-3 text-sm text-gray-700">
               <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">Payer</div>
+                <div className="mb-1 text-xs font-medium text-gray-600">{messages.labels.payer}</div>
                 <div>{selectedClaim.payerName}</div>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">Service</div>
-                <div>{serviceSummary(selectedClaim) || "Not captured"}</div>
+                <div className="mb-1 text-xs font-medium text-gray-600">{messages.labels.service}</div>
+                <div>{serviceSummary(selectedClaim) || messages.common.serviceNotCaptured}</div>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">Assigned Owner</div>
-                <div>{selectedClaim.owner ?? "Unassigned"}</div>
+                <div className="mb-1 text-xs font-medium text-gray-600">
+                  {messages.labels.assignedOwner}
+                </div>
+                <div>{selectedClaim.owner ?? messages.common.unassigned}</div>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">Last Touched</div>
+                <div className="mb-1 text-xs font-medium text-gray-600">
+                  {messages.labels.lastTouched}
+                </div>
                 <div>{selectedClaim.lastUpdate}</div>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">Evidence</div>
-                <div>{selectedClaim.evidenceCount} artifact(s) attached</div>
+                <div className="mb-1 text-xs font-medium text-gray-600">{messages.labels.evidence}</div>
+                <div>
+                  {selectedClaim.evidenceCount} {messages.common.evidenceArtifacts}
+                </div>
               </div>
             </div>
 
@@ -719,15 +790,20 @@ export function QueueClient({ items, onboardingMessages, onboardingState }: Queu
                 href={`/app/claim/${selectedClaim.claimId}`}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                View Full Claim Detail
+                {messages.viewFullClaim}
                 <ChevronRight className="h-4 w-4" />
               </Link>
-              <ClaimRetrieveButton
-                claimId={selectedClaim.claimId}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-70"
-              >
-                Request Re-check
-              </ClaimRetrieveButton>
+              {canRequestStatus ? (
+                <ClaimRetrieveButton
+                  claimId={selectedClaim.claimId}
+                  title={retrieveMessages.tooltip}
+                  loadingText={retrieveMessages.loading}
+                  successText={retrieveMessages.completed}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-70"
+                >
+                  {retrieveMessages.label}
+                </ClaimRetrieveButton>
+              ) : null}
             </div>
           </div>
         </div>

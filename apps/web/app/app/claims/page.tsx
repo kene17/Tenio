@@ -1,6 +1,8 @@
 import { hasPermission } from "@tenio/domain";
 import { redirect } from "next/navigation";
+
 import { PilotErrorState } from "../../../components/pilot-error-state";
+import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../lib/locale";
 import {
   getClaimIntakeOptions,
   getClaimsList,
@@ -19,7 +21,7 @@ export default async function ClaimsPage() {
 
   try {
     const canImport = hasPermission(session.role, "claims:import");
-    const [claimsResponse, payerResponse] = await Promise.all([
+    const [claimsResponse, payerResponse, { messages }] = await Promise.all([
       getClaimsList(),
       canImport
         ? getClaimIntakeOptions()
@@ -30,14 +32,18 @@ export default async function ClaimsPage() {
               jurisdiction: "us" | "ca";
               countryCode: "US" | "CA";
             }>
-          })
+          }),
+      getLocaleMessages()
     ]);
+    const fallbackMessages = getMessagesForLocale("en");
 
     return (
       <ClaimsClient
         items={claimsResponse.items}
         organizationId={session.organizationId}
         currentRole={session.role}
+        messages={messages.claims ?? fallbackMessages.claims}
+        roleHelpTitle={messages.roleHelp?.title ?? fallbackMessages.roleHelp.title}
         payerOptions={payerResponse.items.map((payer) => ({
           id: payer.payerId,
           label: payer.payerName,
@@ -47,10 +53,15 @@ export default async function ClaimsPage() {
       />
     );
   } catch {
+    const { messages } = await getLocaleMessages();
+    const e = getPilotErrorChrome(messages);
     return (
       <PilotErrorState
-        title="Claims unavailable"
-        body="The claims workspace could not load from the API. Confirm the API and database are healthy, then refresh."
+        eyebrow={e.eyebrow}
+        openPilotGuide={e.openPilotGuide}
+        contactSupport={e.contactSupport}
+        title={e.claimsUnavailableTitle}
+        body={e.claimsUnavailableBody}
       />
     );
   }
