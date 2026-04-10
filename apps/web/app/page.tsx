@@ -776,16 +776,31 @@ export default function HomePage() {
         }}
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-7 w-7 items-center justify-center rounded-lg"
-              style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)", boxShadow: "0 2px 8px rgba(37,99,235,0.35)" }}
+          <div className="flex items-center gap-1.5">
+            <span
+              style={{
+                fontFamily: "var(--font-fraunces, Georgia, serif)",
+                fontWeight: 700,
+                fontSize: 22,
+                color: "#0f172a",
+                letterSpacing: "-0.03em",
+                fontVariationSettings: '"opsz" 72',
+                lineHeight: 1
+              }}
             >
-              <FileText className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="font-semibold tracking-tight" style={{ color: "#0f172a" }}>
               Tenio
             </span>
+            <span
+              style={{
+                display: "inline-block",
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #2563EB, #4f46e5)",
+                marginBottom: 1,
+                flexShrink: 0
+              }}
+            />
           </div>
 
           <div className="hidden items-center gap-8 md:flex">
@@ -890,14 +905,44 @@ export default function HomePage() {
       </nav>
 
       <section className="hero-bg relative overflow-hidden" style={{ paddingTop: 180, paddingBottom: 0 }}>
-        {/* Top radial glow */}
+        {/* Layered ambient orbs — depth without imagery */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* Large indigo orb — top right */}
+          <div style={{
+            position: "absolute", top: -140, right: -120,
+            width: 600, height: 600,
+            background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 68%)",
+            filter: "blur(48px)"
+          }} />
+          {/* Blue orb — top left */}
+          <div style={{
+            position: "absolute", top: -80, left: -80,
+            width: 480, height: 480,
+            background: "radial-gradient(circle, rgba(37,99,235,0.14) 0%, transparent 68%)",
+            filter: "blur(48px)"
+          }} />
+          {/* Violet orb — center bottom, behind screenshot */}
+          <div style={{
+            position: "absolute", bottom: -60, left: "50%", transform: "translateX(-50%)",
+            width: 700, height: 320,
+            background: "radial-gradient(ellipse, rgba(139,92,246,0.10) 0%, transparent 68%)",
+            filter: "blur(56px)"
+          }} />
+          {/* Sky-blue accent — mid left */}
+          <div style={{
+            position: "absolute", top: "30%", left: -60,
+            width: 280, height: 280,
+            background: "radial-gradient(circle, rgba(56,189,248,0.10) 0%, transparent 68%)",
+            filter: "blur(40px)"
+          }} />
+        </div>
+        {/* Subtle pulsing top glow */}
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden>
           <div
             className="absolute top-0 left-1/2 -translate-x-1/2"
             style={{
-              width: 1200,
-              height: 700,
-              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.11) 0%, rgba(99,102,241,0.05) 55%, transparent 75%)"
+              width: 1000, height: 500,
+              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.08) 0%, transparent 72%)"
             }}
           />
         </div>
@@ -1168,17 +1213,31 @@ export default function HomePage() {
       <footer className="py-10" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.06)" }}>
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
           <div className="flex items-center gap-2">
-            <div
-              className="flex h-6 w-6 items-center justify-center rounded-md"
-              style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)" }}
+            <span
+              style={{
+                fontFamily: "var(--font-fraunces, Georgia, serif)",
+                fontWeight: 700,
+                fontSize: 18,
+                color: "#0f172a",
+                letterSpacing: "-0.03em",
+                fontVariationSettings: '"opsz" 72',
+                lineHeight: 1
+              }}
             >
-              <FileText className="h-3 w-3 text-white" />
-            </div>
-            <span className="text-small font-semibold" style={{ color: "#0f172a" }}>
               Tenio
             </span>
-            <span className="text-small ml-1" style={{ color: "#94A3B8" }}>
-              · Ottawa, Canada
+            <span
+              style={{
+                display: "inline-block",
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #2563EB, #4f46e5)",
+                flexShrink: 0
+              }}
+            />
+            <span className="text-small" style={{ color: "#94A3B8" }}>
+              Ottawa, Canada
             </span>
           </div>
           <div className="flex items-center gap-6">
