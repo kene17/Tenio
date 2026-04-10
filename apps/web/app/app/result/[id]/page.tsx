@@ -11,6 +11,7 @@ import {
 
 import { ConfidenceBadge } from "../../../../components/confidence-badge";
 import { PilotErrorState } from "../../../../components/pilot-error-state";
+import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../../lib/locale";
 import { getCurrentSession, getResultDetail } from "../../../../lib/pilot-api";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,10 @@ export default async function ResultDetailPage({
 }) {
   const { id } = await params;
   const session = await getCurrentSession();
+  const { messages } = await getLocaleMessages();
+  const fallbackMessages = getMessagesForLocale("en");
+  const pilotError = getPilotErrorChrome(messages);
+  const resultMessages = messages.resultDetail ?? fallbackMessages.resultDetail;
   const canDownloadEvidence = session
     ? hasPermission(session.role, "evidence:download")
     : false;
@@ -34,8 +39,11 @@ export default async function ResultDetailPage({
   } catch {
     return (
       <PilotErrorState
-        title="Result detail unavailable"
-        body={`The result detail view for ${id} could not load from the API. Confirm the API and database are healthy, then try again.`}
+        eyebrow={pilotError.eyebrow}
+        openPilotGuide={pilotError.openPilotGuide}
+        contactSupport={pilotError.contactSupport}
+        title={pilotError.resultDetailUnavailableTitle}
+        body={pilotError.resultDetailUnavailableBody.replace("{resultId}", id)}
       />
     );
   }
@@ -49,7 +57,7 @@ export default async function ResultDetailPage({
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back to Resolved
+            {resultMessages.backLink}
           </Link>
         </div>
 
@@ -57,9 +65,7 @@ export default async function ResultDetailPage({
           <div className="mb-4 flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">{result.id}</h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Structured claim-status result with evidence and provenance
-              </p>
+              <p className="mt-1 text-sm text-gray-600">{resultMessages.subtitle}</p>
             </div>
             {RESULT_ACTIONS_ENABLED ? (
               <div className="flex items-center gap-2">
@@ -78,19 +84,17 @@ export default async function ResultDetailPage({
           <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
             <CheckCircle className="h-6 w-6 text-green-600" />
             <div>
-              <div className="text-base font-medium text-green-900">Verified with Review</div>
-              <div className="mt-1 text-sm text-green-700">
-                Result has been verified by a claims specialist and is ready for export
-              </div>
+              <div className="text-base font-medium text-green-900">{resultMessages.verifiedTitle}</div>
+              <div className="mt-1 text-sm text-green-700">{resultMessages.verifiedBody}</div>
             </div>
           </div>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {[
-            { label: "Claim Status", value: result.claimStatus },
+            { label: resultMessages.fields.claimStatus, value: result.claimStatus },
             {
-              label: "Confidence Score",
+              label: resultMessages.fields.confidenceScore,
               value: (
                 <div className="flex items-center gap-2">
                   <ConfidenceBadge confidence={result.confidence} />
@@ -98,11 +102,11 @@ export default async function ResultDetailPage({
                 </div>
               )
             },
-            { label: "Last Verified", value: result.lastVerified },
-            { label: "Source Payer", value: result.payerName },
-            { label: "Evidence Count", value: `${result.evidence.length} items` },
-            { label: "Next Action", value: result.nextAction },
-            { label: "Trace ID", value: result.agentTraceId ?? "Not captured" }
+            { label: resultMessages.fields.lastVerified, value: result.lastVerified },
+            { label: resultMessages.fields.sourcePayer, value: result.payerName },
+            { label: resultMessages.fields.evidenceCount, value: `${result.evidence.length} items` },
+            { label: resultMessages.fields.nextAction, value: result.nextAction },
+            { label: resultMessages.fields.traceId, value: result.agentTraceId ?? "Not captured" }
           ].map(({ label, value }) => (
             <div key={label} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="mb-1 text-xs text-gray-600">{label}</div>
@@ -121,22 +125,22 @@ export default async function ResultDetailPage({
           <div className="space-y-6 xl:col-span-2">
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h3 className="text-sm font-medium text-gray-900">Claim Details</h3>
+                <h3 className="text-sm font-medium text-gray-900">{resultMessages.outcomeSummaryHeading}</h3>
               </div>
               <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                 {[
                   {
-                    label: "Claim ID",
+                    label: resultMessages.fields.claimId,
                     value: (
                       <Link href={`/app/claim/${result.claimId}`} className="font-medium text-blue-600 hover:text-blue-700">
                         {result.claimNumber}
                       </Link>
                     )
                   },
-                  { label: "Payer", value: result.payerName },
-                  { label: "Service Date", value: result.serviceDate },
+                  { label: resultMessages.fields.payer, value: result.payerName },
+                  { label: resultMessages.fields.serviceDate, value: result.serviceDate },
                   {
-                    label: "Billed Amount",
+                    label: resultMessages.fields.billedAmount,
                     value:
                       result.billedAmountCents !== null
                         ? `$${(result.billedAmountCents / 100).toFixed(2)}`
@@ -153,12 +157,12 @@ export default async function ResultDetailPage({
 
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h3 className="text-sm font-medium text-gray-900">Status Details</h3>
+                <h3 className="text-sm font-medium text-gray-900">{resultMessages.provenanceHeading}</h3>
               </div>
               <div className="space-y-3 p-5">
                 <div className="flex items-start justify-between rounded bg-gray-50 p-3">
                   <div>
-                    <div className="mb-1 text-xs text-gray-600">Current Status</div>
+                    <div className="mb-1 text-xs text-gray-600">{resultMessages.fields.currentStatus}</div>
                     <div className="text-sm font-medium text-gray-900">{result.claimStatus}</div>
                   </div>
                   <span className="inline-flex rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -166,11 +170,11 @@ export default async function ResultDetailPage({
                   </span>
                 </div>
                 <div className="rounded bg-gray-50 p-3">
-                  <div className="mb-1 text-xs text-gray-600">Status Reason</div>
+                  <div className="mb-1 text-xs text-gray-600">{resultMessages.fields.statusReason}</div>
                   <div className="text-sm text-gray-900">{result.portalText}</div>
                 </div>
                 <div className="rounded bg-gray-50 p-3">
-                  <div className="mb-1 text-xs text-gray-600">Expected Resolution</div>
+                  <div className="mb-1 text-xs text-gray-600">{resultMessages.fields.expectedResolution}</div>
                   <div className="text-sm text-gray-900">{result.nextAction}</div>
                 </div>
               </div>
@@ -183,11 +187,11 @@ export default async function ResultDetailPage({
                 </div>
                 <div>
                   <h3 className="mb-2 text-sm font-medium text-blue-900">
-                    What This Result Means
+                    {resultMessages.whatThisMeansHeading}
                   </h3>
                   <p className="mb-3 text-sm text-blue-800">{result.machineSummary}</p>
                   <div className="mb-1 text-sm font-medium text-blue-900">
-                    Recommended Next Steps:
+                    {resultMessages.recommendedNextSteps}:
                   </div>
                   <ul className="list-inside list-disc space-y-1 text-sm text-blue-800">
                     {result.recommendedNextSteps.map((step) => (
@@ -202,7 +206,7 @@ export default async function ResultDetailPage({
           <div className="space-y-6">
             <section className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-4">
-                <h3 className="text-sm font-medium text-gray-900">Evidence & Provenance</h3>
+                <h3 className="text-sm font-medium text-gray-900">{resultMessages.supportingEvidenceHeading}</h3>
               </div>
               <div className="space-y-3 p-5">
                 {result.evidence.map((artifact) => (
@@ -221,11 +225,11 @@ export default async function ResultDetailPage({
                             rel="noreferrer"
                             className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700"
                           >
-                            Open artifact
+                            {messages.claim?.openArtifact ?? fallbackMessages.claim.openArtifact}
                           </a>
                         ) : (
                           <div className="mt-2 text-xs text-gray-500">
-                            Evidence download is limited to owner, manager, and operator roles.
+                            {messages.claim?.downloadRestricted ?? fallbackMessages.claim.downloadRestricted}
                           </div>
                         )}
                       </div>
@@ -236,7 +240,7 @@ export default async function ResultDetailPage({
                   <div className="flex items-start gap-2">
                     <FileText className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Portal Metadata</div>
+                      <div className="text-sm font-medium text-gray-900">{resultMessages.fields.portalMetadata}</div>
                       <div className="mt-1 text-xs text-gray-600">
                         {result.metadata.map((line) => (
                           <div key={line}>{line}</div>

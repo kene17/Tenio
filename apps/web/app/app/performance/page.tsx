@@ -2,6 +2,7 @@ import { hasPermission } from "@tenio/domain";
 import { redirect } from "next/navigation";
 
 import { PilotErrorState } from "../../../components/pilot-error-state";
+import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../lib/locale";
 import { getCurrentSession, getPerformance } from "../../../lib/pilot-api";
 import { PerformanceClient } from "./performance-client";
 
@@ -15,13 +16,23 @@ export default async function PerformancePage() {
   }
 
   try {
-    const { item } = await getPerformance();
-    return <PerformanceClient data={item} />;
+    const [{ item }, { messages }] = await Promise.all([getPerformance(), getLocaleMessages()]);
+    return (
+      <PerformanceClient
+        data={item}
+        messages={messages.performance ?? getMessagesForLocale("en").performance}
+      />
+    );
   } catch {
+    const { messages } = await getLocaleMessages();
+    const e = getPilotErrorChrome(messages);
     return (
       <PilotErrorState
-        title="Performance unavailable"
-        body="The performance dashboard could not load live metrics from the API. Confirm the API is healthy, then refresh."
+        eyebrow={e.eyebrow}
+        openPilotGuide={e.openPilotGuide}
+        contactSupport={e.contactSupport}
+        title={e.performanceUnavailableTitle}
+        body={e.performanceUnavailableBody}
       />
     );
   }

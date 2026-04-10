@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { getFollowUpOutcomeOptions, type FollowUpOutcomeValue } from "../lib/display-labels";
+import type { TenioMessages } from "../lib/locale";
+import fallbackMessages from "../messages/en.json";
+
 type ClaimWorkflowActionsProps = {
   claimId: string;
   currentOwner: string | null;
@@ -11,6 +15,7 @@ type ClaimWorkflowActionsProps = {
   showOwnerAssignment?: boolean;
   showReviewNote?: boolean;
   showStructuredFollowUp?: boolean;
+  messages?: TenioMessages["followUp"];
 };
 
 async function postAction(
@@ -58,20 +63,16 @@ export function ClaimWorkflowActions({
   canWorkClaims = true,
   showOwnerAssignment = true,
   showReviewNote = true,
-  showStructuredFollowUp = true
+  showStructuredFollowUp = true,
+  messages
 }: ClaimWorkflowActionsProps) {
   const router = useRouter();
+  const followUpMessages = messages ?? fallbackMessages.followUp;
+  const outcomeOptions = getFollowUpOutcomeOptions(followUpMessages);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [owner, setOwner] = useState(currentOwner ?? "");
   const [note, setNote] = useState("");
-  const [followUpOutcome, setFollowUpOutcome] = useState<
-    | "status_checked"
-    | "pending_payer"
-    | "more_info_needed"
-    | "needs_review"
-    | "phone_call_required"
-    | "resolved"
-  >("status_checked");
+  const [followUpOutcome, setFollowUpOutcome] = useState<FollowUpOutcomeValue>("status_checked");
   const [followUpNote, setFollowUpNote] = useState("");
   const [followUpNextAction, setFollowUpNextAction] = useState("");
   const [followUpAt, setFollowUpAt] = useState("");
@@ -99,17 +100,19 @@ export function ClaimWorkflowActions({
     <div className="space-y-3">
       {!canWorkClaims ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
-          Follow-up actions are limited to owner, manager, and operator roles.
+          {followUpMessages.limitedAccess}
         </div>
       ) : null}
       {showOwnerAssignment ? (
         <div className="rounded-lg border border-gray-200 p-3">
-          <label className="mb-1 block text-xs font-medium text-gray-600">Owner</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            {followUpMessages.ownerLabel}
+          </label>
           <div className="flex gap-2">
             <input
               value={owner}
               onChange={(event) => setOwner(event.target.value)}
-              placeholder="Assign owner"
+              placeholder={followUpMessages.ownerPlaceholder}
               disabled={!canWorkClaims}
               className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
@@ -119,7 +122,7 @@ export function ClaimWorkflowActions({
               onClick={() => handleAction({ action: "assign_owner", assignee: owner.trim() })}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
             >
-              Assign
+              {followUpMessages.assignButton}
             </button>
           </div>
         </div>
@@ -127,12 +130,14 @@ export function ClaimWorkflowActions({
 
       {showReviewNote ? (
         <div className="rounded-lg border border-gray-200 p-3">
-          <label className="mb-1 block text-xs font-medium text-gray-600">Review note</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            {followUpMessages.reviewNoteLabel}
+          </label>
           <textarea
             value={note}
             onChange={(event) => setNote(event.target.value)}
             rows={3}
-            placeholder="Add a note, decision rationale, or escalation detail..."
+            placeholder={followUpMessages.reviewNotePlaceholder}
             disabled={!canWorkClaims}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
@@ -142,7 +147,7 @@ export function ClaimWorkflowActions({
             onClick={() => handleAction({ action: "add_note", note: note.trim() }, true)}
             className="mt-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
-            Save Note
+            {followUpMessages.saveNoteButton}
           </button>
         </div>
       ) : null}
@@ -151,63 +156,60 @@ export function ClaimWorkflowActions({
         <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3">
           <div className="mb-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-              Structured Follow-up
+              {followUpMessages.structuredHeading}
             </div>
             <div className="mt-1 text-xs text-blue-900">
-              Log what happened, define the next action, and set the next touch point.
+              {followUpMessages.structuredBody}
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">Outcome</span>
+              <span className="mb-1 block text-xs font-medium text-gray-600">
+                {followUpMessages.outcomeLabel}
+              </span>
               <select
                 value={followUpOutcome}
                 onChange={(event) =>
-                  setFollowUpOutcome(
-                    event.target.value as
-                      | "status_checked"
-                      | "pending_payer"
-                      | "more_info_needed"
-                      | "needs_review"
-                      | "phone_call_required"
-                      | "resolved"
-                  )
+                  setFollowUpOutcome(event.target.value as FollowUpOutcomeValue)
                 }
                 disabled={!canWorkClaims}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               >
-                <option value="status_checked">Status checked</option>
-                <option value="pending_payer">Pending payer</option>
-                <option value="more_info_needed">More info needed</option>
-                <option value="needs_review">Needs review</option>
-                <option value="phone_call_required">Phone call required</option>
-                <option value="resolved">Resolved</option>
+                {outcomeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">Next action</span>
+              <span className="mb-1 block text-xs font-medium text-gray-600">
+                {followUpMessages.nextActionLabel}
+              </span>
               <input
                 value={followUpNextAction}
                 onChange={(event) => setFollowUpNextAction(event.target.value)}
-                placeholder="Example: Wait for payer update, collect clinic note, call payer"
-                disabled={!canWorkClaims}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">Follow-up note</span>
-              <textarea
-                value={followUpNote}
-                onChange={(event) => setFollowUpNote(event.target.value)}
-                rows={3}
-                placeholder="Document what happened and what the coordinator learned."
+                placeholder={followUpMessages.nextActionPlaceholder}
                 disabled={!canWorkClaims}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-600">
-                Follow-up by
+                {followUpMessages.noteLabel}
+              </span>
+              <textarea
+                value={followUpNote}
+                onChange={(event) => setFollowUpNote(event.target.value)}
+                rows={3}
+                placeholder={followUpMessages.notePlaceholder}
+                disabled={!canWorkClaims}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">
+                {followUpMessages.followUpByLabel}
               </span>
               <input
                 type="datetime-local"
@@ -244,7 +246,7 @@ export function ClaimWorkflowActions({
               }
               className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              Log Follow-up
+              {followUpMessages.saveButton}
             </button>
           </div>
         </div>
@@ -258,7 +260,7 @@ export function ClaimWorkflowActions({
           onClick={() => handleAction({ action: "approve_review", note: note.trim() || undefined })}
           className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          Mark Reviewed
+          {followUpMessages.actions.markReviewed}
         </button>
         <button
           type="button"
@@ -266,7 +268,7 @@ export function ClaimWorkflowActions({
           onClick={() => handleAction({ action: "escalate_claim", note: note.trim() || undefined })}
           className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60"
         >
-          Escalate
+          {followUpMessages.actions.escalate}
         </button>
         <button
           type="button"
@@ -276,7 +278,7 @@ export function ClaimWorkflowActions({
           }
           className="rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
         >
-          Mark Call Required
+          {followUpMessages.actions.markCallRequired}
         </button>
         <button
           type="button"
@@ -284,7 +286,7 @@ export function ClaimWorkflowActions({
           onClick={() => handleAction({ action: "resolve_claim", note: note.trim() || undefined })}
           className="rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-60"
         >
-          Mark Resolved
+          {followUpMessages.actions.markResolved}
         </button>
         <button
           type="button"
@@ -292,7 +294,7 @@ export function ClaimWorkflowActions({
           onClick={() => handleAction({ action: "reopen_claim", note: note.trim() || undefined })}
           className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
         >
-          Reopen
+          {followUpMessages.actions.reopen}
         </button>
       </div>
     </div>

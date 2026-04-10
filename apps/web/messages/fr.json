@@ -16,31 +16,193 @@
     "signOut": "Fermer la session",
     "languageLabel": "Langue"
   },
+  "login": {
+    "heading": "Se connecter à Tenio",
+    "subheading": "Votre espace de suivi des réclamations",
+    "emailLabel": "Courriel professionnel",
+    "passwordLabel": "Mot de passe",
+    "submit": "Entrer dans l'espace",
+    "helpPrefix": "Besoin d'aide pour l'accès? Contactez",
+    "guidePrefix": "Besoin de la liste de mise en route?",
+    "guideLink": "Ouvrir le guide de l'espace",
+    "error": "Identifiants invalides. Réessayez ou contactez le support."
+  },
+  "retrieve": {
+    "label": "Demander une vérification du statut",
+    "tooltip": "Récupère le dernier statut depuis le système du payeur. Cela ne modifie pas à lui seul l'état officiel de la réclamation.",
+    "loading": "Récupération de l'instantané payeur... Cela prend habituellement de 1 à 3 minutes.",
+    "completed": "Instantané payeur mis à jour. Consultez l'onglet Preuves pour les résultats."
+  },
+  "roleHelp": {
+    "title": "Ce que vous pouvez faire ici"
+  },
+  "queue": {
+    "heading": "Votre journée de suivi",
+    "subheading": "Les réclamations qui demandent votre attention aujourd'hui, triées par urgence. Travaillez de haut en bas.",
+    "overviewLabel": "Aperçu d'aujourd'hui",
+    "filterPlaceholder": "Filtrer par payeur, statut ou responsable",
+    "filtersButton": "Filtres",
+    "activeFiltersLabel": "Filtres actifs :",
+    "clearAllFilters": "Tout effacer",
+    "searchAllClaimsCta": "Vous cherchez une réclamation précise? Recherchez dans toutes les réclamations →",
+    "viewFullClaim": "Voir la réclamation complète",
+    "currentStatusLabel": "Statut actuel",
+    "labels": {
+      "payer": "Payeur",
+      "service": "Service",
+      "assignedOwner": "Responsable attribué",
+      "lastTouched": "Dernier suivi",
+      "evidence": "Preuves"
+    },
+    "kpis": {
+      "openClaims": "Réclamations ouvertes",
+      "needsReview": "À revoir",
+      "atRisk": "SLA à risque",
+      "evidenceAttached": "Preuves jointes",
+      "avgConfidence": "Confiance moyenne",
+      "workspace": "Espace"
+    },
+    "columns": {
+      "priority": "Priorité",
+      "claimId": "No de réclamation",
+      "patient": "Patient",
+      "payer": "Payeur",
+      "service": "Service",
+      "status": "Statut",
+      "nextAction": "Prochaine action",
+      "queueReason": "File / raison",
+      "owner": "Responsable",
+      "lastTouched": "Dernier suivi",
+      "sla": "Âge / SLA",
+      "confidence": "Confiance",
+      "evidence": "Preuves",
+      "actions": "Actions"
+    },
+    "sla": {
+      "onTrack": "En bonne voie",
+      "atRisk": "À risque",
+      "overdue": "En retard"
+    },
+    "priority": {
+      "high": "Priorité élevée"
+    },
+    "roleHelp": {
+      "manager": "Voir toutes les réclamations dans la file. Réattribuer le responsable. Demander des vérifications de statut.",
+      "operator": "Traiter la file. Ouvrir les réclamations, consigner les suivis et demander des vérifications de statut.",
+      "viewer": "Voir les éléments de la file et le statut des réclamations. Vous ne pouvez effectuer aucune action depuis cette page."
+    },
+    "empty": {
+      "noAttentionTitle": "Rien ne demande d'attention pour le moment",
+      "noAttentionBody": "Toutes les réclamations sont à jour ou en attente d'une réponse du payeur. Revenez lorsque de nouvelles réclamations sont importées ou que les SLA approchent.",
+      "noAttentionCta": "Importer plus de réclamations",
+      "noClaimsTitle": "Votre file attend des réclamations",
+      "noClaimsBody": "Importez vos réclamations actives pour commencer le suivi. Une fois importées, les réclamations qui demandent de l'attention apparaîtront ici.",
+      "noClaimsCta": "Importer des réclamations",
+      "noMatchesTitle": "Aucune réclamation ne correspond à vos filtres",
+      "noMatchesBody": "Essayez d'ajuster votre recherche ou vos filtres pour voir plus d'éléments de la file."
+    },
+    "common": {
+      "unassigned": "Non attribué",
+      "unspecified": "Non précisé",
+      "serviceNotCaptured": "Non saisi",
+      "evidenceArtifacts": "preuve(s) jointe(s)"
+    }
+  },
+  "claims": {
+    "heading": "Toutes les réclamations",
+    "subheading": "Votre inventaire complet de réclamations. Recherchez, triez et ouvrez n'importe quelle réclamation pour voir son historique.",
+    "searchPlaceholder": "Rechercher par nom du patient, numéro de réclamation ou payeur",
+    "sortLabel": "Trier par",
+    "sortOptions": {
+      "ops_default": "Priorité opérationnelle",
+      "claim_asc": "No de réclamation A-Z",
+      "claim_desc": "No de réclamation Z-A",
+      "payer_asc": "Payeur A-Z",
+      "service_date_desc": "Date de service la plus récente",
+      "updated_desc": "Mis à jour récemment",
+      "priority_desc": "Priorité la plus élevée"
+    },
+    "exportButton": "Exporter les réclamations",
+    "exportTooltip": "Téléchargez un CSV de la liste actuellement filtrée.",
+    "intakeLabel": "Ajouter une réclamation",
+    "intakeBody": "Créez une seule réclamation manuellement et placez-la dans le flux de suivi.",
+    "goToQueueCta": "Prêt à commencer? Allez à votre file →",
+    "clearFilters": "Effacer les filtres",
+    "kpis": {
+      "total": "Total des réclamations",
+      "active": "Réclamations actives",
+      "resolved": "Réclamations résolues",
+      "visible": "Réclamations visibles"
+    },
+    "headers": {
+      "claim": "Réclamation",
+      "payer": "Payeur",
+      "service": "Service",
+      "status": "Statut",
+      "owner": "Responsable",
+      "lastTouched": "Dernier suivi",
+      "resolution": "Résolution",
+      "evidence": "Preuves",
+      "nextAction": "Prochaine action",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "En attente",
+      "in_review": "En révision",
+      "resolved": "Résolue",
+      "needs_review": "À revoir",
+      "blocked": "Bloquée"
+    },
+    "roleHelp": {
+      "manager": "Voir toutes les réclamations et exporter la liste actuelle.",
+      "operator": "Voir toutes les réclamations et ajouter une seule réclamation manuellement.",
+      "viewer": "Voir les réclamations seulement."
+    },
+    "empty": {
+      "title": "Aucune réclamation pour l'instant",
+      "body": "Importez votre inventaire actif de réclamations pour commencer. Tenio prend en charge les exports CSV de Jane App et d'autres formats courants.",
+      "cta": "Importer des réclamations"
+    },
+    "noSearch": {
+      "title": "Aucune réclamation ne correspond à votre recherche",
+      "body": "Essayez d'ajuster vos filtres ou votre terme de recherche. Si vous cherchez une réclamation résolue, consultez l'onglet Résolu."
+    },
+    "common": {
+      "unassigned": "Non attribué",
+      "unspecified": "Non précisé",
+      "noServiceCode": "Aucun code de service",
+      "view": "Voir",
+      "visibleSummary": "Réclamations visibles",
+      "sortedBySelection": "Triées selon votre sélection"
+    }
+  },
   "onboarding": {
-    "title": "Intégration",
-    "subtitle": "Importez l'inventaire actif avec validation d'aperçu, détection des doublons et rapprochement avant la mise en service.",
+    "title": "Importer des réclamations",
+    "subtitle": "Exportez vos réclamations actives depuis Jane App et téléversez le fichier ci-dessous. Tenio fera correspondre les colonnes automatiquement et vous montrera un aperçu avant tout enregistrement.",
     "downloadTemplate": "Télécharger le modèle",
-    "uploadCsv": "Téléverser un CSV",
+    "uploadCsv": "Téléverser un CSV de réclamations",
     "configuredPayers": "Payeurs configurés",
     "rowsLoaded": "Lignes chargées",
-    "readyToCommit": "Prêtes à valider",
-    "skippedRows": "Lignes ignorées",
-    "importInstructionsTitle": "Instructions d'importation",
-    "importInstructionsBody": "Utilisez exactement les en-têtes du modèle. `payerId` ou `payerName` doit correspondre à un profil de payeur configuré. Pour les pilotes paramédicaux à Ottawa, commencez par le profil CSV Jane App afin de conserver la discipline de service, le code et les métadonnées d'adhésion.",
-    "expectedHeaders": "En-têtes attendus",
+    "readyToCommit": "Prêtes à importer",
+    "skippedRows": "Lignes avec problème",
+    "importInstructionsTitle": "Téléversez vos réclamations",
+    "importInstructionsBody": "Glissez-déposez votre fichier CSV ici ou cliquez pour parcourir. Format pris en charge : export CSV Jane App depuis l'onglet Billing.",
+    "expectedHeaders": "Colonnes attendues",
     "uploadedFile": "Fichier téléversé",
     "none": "Aucun",
-    "previewImport": "Prévisualiser l'importation",
-    "commitReadyRows": "Valider les lignes prêtes",
+    "previewImport": "Réviser avant l'importation",
+    "commitButtonPrefix": "Importer",
+    "commitButtonSuffix": "réclamations",
+    "commitButtonSubtext": "Seules les lignes valides seront importées.",
     "configuredPayersTitle": "Payeurs configurés",
-    "configuredPayersBody": "Les lignes importées doivent correspondre exactement à ces profils de payeur ou à leur nom.",
-    "previewResultsTitle": "Résultats de l'aperçu",
-    "previewResultsBody": "Tenio ne validera que les lignes marquées Créer ou Mettre à jour.",
+    "configuredPayersBody": "Voici les profils de payeur actuellement disponibles pour les réclamations importées.",
+    "previewResultsTitle": "Réviser avant l'importation",
+    "previewResultsBody": "Tenio n'importera que les lignes marquées comme nouvelles réclamations ou mises à jour.",
     "summaryTotal": "Total",
-    "summaryCreate": "Créer",
-    "summaryUpdate": "Mettre à jour",
-    "summaryInvalid": "Invalide",
-    "summaryDuplicate": "Doublon",
+    "summaryCreate": "Nouvelles réclamations",
+    "summaryUpdate": "Mises à jour",
+    "summaryInvalid": "Avec erreurs",
+    "summaryDuplicate": "Existe déjà",
     "columnRow": "Ligne",
     "columnAction": "Action",
     "columnClaim": "Réclamation",
@@ -54,27 +216,45 @@
     "missing": "Manquant",
     "invalid": "Invalide",
     "templateProfileLabel": "Profil d'importation",
-    "templateProfileHelp": "Choisissez le format source le plus proche avant l'aperçu. Jane App est le profil recommandé pour le paramédical à Ottawa. Le modèle générique exige une correspondance exacte. Dentrix est une base de travail avec mappage d'alias d'en-têtes, pas un parseur certifié.",
-    "profileJane": "CSV Jane App",
-    "profileJaneDescription": "Profil paramédical d'Ottawa recommandé avec alias d'en-têtes Jane et valeurs canadiennes par défaut.",
+    "templateProfileHelp": "Choisissez le profil qui correspond le mieux à votre fichier avant de générer l'aperçu.",
+    "profileJane": "Jane App (recommandé pour le paramédical)",
+    "profileJaneDescription": "Le meilleur choix pour les cliniques paramédicales d'Ottawa qui exportent leurs réclamations actives depuis Jane App.",
     "profileGeneric": "Modèle générique Tenio",
-    "profileGenericDescription": "Correspondance exacte avec le modèle CSV Tenio.",
-    "profileDentrix": "Gabarit CSV Dentrix",
-    "profileDentrixDescription": "Mappage initial des alias pour exports de cabinets dentaires et fichiers d'exemple.",
-    "previewGeneratedNotice": "Aperçu généré. Vérifiez les lignes ignorées avant de valider.",
+    "profileGenericDescription": "Utilisez ce profil lorsque votre fichier correspond déjà aux colonnes du modèle Tenio.",
+    "profileDentrix": "Dentrix",
+    "profileDentrixDescription": "Prise en charge de départ pour les exports Dentrix.",
+    "previewGeneratedNotice": "Aperçu prêt. Vérifiez chaque ligne avant l'importation.",
     "commitNoticePrefix": "",
-    "commitNoticeSuffix": "lignes ont été intégrées au backlog actif.",
-    "uploadRequiredError": "Téléversez un fichier CSV avant de demander un aperçu.",
-    "previewRequiredError": "Prévisualisez d'abord le fichier. Tenio ne valide que les lignes marquées Créer ou Mettre à jour.",
-    "previewFailedError": "L'aperçu d'importation a échoué. Vérifiez le format CSV et réessayez.",
-    "commitFailedError": "La validation de l'importation a échoué. Aucun changement n'a été appliqué au backlog.",
-    "actionCreate": "Créer",
-    "actionUpdate": "Mettre à jour",
-    "actionSkip": "Ignorer",
+    "commitNoticeSuffix": "réclamations importées avec succès.",
+    "uploadRequiredError": "Téléversez un fichier CSV avant de générer l'aperçu.",
+    "previewRequiredError": "Prévisualisez d'abord le fichier. Seules les lignes valides peuvent être importées.",
+    "previewFailedError": "Impossible d'apercevoir ce fichier. Vérifiez le format et réessayez.",
+    "commitFailedError": "Impossible d'importer ces réclamations. Aucun changement n'a été enregistré.",
+    "actionCreate": "Nouvelle réclamation",
+    "actionUpdate": "Met à jour une réclamation",
+    "actionDuplicate": "Existe déjà",
+    "actionSkip": "Avec erreurs",
+    "roleHelp": {
+      "manager": "Importer des lots de réclamations par CSV.",
+      "operator": "Importer des lots de réclamations par CSV.",
+      "viewer": "L'importation n'est pas disponible pour votre rôle."
+    },
+    "firstVisit": {
+      "title": "Prêt à importer vos premières réclamations?",
+      "body": "Exportez vos réclamations actives depuis Jane App et téléversez le fichier ci-dessous. Tenio vous guidera avec un aperçu avant tout enregistrement.",
+      "helper": "Vous ne savez pas comment exporter depuis Jane App? Allez à Billing → Claims → Export as CSV."
+    },
+    "complete": {
+      "title": "",
+      "bodyPrefix": "",
+      "bodySuffix": "réclamations importées avec succès."
+    },
+    "noAccessTitle": "Importation indisponible",
+    "noAccessBody": "L'importation n'est pas disponible pour votre rôle.",
     "setup": {
-      "title": "Liste de configuration",
-      "subtitle": "Utilisez cette liste pour terminer les éléments essentiels avant que l'équipe ne commence à travailler les réclamations dans Tenio.",
-      "progressSuffix": "complétées",
+      "title": "Configuration de l'espace",
+      "subtitle": "Terminez ces étapes pour que votre équipe puisse travailler dans Tenio.",
+      "progressSuffix": "terminées",
       "nextStepLabel": "Prochaine étape :",
       "allStepsComplete": "Toutes les étapes de configuration sont terminées.",
       "statusComplete": "Terminée",
@@ -82,50 +262,50 @@
       "statusPending": "À venir",
       "contactSupport": "Contacter le support",
       "openImportTool": "Ouvrir l'outil d'importation",
-      "openConfiguration": "Ouvrir la configuration",
-      "openQueue": "Ouvrir la file",
+      "openConfiguration": "Configurer vos payeurs",
+      "openQueue": "Examiner votre file",
       "openSetupChecklist": "Ouvrir la liste de configuration",
       "skipForNow": "Ignorer pour le moment",
-      "skipLockedMessage": "Terminez votre première importation avant de fermer ce guide de configuration.",
-      "goToQueue": "Aller à la file",
-      "updateError": "La liste de configuration n'a pas pu être mise à jour. Réessayez.",
+      "skipLockedMessage": "Terminez votre première importation avant d'ignorer ce guide.",
+      "goToQueue": "Aller à la file →",
+      "updateError": "Impossible de mettre à jour la liste de configuration. Réessayez.",
       "welcomeEyebrow": "Configuration de l'espace",
-      "welcomeTitle": "Terminez ces quatre étapes avant la mise en service",
-      "welcomeBody": "Tenio vous guide pour l'accès de l'équipe, la première importation, la vérification des payeurs et la première revue de la file.",
+      "welcomeTitle": "Bienvenue dans Tenio. Préparons votre espace.",
+      "welcomeBody": "Ajoutez votre équipe, importez vos réclamations, configurez vos payeurs et examinez votre file avant de commencer les suivis réels.",
       "tourEyebrow": "Visite de la file",
-      "skipTour": "Ignorer la visite",
+      "skipTour": "Fermer la visite",
       "finishTour": "Terminer la visite",
       "nextTourStep": "Conseil suivant",
       "steps": {
         "team_members": {
-          "title": "Ajoutez les membres de votre équipe",
-          "description": "Ajoutez les personnes qui travailleront et réviseront les réclamations. Pour ce pilote, le provisionnement initial reste géré avec le support Tenio."
+          "title": "Ajoutez votre équipe",
+          "description": "Contactez le support pour ajouter des opérateurs et des gestionnaires à votre compte."
         },
         "first_import": {
           "title": "Importez vos premières réclamations",
-          "description": "Importez votre inventaire actif afin que la file reflète le travail réel avant la mise en service."
+          "description": "Téléversez un export CSV de votre logiciel de gestion."
         },
         "configure_payers": {
           "title": "Configurez vos payeurs",
-          "description": "Confirmez les seuils de payeur et l'attribution par défaut avant que l'équipe ne commence à travailler la file."
+          "description": "Définissez les règles de suivi pour chaque payeur avec lequel votre clinique travaille."
         },
         "review_first_queue": {
-          "title": "Passez en revue votre première file",
+          "title": "Examinez votre première file",
           "description": "Ouvrez la file, examinez les priorités et, au besoin, ouvrez une réclamation pour voir comment le suivi fonctionne."
         }
       },
       "tour": {
         "priority": {
-          "title": "Commencez par la colonne Priorité",
-          "body": "Utilisez les indicateurs de priorité pour repérer d'abord les réclamations urgentes et à risque élevé."
+          "title": "Priorité et risque SLA",
+          "body": "Le rouge signifie qu'une réclamation est en retard. L'orange signifie qu'elle est à risque. Commencez par le rouge : ces réclamations demandent votre attention aujourd'hui."
         },
         "claim": {
           "title": "Ouvrez une réclamation depuis son numéro",
-          "body": "Cliquez sur un numéro de réclamation pour ouvrir le détail complet, consigner le suivi et revoir les preuves."
+          "body": "Utilisez le numéro de réclamation pour ouvrir la réclamation, revoir son historique et consigner ce qui s'est passé."
         },
         "sla": {
-          "title": "Surveillez la colonne Âge / SLA",
-          "body": "Cette colonne montre le vieillissement et le risque de dépassement afin de décider quoi traiter ensuite."
+          "title": "Surveillez le compteur Âge / SLA",
+          "body": "Ce compteur montre le temps écoulé depuis le dernier suivi. Votre objectif : garder chaque réclamation en mouvement."
         }
       }
     }
@@ -135,6 +315,446 @@
       "overview": "Aperçu",
       "evidence": "Preuves",
       "timeline": "Historique"
+    },
+    "pageHeading": "Détail de la réclamation",
+    "pageSubheading": "Suivez une réclamation de l'importation jusqu'à la résolution vérifiée.",
+    "backToQueue": "Retour à la file",
+    "summaryLabels": {
+      "claimId": "No de réclamation",
+      "claimStatus": "Statut de la réclamation",
+      "payer": "Payeur",
+      "owner": "Responsable",
+      "lastUpdated": "Dernière mise à jour",
+      "slaStatus": "Statut SLA"
+    },
+    "sections": {
+      "overview": "Aperçu",
+      "operationalSummary": "Résumé opérationnel",
+      "agentInterpretation": "Ce que Tenio voit en ce moment",
+      "agentInterpretationBody": "La dernière interprétation de Tenio pour cette réclamation et la prochaine étape recommandée.",
+      "actions": "Ce que vous pouvez faire ensuite",
+      "evidence": "Preuves à l'appui",
+      "evidenceBody": "Instantanés payeur et artefacts de soutien capturés pour cette réclamation.",
+      "latestNote": "Dernier suivi",
+      "structuredFollowUp": "Consigner un suivi",
+      "timeline": "Historique",
+      "notes": "Notes et commentaires de révision",
+      "auditTrail": "Comment cela a été résolu"
+    },
+    "overviewFields": {
+      "serviceDate": "Date de service",
+      "claimType": "Type de réclamation",
+      "serviceDiscipline": "Service",
+      "serviceCode": "Code de service",
+      "jurisdiction": "Territoire",
+      "provinceState": "Province / État",
+      "planNumber": "Numéro de régime",
+      "memberCertificate": "Certificat du membre",
+      "billedAmount": "Montant facturé",
+      "allowedAmount": "Montant admissible",
+      "paidAmount": "Montant payé",
+      "patientResponsibility": "Responsabilité du patient",
+      "payerReferenceNumber": "Référence du payeur",
+      "currentPayerResponse": "Réponse actuelle du payeur"
+    },
+    "operationalFields": {
+      "currentQueue": "File actuelle",
+      "nextRecommendedAction": "Prochaine action recommandée",
+      "lastTouched": "Dernier suivi",
+      "assignedOwner": "Responsable attribué",
+      "totalTouches": "Touches",
+      "phoneCallRequired": "Appel requis",
+      "daysSinceLastFollowUp": "Jours depuis le dernier suivi",
+      "reviewState": "État de révision",
+      "escalationState": "État d'escalade"
+    },
+    "agent": {
+      "rationale": "Justification de l'agent",
+      "whyRouted": "Pourquoi cela a été orienté ainsi",
+      "paymentDetails": "Détails du paiement",
+      "recommendedAction": "Action recommandée",
+      "connector": "Connecteur",
+      "executionMode": "Mode d'exécution",
+      "lastObserved": "Dernière observation",
+      "runtime": "Durée",
+      "traceId": "ID de trace"
+    },
+    "actions": {
+      "workflowReason": "Raison du flux :",
+      "retryHistory": "Historique des nouvelles tentatives",
+      "attempt": "Tentative",
+      "readOnly": "Ce rôle peut consulter la réclamation mais ne peut pas modifier l'état du flux."
+    },
+    "evidence": {
+      "emptyTitle": "Aucune preuve capturée pour l'instant",
+      "emptyBody": "Demandez une vérification du statut pour récupérer le dernier instantané du payeur. Les preuves apparaîtront ici une fois la récupération terminée.",
+      "fieldProvenanceTitle": "Provenance des champs",
+      "fieldStatus": "Statut de la réclamation",
+      "fieldPaidAmount": "Montant payé",
+      "fieldPayerReference": "Référence du payeur",
+      "fieldProcessDate": "Date de traitement",
+      "latestStructuredNoteTitle": "Dernière note structurée",
+      "latestNote": "Dernière note",
+      "nextAction": "Prochaine action",
+      "lastTouched": "Dernier suivi",
+      "noNotes": "Aucune note saisie"
+    },
+    "timeline": {
+      "emptyTitle": "Aucune activité enregistrée pour l'instant",
+      "emptyBody": "Chaque action effectuée sur cette réclamation apparaîtra ici : vérifications de statut, notes de suivi et changements de flux.",
+      "noReviewComments": "Aucun commentaire de révision enregistré pour l'instant.",
+      "quickLinks": "Liens rapides",
+      "exportEvidence": "Exporter les preuves"
+    },
+    "readOnly": "Ce rôle peut consulter la réclamation mais ne peut pas modifier l'état du flux.",
+    "phoneCallRequired": "Appel requis",
+    "phoneCallFlagged": "Signalé",
+    "phoneCallWorkflowFlagged": "Signalé dans le flux",
+    "openArtifact": "Ouvrir l'artefact",
+    "downloadRestricted": "Le téléchargement des preuves est limité aux rôles propriétaire, gestionnaire et opérateur.",
+    "common": {
+      "unassigned": "Non attribué",
+      "notCaptured": "Non saisi",
+      "noResponseCaptured": "Aucune réponse capturée",
+      "noReviewRequired": "Aucune révision requise",
+      "yes": "Oui",
+      "no": "Non",
+      "primaryArtifact": "Artefact principal",
+      "secondaryArtifact": "Artefact secondaire"
     }
+  },
+  "followUp": {
+    "limitedAccess": "Le suivi structuré est limité aux rôles propriétaire, gestionnaire et opérateur.",
+    "ownerLabel": "Responsable",
+    "ownerPlaceholder": "Attribuer un responsable",
+    "assignButton": "Attribuer",
+    "reviewNoteLabel": "Note de révision",
+    "reviewNotePlaceholder": "Ajoutez le contexte, la justification ou une note de flux.",
+    "saveNoteButton": "Enregistrer la note",
+    "structuredHeading": "Suivi structuré",
+    "structuredBody": "Consignez ce qui s'est passé et ce qui vient ensuite.",
+    "outcomeLabel": "Résultat",
+    "nextActionLabel": "Prochaine action",
+    "nextActionPlaceholder": "Exemple : Faire un suivi dans 5 jours",
+    "noteLabel": "Note",
+    "notePlaceholder": "Documentez ce qui s'est passé et la suite.",
+    "followUpByLabel": "Faire un suivi avant",
+    "saveButton": "Enregistrer le suivi",
+    "actions": {
+      "markReviewed": "Marquer comme révisé",
+      "escalate": "Escalader",
+      "markCallRequired": "Marquer appel requis",
+      "markResolved": "Marquer comme résolu",
+      "reopen": "Rouvrir"
+    },
+    "outcomes": {
+      "status_checked": "Vérifié — aucune action requise pour l'instant",
+      "pending_payer": "En attente du payeur",
+      "more_info_needed": "Plus d'information requise",
+      "needs_review": "Signalé pour révision",
+      "phone_call_required": "Appel requis",
+      "resolved": "Résolu — réclamation terminée"
+    }
+  },
+  "results": {
+    "heading": "Réclamations résolues",
+    "subheading": "Les réclamations qui ont atteint un résultat vérifié. Exportez-les pour la conciliation ou l'audit.",
+    "pageNote": "Résultats vérifiés. Ces réclamations ont complété le cycle complet de suivi et sont prêtes pour la conciliation ou l'audit.",
+    "verifiedBadge": "Vérifié",
+    "verifiedWithReviewBadge": "Vérifié avec révision",
+    "needsFollowUpBadge": "Suivi requis",
+    "unresolvedBadge": "Non résolu",
+    "exportButton": "Exporter les résultats",
+    "searchPlaceholder": "Rechercher par ID de résultat, ID de réclamation ou payeur",
+    "filtersButton": "Filtres",
+    "roleHelp": {
+      "manager": "Voir les réclamations résolues et exporter les résultats.",
+      "operator": "Voir les réclamations résolues.",
+      "viewer": "Voir seulement les réclamations résolues."
+    },
+    "kpis": {
+      "verifiedResults": "Résultats vérifiés",
+      "needsFollowUp": "Suivi requis",
+      "exported": "Réclamations exportées",
+      "avgConfidence": "Confiance moyenne"
+    },
+    "headers": {
+      "resultId": "ID de résultat",
+      "claimId": "ID de réclamation",
+      "payer": "Payeur",
+      "verifiedStatus": "Vérifié",
+      "confidence": "Confiance",
+      "lastVerified": "Dernière vérification",
+      "evidence": "Preuves",
+      "exportState": "État d'exportation",
+      "actions": "Actions"
+    },
+    "empty": {
+      "title": "Aucune réclamation résolue pour l'instant",
+      "body": "Les réclamations apparaîtront ici lorsqu'elles auront atteint un résultat vérifié. Continuez à travailler la file : les réclamations résolues atterrissent ici automatiquement.",
+      "cta": "Aller à la file"
+    },
+    "common": {
+      "view": "Voir",
+      "visibleSummary": "Réclamations résolues affichées"
+    }
+  },
+  "resultDetail": {
+    "backLink": "← Retour à Résolu",
+    "subtitle": "Instantané de résultat vérifié prêt pour la conciliation ou l'audit.",
+    "verifiedTitle": "Vérifié",
+    "verifiedBody": "Cette réclamation a atteint un résultat vérifié et est prête pour la conciliation ou l'audit.",
+    "outcomeSummaryHeading": "Résumé du résultat",
+    "supportingEvidenceHeading": "Preuves à l'appui",
+    "provenanceHeading": "Comment cela a été résolu",
+    "whatThisMeansHeading": "Ce que ce résultat signifie",
+    "recommendedNextSteps": "Prochaines étapes recommandées",
+    "fields": {
+      "claimStatus": "Statut de la réclamation",
+      "confidenceScore": "Confiance",
+      "lastVerified": "Dernière vérification",
+      "sourcePayer": "Payeur source",
+      "evidenceCount": "Nombre de preuves",
+      "nextAction": "Prochaine action",
+      "traceId": "ID de trace",
+      "claimId": "ID de réclamation",
+      "payer": "Payeur",
+      "serviceDate": "Date de service",
+      "billedAmount": "Montant facturé",
+      "currentStatus": "Statut actuel",
+      "statusReason": "Raison du statut",
+      "expectedResolution": "Résolution attendue",
+      "portalMetadata": "Métadonnées du portail"
+    }
+  },
+  "performance": {
+    "heading": "Performance",
+    "subheading": "La façon dont votre équipe et l'automatisation performent sur l'ensemble de votre inventaire de réclamations.",
+    "riskLevel": {
+      "high": "Élevé",
+      "medium": "Moyen",
+      "low": "Faible"
+    },
+    "kpis": {
+      "claimsWorkedToday": "Réclamations traitées aujourd'hui",
+      "avgResolutionTime": "Temps moyen de résolution",
+      "slaCompliance": "Respect du SLA",
+      "needsReview": "À revoir",
+      "claimsResolved": "Réclamations résolues",
+      "avgTouchesPerClaim": "Touches moyennes / réclamation",
+      "automationCoverage": "Couverture de l'automatisation",
+      "reviewRate": "Taux de révision",
+      "retryQueue": "File des reprises",
+      "failedRuns": "Exécutions échouées",
+      "lowConfidenceRate": "Taux de faible confiance",
+      "touchesRemoved": "Touches supprimées",
+      "claimsRequiringCall": "Réclamations nécessitant un appel",
+      "callRequiredRate": "Taux d'appel requis",
+      "primaryConnectorSuccess": "Succès du connecteur principal"
+    },
+    "sections": {
+      "throughput": "Débit",
+      "slaCompliance": "Respect du SLA",
+      "automationCoverage": "Couverture de l'automatisation",
+      "reviewRate": "Taux de révision",
+      "connectorHealth": "Santé des connecteurs",
+      "resolutionSnapshotTitle": "Débit",
+      "resolutionSnapshotBody": "Réclamations travaillées par jour et arriéré non résolu au fil du temps.",
+      "queueVolumeTitle": "Respect du SLA",
+      "queueVolumeBody": "Répartition actuelle du travail par statut.",
+      "agingDistributionTitle": "Couverture de l'automatisation",
+      "agingDistributionBody": "Réclamations par tranche d'âge.",
+      "operationalInsightsTitle": "Taux de révision",
+      "operationalInsightsBody": "Alertes opérationnelles et recommandations.",
+      "payerPerformanceTitle": "Performance des payeurs",
+      "payerPerformanceBody": "Mesures de performance par payeur.",
+      "teamPerformanceTitle": "Performance de l'équipe",
+      "teamPerformanceBody": "Mesures en direct par contributeur.",
+      "connectorHealthTitle": "Santé des connecteurs",
+      "connectorHealthBody": "Fiabilité, reprises et échecs par connecteur."
+    },
+    "tables": {
+      "payerPerformance": {
+        "payer": "Payeur",
+        "openClaims": "Réclamations ouvertes",
+        "avgResolutionTime": "Temps moyen de résolution",
+        "slaRisk": "Risque SLA",
+        "needsReview": "% à revoir",
+        "callRequired": "% appel requis",
+        "lastDelay": "Dernier retard"
+      },
+      "teamPerformance": {
+        "owner": "Responsable",
+        "activeClaims": "Réclamations actives",
+        "resolved": "Résolues",
+        "avgTouches": "Touches moyennes",
+        "slaCompliance": "Respect du SLA",
+        "escalationRate": "Taux d'escalade"
+      },
+      "connectorHealth": {
+        "connector": "Connecteur",
+        "mode": "Mode",
+        "completed": "Terminées",
+        "retried": "Reprises",
+        "failed": "Échouées",
+        "successRate": "Taux de succès",
+        "lastActivity": "Dernière activité",
+        "lastError": "Dernière erreur"
+      }
+    },
+    "noConnectorActivity": "Aucune activité de connecteur n'a encore été enregistrée."
+  },
+  "configuration": {
+    "heading": "Configuration des payeurs",
+    "subheadingOwner": "Définissez les règles de suivi pour chaque payeur. Les changements s'appliquent aux nouveaux éléments de la file.",
+    "subheadingManager": "Règles actuelles de suivi par payeur. Contactez votre propriétaire pour apporter des changements.",
+    "sidebarTitle": "Profils de payeur",
+    "sidebarBody": "Configuration active des payeurs et responsabilité des règles.",
+    "roleHelp": {
+      "manager": "Voir les politiques de payeur. Contactez votre propriétaire pour apporter des changements.",
+      "viewer": "La configuration n'est pas disponible pour votre rôle."
+    },
+    "status": {
+      "active": "Actif",
+      "needsAttention": "Attention requise",
+      "inactive": "Inactif"
+    },
+    "summary": {
+      "owner": "Responsable",
+      "jurisdiction": "Territoire",
+      "lastVerified": "Dernière vérification",
+      "reviewThreshold": "Seuil de révision",
+      "escalationThreshold": "Seuil d'escalade",
+      "defaultSla": "SLA par défaut"
+    },
+    "workflowPolicyHeading": "Politique de flux",
+    "workflowPolicyBody": "Définissez les règles de suivi pour chaque payeur avec lequel votre clinique travaille.",
+    "fields": {
+      "defaultOwner": "Responsable par défaut",
+      "defaultOwnerHelp": "Qui prend en charge les nouvelles réclamations de ce payeur par défaut",
+      "reviewThreshold": "Seuil de révision",
+      "reviewThresholdHelp": "Signaler pour révision lorsque la confiance descend sous ce %",
+      "escalationThreshold": "Seuil d'escalade",
+      "escalationThresholdHelp": "Escalader lorsque la confiance descend sous ce %",
+      "defaultSla": "SLA par défaut (heures)",
+      "defaultSlaHelp": "Fenêtre cible de résolution pour les réclamations de ce payeur",
+      "autoAssign": "Attribution automatique",
+      "autoAssignHelp": "Attribuer automatiquement les réclamations au responsable par défaut"
+    },
+    "saveButton": "Enregistrer la politique",
+    "savedMessage": "Politique enregistrée. Les nouveaux seuils s'appliqueront aux futures importations et récupérations.",
+    "errorMessage": "Échec de la mise à jour de la politique.",
+    "readOnlyHelp": "Seuls les propriétaires peuvent enregistrer des changements de politique.",
+    "sections": {
+      "statusMappingRules": "Règles de mappage des statuts",
+      "reviewRules": "Règles de révision",
+      "destinations": "Destinations",
+      "openIssues": "Problèmes ouverts",
+      "noIssues": "Aucun problème de configuration détecté.",
+      "auditTrail": "Historique d'audit de la configuration",
+      "auditTrailBody": "Changements récents de configuration provenant du journal d'audit."
+    }
+  },
+  "auditLog": {
+    "heading": "Journal d'audit",
+    "subheading": "Un registre complet de chaque action effectuée dans votre espace — par les personnes et par le système.",
+    "actorTypes": {
+      "human": "Membre de l'équipe",
+      "system": "Automatisé",
+      "owner": "Propriétaire"
+    },
+    "sensitivityLabel": "Contient des données sensibles",
+    "kpis": {
+      "eventsToday": "Événements aujourd'hui",
+      "humanActions": "Actions humaines",
+      "systemActions": "Actions système",
+      "sensitiveChanges": "Changements sensibles"
+    },
+    "searchPlaceholder": "Rechercher par ID de réclamation, acteur, note ou action",
+    "filtersButton": "Filtres",
+    "filterLabels": {
+      "dateRange": "Période",
+      "actor": "Acteur",
+      "actionType": "Type d'action",
+      "objectType": "Type d'objet",
+      "all": "Tous"
+    },
+    "tableHeaders": {
+      "time": "Heure",
+      "actor": "Acteur",
+      "action": "Action",
+      "object": "Objet",
+      "summary": "Résumé",
+      "sensitivity": "Sensibilité"
+    },
+    "detail": {
+      "eventId": "ID d'événement",
+      "time": "Heure",
+      "actor": "Acteur",
+      "object": "Objet",
+      "summary": "Résumé",
+      "changes": "Changements",
+      "metadata": "Métadonnées",
+      "before": "Avant",
+      "after": "Après",
+      "viewObject": "Voir l'objet",
+      "exportEvent": "Exporter l'événement",
+      "requestId": "ID de requête",
+      "category": "Catégorie",
+      "organization": "Organisation",
+      "payer": "Payeur"
+    },
+    "common": {
+      "highRisk": "Risque élevé",
+      "normal": "Normal",
+      "pilotOrg": "Organisation pilote",
+      "noEvents": "Aucun événement d'audit n'est encore disponible pour ce pilote."
+    }
+  },
+  "status": {
+    "heading": "État de l'espace",
+    "subheading": "Un contrôle rapide de la santé de votre espace Tenio.",
+    "cards": {
+      "lastImport": "Dernière importation",
+      "claimsImported": "Réclamations importées",
+      "lastQueueSync": "Dernière synchronisation de la file",
+      "failedActions": "Actions échouées (24 h)",
+      "openClaims": "Réclamations ouvertes"
+    },
+    "cardBodies": {
+      "claimsImported": "Lignes traitées lors du dernier engagement d'importation.",
+      "lastQueueSync": "Dernière mise à jour de la file parmi les réclamations actives.",
+      "failedActions": "Événements d'audit enregistrés avec un résultat d'échec.",
+      "openClaims": "Réclamations non encore résolues dans l'espace actuel."
+    },
+    "notAvailable": "Non disponible",
+    "outcomePrefix": "Résultat :"
+  },
+  "errors": {
+    "eyebrow": "Une action de votre part est nécessaire",
+    "openPilotGuide": "Ouvrir le guide de l'espace",
+    "contactSupport": "Contacter le support",
+    "queueUnavailableTitle": "File d'attente indisponible",
+    "queueUnavailableBody": "La file n'a pas pu être chargée depuis l'API. Vérifiez que l'API et Postgres sont actifs, puis actualisez la page.",
+    "claimsUnavailableTitle": "Réclamations indisponibles",
+    "claimsUnavailableBody": "L'espace des réclamations n'a pas pu être chargé depuis l'API. Vérifiez que l'API et la base de données sont en bonne santé, puis actualisez.",
+    "onboardingUnavailableTitle": "Importation indisponible",
+    "onboardingUnavailableBody": "L'espace d'importation n'a pas pu charger les données d'importation et de configuration des payeurs. Vérifiez que l'API est en bonne santé, puis actualisez.",
+    "configurationUnavailableTitle": "Configuration indisponible",
+    "configurationUnavailableBody": "L'espace de configuration des payeurs n'a pas pu charger les données en direct. Vérifiez que l'API est en bonne santé, puis actualisez.",
+    "performanceUnavailableTitle": "Performance indisponible",
+    "performanceUnavailableBody": "Le tableau de bord de performance n'a pas pu charger les indicateurs depuis l'API. Vérifiez que l'API est en bonne santé, puis actualisez.",
+    "auditUnavailableTitle": "Journal d'audit indisponible",
+    "auditUnavailableBody": "Le journal d'audit n'a pas pu être chargé depuis l'API. Vérifiez que l'API et le conteneur Postgres sont en bonne santé, puis actualisez.",
+    "statusLoadTitle": "État indisponible",
+    "statusLoadBody": "La vue d'état n'a pas pu être chargée depuis l'API. Vérifiez que l'API et la base de données sont en bonne santé, puis actualisez.",
+    "statusForbiddenTitle": "État indisponible",
+    "statusForbiddenBody": "Seuls les rôles propriétaire et gestionnaire peuvent consulter l'état de l'espace.",
+    "resultsUnavailableTitle": "Vue Résolu indisponible",
+    "resultsUnavailableBody": "La vue des réclamations résolues n'a pas pu être chargée depuis l'API. Vérifiez que l'API et le conteneur Postgres sont en bonne santé, puis actualisez.",
+    "claimDetailUnavailableTitle": "Réclamation indisponible",
+    "claimDetailUnavailableBody": "La fiche de la réclamation {claimId} n'a pas pu être chargée depuis l'API. Vérifiez que l'API et la base de données sont en bonne santé, puis réessayez.",
+    "resultDetailUnavailableTitle": "Résultat indisponible",
+    "resultDetailUnavailableBody": "La fiche du résultat {resultId} n'a pas pu être chargée depuis l'API. Vérifiez que l'API et la base de données sont en bonne santé, puis réessayez."
   }
 }

@@ -1,13 +1,14 @@
 import { hasPermission } from "@tenio/domain";
 
 import { PilotErrorState } from "../../../components/pilot-error-state";
+import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../lib/locale";
 import { getCurrentSession, getStatus } from "../../../lib/pilot-api";
 
 export const dynamic = "force-dynamic";
 
-function formatTimestamp(value: string | null) {
+function formatTimestamp(value: string | null, fallback: string) {
   if (!value) {
-    return "Not available";
+    return fallback;
   }
 
   return new Date(value).toLocaleString();
@@ -15,12 +16,18 @@ function formatTimestamp(value: string | null) {
 
 export default async function StatusPage() {
   const session = await getCurrentSession();
+  const { messages } = await getLocaleMessages();
+  const statusMessages = messages.status ?? getMessagesForLocale("en").status;
+  const e = getPilotErrorChrome(messages);
 
   if (!session || !hasPermission(session.role, "status:read")) {
     return (
       <PilotErrorState
-        title="Status unavailable"
-        body="Only owner and manager roles can view workspace status."
+        eyebrow={e.eyebrow}
+        openPilotGuide={e.openPilotGuide}
+        contactSupport={e.contactSupport}
+        title={e.statusForbiddenTitle}
+        body={e.statusForbiddenBody}
       />
     );
   }
@@ -32,70 +39,68 @@ export default async function StatusPage() {
       <div className="h-full overflow-auto">
         <div className="p-6">
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900">Status</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Quick operational checks for imports, queue activity, and recent failures.
-            </p>
+            <h1 className="text-2xl font-semibold text-gray-900">{statusMessages.heading}</h1>
+            <p className="mt-1 text-sm text-gray-600">{statusMessages.subheading}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Last Import
+                {statusMessages.cards.lastImport}
               </div>
               <div className="mt-2 text-lg font-semibold text-gray-900">
-                {formatTimestamp(item.lastImportAt)}
+                {formatTimestamp(item.lastImportAt, statusMessages.notAvailable)}
               </div>
               <div className="mt-1 text-sm text-gray-600">
-                Outcome: {item.lastImportOutcome ?? "none"}
+                {statusMessages.outcomePrefix} {item.lastImportOutcome ?? statusMessages.notAvailable}
               </div>
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Import Row Count
+                {statusMessages.cards.claimsImported}
               </div>
               <div className="mt-2 text-lg font-semibold text-gray-900">
                 {item.lastImportRowCount ?? 0}
               </div>
               <div className="mt-1 text-sm text-gray-600">
-                Rows processed in the latest import commit.
+                {statusMessages.cardBodies.claimsImported}
               </div>
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Last Queue Sync
+                {statusMessages.cards.lastQueueSync}
               </div>
               <div className="mt-2 text-lg font-semibold text-gray-900">
-                {formatTimestamp(item.lastQueueSyncAt)}
+                {formatTimestamp(item.lastQueueSyncAt, statusMessages.notAvailable)}
               </div>
               <div className="mt-1 text-sm text-gray-600">
-                Latest queue update across active claims.
+                {statusMessages.cardBodies.lastQueueSync}
               </div>
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Failed Actions (24h)
+                {statusMessages.cards.failedActions}
               </div>
               <div className="mt-2 text-lg font-semibold text-gray-900">
                 {item.failedActionsLast24h}
               </div>
               <div className="mt-1 text-sm text-gray-600">
-                Audit events recorded with a failure outcome.
+                {statusMessages.cardBodies.failedActions}
               </div>
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Open Claims
+                {statusMessages.cards.openClaims}
               </div>
               <div className="mt-2 text-lg font-semibold text-gray-900">
                 {item.openClaimsCount}
               </div>
               <div className="mt-1 text-sm text-gray-600">
-                Claims not yet resolved in the current workspace.
+                {statusMessages.cardBodies.openClaims}
               </div>
             </div>
           </div>
@@ -105,8 +110,11 @@ export default async function StatusPage() {
   } catch {
     return (
       <PilotErrorState
-        title="Status unavailable"
-        body="The status view could not load from the API. Confirm the API and database are healthy, then refresh."
+        eyebrow={e.eyebrow}
+        openPilotGuide={e.openPilotGuide}
+        contactSupport={e.contactSupport}
+        title={e.statusLoadTitle}
+        body={e.statusLoadBody}
       />
     );
   }

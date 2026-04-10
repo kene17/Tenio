@@ -1,4 +1,5 @@
 import { PilotErrorState } from "../../../components/pilot-error-state";
+import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../lib/locale";
 import {
   getAuditLog,
   getCurrentSession,
@@ -10,24 +11,33 @@ export const dynamic = "force-dynamic";
 
 export default async function ConfigurationPage() {
   try {
-    const [{ items: payers }, { items: auditEvents }, session] = await Promise.all([
+    const [{ items: payers }, { items: auditEvents }, session, { messages }] = await Promise.all([
       getPayerConfigurations(),
       getAuditLog(),
-      getCurrentSession()
+      getCurrentSession(),
+      getLocaleMessages()
     ]);
+    const fallbackMessages = getMessagesForLocale("en");
 
     return (
       <ConfigurationClient
         payers={payers}
         auditEvents={auditEvents}
         currentRole={session?.role ?? "viewer"}
+        messages={messages.configuration ?? fallbackMessages.configuration}
+        roleHelpTitle={messages.roleHelp?.title ?? fallbackMessages.roleHelp.title}
       />
     );
   } catch {
+    const { messages } = await getLocaleMessages();
+    const e = getPilotErrorChrome(messages);
     return (
       <PilotErrorState
-        title="Configuration unavailable"
-        body="The payer configuration workspace could not load live configuration data. Confirm the API is healthy, then refresh."
+        eyebrow={e.eyebrow}
+        openPilotGuide={e.openPilotGuide}
+        contactSupport={e.contactSupport}
+        title={e.configurationUnavailableTitle}
+        body={e.configurationUnavailableBody}
       />
     );
   }

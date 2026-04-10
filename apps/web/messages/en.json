@@ -16,98 +16,278 @@
     "signOut": "Sign Out",
     "languageLabel": "Language"
   },
+  "login": {
+    "heading": "Sign in to Tenio",
+    "subheading": "Your claim follow-up workspace",
+    "emailLabel": "Work email",
+    "passwordLabel": "Password",
+    "submit": "Enter workspace",
+    "helpPrefix": "Need access help? Contact",
+    "guidePrefix": "Need the onboarding checklist?",
+    "guideLink": "Open workspace guide",
+    "error": "Invalid credentials. Try again or contact support."
+  },
+  "retrieve": {
+    "label": "Request status check",
+    "tooltip": "Fetch the latest status from the payer's system. This doesn't change any official claim state.",
+    "loading": "Fetching payer snapshot... This usually takes 1–3 minutes.",
+    "completed": "Payer snapshot updated. Check the Evidence tab for results."
+  },
+  "roleHelp": {
+    "title": "What you can do here"
+  },
+  "queue": {
+    "heading": "Your follow-up workday",
+    "subheading": "Claims that need your attention today, sorted by urgency. Work top to bottom.",
+    "overviewLabel": "Today's overview",
+    "filterPlaceholder": "Filter by payer, status, or assigned owner",
+    "filtersButton": "Filters",
+    "activeFiltersLabel": "Active filters:",
+    "clearAllFilters": "Clear all",
+    "searchAllClaimsCta": "Looking for a specific claim? Search all claims →",
+    "viewFullClaim": "View full claim detail",
+    "currentStatusLabel": "Current status",
+    "labels": {
+      "payer": "Payer",
+      "service": "Service",
+      "assignedOwner": "Assigned owner",
+      "lastTouched": "Last touched",
+      "evidence": "Evidence"
+    },
+    "kpis": {
+      "openClaims": "Open claims",
+      "needsReview": "Needs review",
+      "atRisk": "At-risk SLA",
+      "evidenceAttached": "Evidence attached",
+      "avgConfidence": "Avg confidence",
+      "workspace": "Workspace"
+    },
+    "columns": {
+      "priority": "Priority",
+      "claimId": "Claim ID",
+      "patient": "Patient",
+      "payer": "Payer",
+      "service": "Service",
+      "status": "Status",
+      "nextAction": "Next action",
+      "queueReason": "Queue / reason",
+      "owner": "Owner",
+      "lastTouched": "Last touched",
+      "sla": "Age / SLA",
+      "confidence": "Confidence",
+      "evidence": "Evidence",
+      "actions": "Actions"
+    },
+    "sla": {
+      "onTrack": "On track",
+      "atRisk": "At risk",
+      "overdue": "Overdue"
+    },
+    "priority": {
+      "high": "High priority"
+    },
+    "roleHelp": {
+      "manager": "View all claims in the queue. Reassign ownership. Request status checks.",
+      "operator": "Work the queue. Open claims, log follow-ups, and request status checks.",
+      "viewer": "View queue items and claim status. You cannot take actions from this page."
+    },
+    "empty": {
+      "noAttentionTitle": "Nothing needs attention right now",
+      "noAttentionBody": "All claims are up to date or waiting on payer responses. Check back when new claims are imported or SLA timers approach.",
+      "noAttentionCta": "Import more claims",
+      "noClaimsTitle": "Your queue is waiting for claims",
+      "noClaimsBody": "Import your active claims to start working follow-ups. Once imported, claims that need attention will appear here.",
+      "noClaimsCta": "Import claims",
+      "noMatchesTitle": "No claims match your filters",
+      "noMatchesBody": "Try adjusting your search or filters to see more queue items."
+    },
+    "common": {
+      "unassigned": "Unassigned",
+      "unspecified": "Unspecified",
+      "serviceNotCaptured": "Not captured",
+      "evidenceArtifacts": "artifact(s) attached"
+    }
+  },
+  "claims": {
+    "heading": "All claims",
+    "subheading": "Your full claim inventory. Search, sort, and open any claim to see its history.",
+    "searchPlaceholder": "Search by patient name, claim number, or payer",
+    "sortLabel": "Sort by",
+    "sortOptions": {
+      "ops_default": "Ops priority",
+      "claim_asc": "Claim ID A-Z",
+      "claim_desc": "Claim ID Z-A",
+      "payer_asc": "Payer A-Z",
+      "service_date_desc": "Newest service date",
+      "updated_desc": "Recently updated",
+      "priority_desc": "Highest priority"
+    },
+    "exportButton": "Export claims",
+    "exportTooltip": "Download a CSV of your current filtered claim list.",
+    "intakeLabel": "Add a single claim",
+    "intakeBody": "Create one claim manually and place it into the follow-up workflow.",
+    "goToQueueCta": "Ready to start working? Go to your queue →",
+    "clearFilters": "Clear filters",
+    "kpis": {
+      "total": "Total claims",
+      "active": "Active claims",
+      "resolved": "Resolved claims",
+      "visible": "Visible claims"
+    },
+    "headers": {
+      "claim": "Claim",
+      "payer": "Payer",
+      "service": "Service",
+      "status": "Status",
+      "owner": "Owner",
+      "lastTouched": "Last touched",
+      "resolution": "Resolution",
+      "evidence": "Evidence",
+      "nextAction": "Next action",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "in_review": "In review",
+      "resolved": "Resolved",
+      "needs_review": "Needs review",
+      "blocked": "Blocked"
+    },
+    "roleHelp": {
+      "manager": "View all claims and export the current list.",
+      "operator": "View all claims and add a single claim manually.",
+      "viewer": "View claims only."
+    },
+    "empty": {
+      "title": "No claims yet",
+      "body": "Import your active claim inventory to get started. Tenio supports Jane App CSV exports and other common formats.",
+      "cta": "Import claims"
+    },
+    "noSearch": {
+      "title": "No claims match your search",
+      "body": "Try adjusting your filters or search term. If you're looking for a resolved claim, check the Resolved tab."
+    },
+    "common": {
+      "unassigned": "Unassigned",
+      "unspecified": "Unspecified",
+      "noServiceCode": "No service code",
+      "view": "View",
+      "visibleSummary": "Visible claims",
+      "sortedBySelection": "Sorted by your selection"
+    }
+  },
   "onboarding": {
-    "title": "Onboarding",
-    "subtitle": "Import active inventory with preview validation, duplicate detection, and reconciliation before go-live.",
-    "downloadTemplate": "Download Template",
-    "uploadCsv": "Upload CSV",
-    "configuredPayers": "Configured Payers",
-    "rowsLoaded": "Rows Loaded",
-    "readyToCommit": "Ready To Commit",
-    "skippedRows": "Skipped Rows",
-    "importInstructionsTitle": "Import Instructions",
-    "importInstructionsBody": "Use the template headers exactly. `payerId` or `payerName` must match one of the configured payer profiles. For Ottawa paramedical pilots, start with the Jane App CSV profile so service discipline, code, and member metadata are preserved.",
-    "expectedHeaders": "Expected Headers",
+    "title": "Import claims",
+    "subtitle": "Export your active claims from Jane App and upload the file below. Tenio will match the columns automatically and show you a preview before anything is saved.",
+    "downloadTemplate": "Download template",
+    "uploadCsv": "Upload claims CSV",
+    "configuredPayers": "Configured payers",
+    "rowsLoaded": "Rows loaded",
+    "readyToCommit": "Ready to import",
+    "skippedRows": "Rows with issues",
+    "importInstructionsTitle": "Upload your claims",
+    "importInstructionsBody": "Drag and drop your CSV file here, or click to browse. Supported format: Jane App CSV export from the Billing tab.",
+    "expectedHeaders": "Expected columns",
     "uploadedFile": "Uploaded file",
     "none": "None",
-    "previewImport": "Preview Import",
-    "commitReadyRows": "Commit Ready Rows",
-    "configuredPayersTitle": "Configured Payers",
-    "configuredPayersBody": "Import rows should match these payer profiles exactly or by payer name.",
-    "previewResultsTitle": "Preview Results",
-    "previewResultsBody": "Tenio will only commit rows marked Create or Update.",
+    "previewImport": "Review before importing",
+    "commitButtonPrefix": "Import",
+    "commitButtonSuffix": "claims",
+    "commitButtonSubtext": "Only valid rows will be imported.",
+    "configuredPayersTitle": "Configured payers",
+    "configuredPayersBody": "These are the payer profiles currently available for imported claims.",
+    "previewResultsTitle": "Review before importing",
+    "previewResultsBody": "Tenio will only import rows marked as new claims or updates.",
     "summaryTotal": "Total",
-    "summaryCreate": "Create",
-    "summaryUpdate": "Update",
-    "summaryInvalid": "Invalid",
-    "summaryDuplicate": "Duplicate",
+    "summaryCreate": "New claims",
+    "summaryUpdate": "Updates",
+    "summaryInvalid": "Has errors",
+    "summaryDuplicate": "Already exists",
     "columnRow": "Row",
     "columnAction": "Action",
     "columnClaim": "Claim",
     "columnPatient": "Patient",
     "columnPayer": "Payer",
     "columnJurisdiction": "Jurisdiction",
-    "columnClaimType": "Claim Type",
+    "columnClaimType": "Claim type",
     "columnService": "Service",
     "columnPriority": "Priority",
     "columnMessages": "Messages",
     "missing": "Missing",
     "invalid": "Invalid",
     "templateProfileLabel": "Import profile",
-    "templateProfileHelp": "Choose the closest source format before preview. Jane App is the recommended Ottawa paramedical profile. The generic template is exact-match. Dentrix is a starter shell with header alias mapping, not a certified parser.",
-    "profileJane": "Jane App CSV",
-    "profileJaneDescription": "Recommended Ottawa paramedical profile with Jane-oriented header aliases and Canadian defaults.",
-    "profileGeneric": "Generic Tenio Template",
-    "profileGenericDescription": "Exact header match for the Tenio CSV template.",
-    "profileDentrix": "Dentrix CSV Shell",
-    "profileDentrixDescription": "Starter alias mapping for dental-office exports and sample files.",
-    "previewGeneratedNotice": "Preview generated. Review skipped rows before committing.",
-    "commitNoticePrefix": "Committed",
-    "commitNoticeSuffix": "rows into the active backlog.",
-    "uploadRequiredError": "Upload a CSV file before requesting a preview.",
-    "previewRequiredError": "Preview the file first. Tenio only commits rows marked Create or Update.",
-    "previewFailedError": "The import preview failed. Check the CSV format and try again.",
-    "commitFailedError": "The import commit failed. No backlog changes were applied.",
-    "actionCreate": "Create",
-    "actionUpdate": "Update",
-    "actionSkip": "Skip",
+    "templateProfileHelp": "Choose the profile that best matches your file before previewing it.",
+    "profileJane": "Jane App (recommended for paramedical)",
+    "profileJaneDescription": "Best fit for Ottawa paramedical clinics exporting active claims from Jane App.",
+    "profileGeneric": "Generic Tenio template",
+    "profileGenericDescription": "Use this when your file already matches the Tenio template columns.",
+    "profileDentrix": "Dentrix",
+    "profileDentrixDescription": "Starter support for Dentrix exports.",
+    "previewGeneratedNotice": "Preview ready. Review each row before importing.",
+    "commitNoticePrefix": "",
+    "commitNoticeSuffix": "claims imported successfully.",
+    "uploadRequiredError": "Upload a CSV file before previewing the import.",
+    "previewRequiredError": "Preview the file first. Only valid rows can be imported.",
+    "previewFailedError": "We couldn't preview that file. Check the format and try again.",
+    "commitFailedError": "We couldn't import those claims. No changes were saved.",
+    "actionCreate": "New claim",
+    "actionUpdate": "Updates existing",
+    "actionDuplicate": "Already exists",
+    "actionSkip": "Has errors",
+    "roleHelp": {
+      "manager": "Import claim batches via CSV.",
+      "operator": "Import claim batches via CSV.",
+      "viewer": "Import is not available for your role."
+    },
+    "firstVisit": {
+      "title": "Ready to import your first claims?",
+      "body": "Export your active claims from Jane App and upload the file below. Tenio will walk you through a preview before anything is saved.",
+      "helper": "Not sure how to export from Jane App? Go to Billing → Claims → Export as CSV."
+    },
+    "complete": {
+      "title": "",
+      "bodyPrefix": "",
+      "bodySuffix": "claims imported successfully."
+    },
+    "noAccessTitle": "Import unavailable",
+    "noAccessBody": "Import is not available for your role.",
     "setup": {
-      "title": "Setup Checklist",
-      "subtitle": "Use this checklist to finish the implementation basics before the team starts working claims in Tenio.",
+      "title": "Workspace setup",
+      "subtitle": "Complete these steps to get your team working in Tenio.",
       "progressSuffix": "complete",
       "nextStepLabel": "Next step:",
       "allStepsComplete": "All setup steps are complete.",
       "statusComplete": "Complete",
       "statusCurrent": "Current",
       "statusPending": "Pending",
-      "contactSupport": "Contact Support",
-      "openImportTool": "Open Import Tool",
-      "openConfiguration": "Open Configuration",
-      "openQueue": "Open Queue",
-      "openSetupChecklist": "Open Setup Checklist",
+      "contactSupport": "Contact support",
+      "openImportTool": "Open import tool",
+      "openConfiguration": "Configure your payers",
+      "openQueue": "Review your queue",
+      "openSetupChecklist": "Open setup checklist",
       "skipForNow": "Skip for now",
-      "skipLockedMessage": "Complete your first import before dismissing this setup guide.",
-      "goToQueue": "Go to Queue",
-      "updateError": "The onboarding checklist could not be updated. Try again.",
+      "skipLockedMessage": "Complete your first import before skipping this setup guide.",
+      "goToQueue": "Go to Queue →",
+      "updateError": "The setup checklist could not be updated. Try again.",
       "welcomeEyebrow": "Workspace setup",
-      "welcomeTitle": "Finish these four setup steps before go-live",
-      "welcomeBody": "Tenio will guide you through team access, first import, payer review, and the first queue walkthrough.",
+      "welcomeTitle": "Welcome to Tenio. Let's get your workspace ready.",
+      "welcomeBody": "Add your team, import your claims, configure your payers, and review your queue before you start working live follow-ups.",
       "tourEyebrow": "Queue walkthrough",
-      "skipTour": "Skip walkthrough",
+      "skipTour": "Dismiss walkthrough",
       "finishTour": "Finish walkthrough",
       "nextTourStep": "Next tip",
       "steps": {
         "team_members": {
-          "title": "Add your team members",
-          "description": "Add the people who will work and review claims. For this pilot, initial provisioning is still handled with Tenio support."
+          "title": "Add your team",
+          "description": "Contact support to add operators and managers to your account."
         },
         "first_import": {
           "title": "Import your first claims",
-          "description": "Bring in your active claim inventory so the queue reflects live work before go-live."
+          "description": "Upload a CSV export from your practice management software."
         },
         "configure_payers": {
           "title": "Configure your payers",
-          "description": "Confirm payer thresholds and default ownership before the team starts working the queue."
+          "description": "Set follow-up rules for each payer your practice works with."
         },
         "review_first_queue": {
           "title": "Review your first queue",
@@ -116,16 +296,16 @@
       },
       "tour": {
         "priority": {
-          "title": "Start with the priority column",
-          "body": "Use the priority badges to spot urgent and high-risk claims first."
+          "title": "Priority and SLA risk",
+          "body": "Red means a claim is overdue. Orange means it's at risk. Start with red — those need attention today."
         },
         "claim": {
-          "title": "Open a claim from its claim number",
-          "body": "Click a claim number to open full detail, capture follow-up, and review evidence."
+          "title": "Open a claim from the claim number",
+          "body": "Use the claim number to open a claim, review its history, and log what happened."
         },
         "sla": {
-          "title": "Watch the Age / SLA column",
-          "body": "This column shows aging and breach risk so you can decide what needs attention next."
+          "title": "Watch the Age / SLA timer",
+          "body": "This timer shows how long since the claim was last touched. Your goal: keep every claim moving forward."
         }
       }
     }
@@ -135,6 +315,446 @@
       "overview": "Overview",
       "evidence": "Evidence",
       "timeline": "Timeline"
+    },
+    "pageHeading": "Claim detail",
+    "pageSubheading": "Follow one claim from import through verified resolution.",
+    "backToQueue": "Back to Queue",
+    "summaryLabels": {
+      "claimId": "Claim ID",
+      "claimStatus": "Claim status",
+      "payer": "Payer",
+      "owner": "Owner",
+      "lastUpdated": "Last updated",
+      "slaStatus": "SLA status"
+    },
+    "sections": {
+      "overview": "Overview",
+      "operationalSummary": "Operational summary",
+      "agentInterpretation": "What Tenio sees right now",
+      "agentInterpretationBody": "Tenio's latest interpretation of this claim and the next recommended step.",
+      "actions": "What you can do next",
+      "evidence": "Supporting evidence",
+      "evidenceBody": "Payer snapshots and supporting artifacts captured for this claim.",
+      "latestNote": "Latest follow-up",
+      "structuredFollowUp": "Log follow-up",
+      "timeline": "Timeline",
+      "notes": "Notes and review comments",
+      "auditTrail": "How this was resolved"
+    },
+    "overviewFields": {
+      "serviceDate": "Service date",
+      "claimType": "Claim type",
+      "serviceDiscipline": "Service",
+      "serviceCode": "Service code",
+      "jurisdiction": "Jurisdiction",
+      "provinceState": "Province / state",
+      "planNumber": "Plan number",
+      "memberCertificate": "Member certificate",
+      "billedAmount": "Billed amount",
+      "allowedAmount": "Allowed amount",
+      "paidAmount": "Paid amount",
+      "patientResponsibility": "Patient responsibility",
+      "payerReferenceNumber": "Payer reference",
+      "currentPayerResponse": "Current payer response"
+    },
+    "operationalFields": {
+      "currentQueue": "Current queue",
+      "nextRecommendedAction": "Next recommended action",
+      "lastTouched": "Last touched",
+      "assignedOwner": "Assigned owner",
+      "totalTouches": "Touches",
+      "phoneCallRequired": "Phone call needed",
+      "daysSinceLastFollowUp": "Days since last follow-up",
+      "reviewState": "Review state",
+      "escalationState": "Escalation state"
+    },
+    "agent": {
+      "rationale": "Agent rationale",
+      "whyRouted": "Why it was routed this way",
+      "paymentDetails": "Payment details",
+      "recommendedAction": "Recommended action",
+      "connector": "Connector",
+      "executionMode": "Execution mode",
+      "lastObserved": "Last observed",
+      "runtime": "Runtime",
+      "traceId": "Trace ID"
+    },
+    "actions": {
+      "workflowReason": "Workflow reason:",
+      "retryHistory": "Retry history",
+      "attempt": "Attempt",
+      "readOnly": "This role can review the claim but cannot change workflow state."
+    },
+    "evidence": {
+      "emptyTitle": "No evidence captured yet",
+      "emptyBody": "Request a status check to fetch the latest payer snapshot. Evidence will appear here once a retrieval completes.",
+      "fieldProvenanceTitle": "Field provenance",
+      "fieldStatus": "Claim status",
+      "fieldPaidAmount": "Paid amount",
+      "fieldPayerReference": "Payer reference",
+      "fieldProcessDate": "Process date",
+      "latestStructuredNoteTitle": "Latest structured note",
+      "latestNote": "Latest note",
+      "nextAction": "Next action",
+      "lastTouched": "Last touched",
+      "noNotes": "No notes captured"
+    },
+    "timeline": {
+      "emptyTitle": "No activity recorded yet",
+      "emptyBody": "Every action taken on this claim will appear here — status checks, follow-up notes, and workflow changes.",
+      "noReviewComments": "No review comments recorded yet.",
+      "quickLinks": "Quick links",
+      "exportEvidence": "Export evidence"
+    },
+    "readOnly": "This role can review the claim but cannot change workflow state.",
+    "phoneCallRequired": "Phone call needed",
+    "phoneCallFlagged": "Flagged",
+    "phoneCallWorkflowFlagged": "Flagged in workflow",
+    "openArtifact": "Open artifact",
+    "downloadRestricted": "Evidence download is limited to owner, manager, and operator roles.",
+    "common": {
+      "unassigned": "Unassigned",
+      "notCaptured": "Not captured",
+      "noResponseCaptured": "No response captured",
+      "noReviewRequired": "No review required",
+      "yes": "Yes",
+      "no": "No",
+      "primaryArtifact": "Primary artifact",
+      "secondaryArtifact": "Secondary artifact"
     }
+  },
+  "followUp": {
+    "limitedAccess": "Structured follow-up is limited to owner, manager, and operator roles.",
+    "ownerLabel": "Owner",
+    "ownerPlaceholder": "Assign owner",
+    "assignButton": "Assign",
+    "reviewNoteLabel": "Review note",
+    "reviewNotePlaceholder": "Add context, rationale, or a workflow note.",
+    "saveNoteButton": "Save note",
+    "structuredHeading": "Structured follow-up",
+    "structuredBody": "Log what happened and what comes next.",
+    "outcomeLabel": "Outcome",
+    "nextActionLabel": "Next action",
+    "nextActionPlaceholder": "Example: Follow up in 5 days",
+    "noteLabel": "Note",
+    "notePlaceholder": "Document what happened and what comes next.",
+    "followUpByLabel": "Follow up by",
+    "saveButton": "Save follow-up",
+    "actions": {
+      "markReviewed": "Mark reviewed",
+      "escalate": "Escalate",
+      "markCallRequired": "Mark call required",
+      "markResolved": "Mark resolved",
+      "reopen": "Reopen"
+    },
+    "outcomes": {
+      "status_checked": "Checked — no action needed yet",
+      "pending_payer": "Waiting on payer",
+      "more_info_needed": "More information required",
+      "needs_review": "Flagged for review",
+      "phone_call_required": "Phone call needed",
+      "resolved": "Resolved — claim complete"
+    }
+  },
+  "results": {
+    "heading": "Resolved claims",
+    "subheading": "Claims that have reached a verified outcome. Export for reconciliation or audit.",
+    "pageNote": "Verified outcomes. These claims have been through the full follow-up cycle and are ready for reconciliation or audit.",
+    "verifiedBadge": "Verified",
+    "verifiedWithReviewBadge": "Verified with review",
+    "needsFollowUpBadge": "Needs follow-up",
+    "unresolvedBadge": "Unresolved",
+    "exportButton": "Export results",
+    "searchPlaceholder": "Search by result ID, claim ID, or payer",
+    "filtersButton": "Filters",
+    "roleHelp": {
+      "manager": "View resolved claims and export results.",
+      "operator": "View resolved claims.",
+      "viewer": "View resolved claims only."
+    },
+    "kpis": {
+      "verifiedResults": "Verified outcomes",
+      "needsFollowUp": "Needs follow-up",
+      "exported": "Claims exported",
+      "avgConfidence": "Avg confidence"
+    },
+    "headers": {
+      "resultId": "Result ID",
+      "claimId": "Claim ID",
+      "payer": "Payer",
+      "verifiedStatus": "Verified",
+      "confidence": "Confidence",
+      "lastVerified": "Last verified",
+      "evidence": "Evidence",
+      "exportState": "Export state",
+      "actions": "Actions"
+    },
+    "empty": {
+      "title": "No resolved claims yet",
+      "body": "Claims will appear here once they reach a verified outcome. Keep working the queue — resolved claims land here automatically.",
+      "cta": "Go to Queue"
+    },
+    "common": {
+      "view": "View",
+      "visibleSummary": "Resolved claims shown"
+    }
+  },
+  "resultDetail": {
+    "backLink": "← Back to Resolved",
+    "subtitle": "Verified outcome snapshot ready for reconciliation or audit.",
+    "verifiedTitle": "Verified",
+    "verifiedBody": "This claim has reached a verified outcome and is ready for reconciliation or audit.",
+    "outcomeSummaryHeading": "Outcome summary",
+    "supportingEvidenceHeading": "Supporting evidence",
+    "provenanceHeading": "How this was resolved",
+    "whatThisMeansHeading": "What this outcome means",
+    "recommendedNextSteps": "Recommended next steps",
+    "fields": {
+      "claimStatus": "Claim status",
+      "confidenceScore": "Confidence",
+      "lastVerified": "Last verified",
+      "sourcePayer": "Source payer",
+      "evidenceCount": "Evidence count",
+      "nextAction": "Next action",
+      "traceId": "Trace ID",
+      "claimId": "Claim ID",
+      "payer": "Payer",
+      "serviceDate": "Service date",
+      "billedAmount": "Billed amount",
+      "currentStatus": "Current status",
+      "statusReason": "Status reason",
+      "expectedResolution": "Expected resolution",
+      "portalMetadata": "Portal metadata"
+    }
+  },
+  "performance": {
+    "heading": "Performance",
+    "subheading": "How your team and automation are performing across your claim inventory.",
+    "riskLevel": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "kpis": {
+      "claimsWorkedToday": "Claims worked today",
+      "avgResolutionTime": "Avg resolution time",
+      "slaCompliance": "SLA compliance",
+      "needsReview": "Needs review",
+      "claimsResolved": "Claims resolved",
+      "avgTouchesPerClaim": "Avg touches / claim",
+      "automationCoverage": "Automation coverage",
+      "reviewRate": "Review rate",
+      "retryQueue": "Retry queue",
+      "failedRuns": "Failed runs",
+      "lowConfidenceRate": "Low confidence rate",
+      "touchesRemoved": "Touches removed",
+      "claimsRequiringCall": "Claims requiring call",
+      "callRequiredRate": "Call-required rate",
+      "primaryConnectorSuccess": "Primary connector success"
+    },
+    "sections": {
+      "throughput": "Throughput",
+      "slaCompliance": "SLA compliance",
+      "automationCoverage": "Automation coverage",
+      "reviewRate": "Review rate",
+      "connectorHealth": "Connector health",
+      "resolutionSnapshotTitle": "Throughput",
+      "resolutionSnapshotBody": "Claims worked per day and unresolved backlog over time.",
+      "queueVolumeTitle": "SLA compliance",
+      "queueVolumeBody": "Current work distribution by status.",
+      "agingDistributionTitle": "Automation coverage",
+      "agingDistributionBody": "Claims by age bucket.",
+      "operationalInsightsTitle": "Review rate",
+      "operationalInsightsBody": "Operational alerts and recommendations.",
+      "payerPerformanceTitle": "Payer performance",
+      "payerPerformanceBody": "Performance metrics by payer.",
+      "teamPerformanceTitle": "Team performance",
+      "teamPerformanceBody": "Live contributor metrics.",
+      "connectorHealthTitle": "Connector health",
+      "connectorHealthBody": "Runtime reliability, retries, and failures by connector."
+    },
+    "tables": {
+      "payerPerformance": {
+        "payer": "Payer",
+        "openClaims": "Open claims",
+        "avgResolutionTime": "Avg resolution time",
+        "slaRisk": "SLA risk",
+        "needsReview": "Needs review %",
+        "callRequired": "Call required %",
+        "lastDelay": "Last delay"
+      },
+      "teamPerformance": {
+        "owner": "Owner",
+        "activeClaims": "Active claims",
+        "resolved": "Resolved",
+        "avgTouches": "Avg touches",
+        "slaCompliance": "SLA compliance",
+        "escalationRate": "Escalation rate"
+      },
+      "connectorHealth": {
+        "connector": "Connector",
+        "mode": "Mode",
+        "completed": "Completed",
+        "retried": "Retried",
+        "failed": "Failed",
+        "successRate": "Success rate",
+        "lastActivity": "Last activity",
+        "lastError": "Last error"
+      }
+    },
+    "noConnectorActivity": "No connector activity has been recorded yet."
+  },
+  "configuration": {
+    "heading": "Payer configuration",
+    "subheadingOwner": "Set follow-up rules for each payer. Changes take effect on new queue items.",
+    "subheadingManager": "Current payer follow-up rules. Contact your owner to make changes.",
+    "sidebarTitle": "Payer profiles",
+    "sidebarBody": "Live payer configuration and rule ownership.",
+    "roleHelp": {
+      "manager": "View payer policies. Contact your owner to make changes.",
+      "viewer": "Configuration is not available for your role."
+    },
+    "status": {
+      "active": "Active",
+      "needsAttention": "Needs attention",
+      "inactive": "Inactive"
+    },
+    "summary": {
+      "owner": "Owner",
+      "jurisdiction": "Jurisdiction",
+      "lastVerified": "Last verified",
+      "reviewThreshold": "Review threshold",
+      "escalationThreshold": "Escalation threshold",
+      "defaultSla": "Default SLA"
+    },
+    "workflowPolicyHeading": "Workflow policy",
+    "workflowPolicyBody": "Set follow-up rules for each payer your practice works with.",
+    "fields": {
+      "defaultOwner": "Default owner",
+      "defaultOwnerHelp": "Who owns new claims from this payer by default",
+      "reviewThreshold": "Review threshold",
+      "reviewThresholdHelp": "Flag for review when confidence drops below this %",
+      "escalationThreshold": "Escalation threshold",
+      "escalationThresholdHelp": "Escalate when confidence drops below this %",
+      "defaultSla": "Default SLA (hours)",
+      "defaultSlaHelp": "Target resolution window for claims from this payer",
+      "autoAssign": "Auto-assign",
+      "autoAssignHelp": "Automatically assign claims to the default owner"
+    },
+    "saveButton": "Save policy",
+    "savedMessage": "Policy saved. New thresholds will apply to future intake and retrieval runs.",
+    "errorMessage": "Policy update failed.",
+    "readOnlyHelp": "Only owners can save payer policy changes.",
+    "sections": {
+      "statusMappingRules": "Status mapping rules",
+      "reviewRules": "Review rules",
+      "destinations": "Destinations",
+      "openIssues": "Open issues",
+      "noIssues": "No configuration issues detected.",
+      "auditTrail": "Configuration audit trail",
+      "auditTrailBody": "Recent configuration changes from the audit log."
+    }
+  },
+  "auditLog": {
+    "heading": "Audit log",
+    "subheading": "A complete record of every action taken in your workspace — by people and by the system.",
+    "actorTypes": {
+      "human": "Team member",
+      "system": "Automated",
+      "owner": "Owner"
+    },
+    "sensitivityLabel": "Contains sensitive data",
+    "kpis": {
+      "eventsToday": "Events today",
+      "humanActions": "Human actions",
+      "systemActions": "System actions",
+      "sensitiveChanges": "Sensitive changes"
+    },
+    "searchPlaceholder": "Search claim ID, actor, note, or action",
+    "filtersButton": "Filters",
+    "filterLabels": {
+      "dateRange": "Date range",
+      "actor": "Actor",
+      "actionType": "Action type",
+      "objectType": "Object type",
+      "all": "All"
+    },
+    "tableHeaders": {
+      "time": "Time",
+      "actor": "Actor",
+      "action": "Action",
+      "object": "Object",
+      "summary": "Summary",
+      "sensitivity": "Sensitivity"
+    },
+    "detail": {
+      "eventId": "Event ID",
+      "time": "Time",
+      "actor": "Actor",
+      "object": "Object",
+      "summary": "Summary",
+      "changes": "Changes",
+      "metadata": "Metadata",
+      "before": "Before",
+      "after": "After",
+      "viewObject": "View object",
+      "exportEvent": "Export event",
+      "requestId": "Request ID",
+      "category": "Category",
+      "organization": "Organization",
+      "payer": "Payer"
+    },
+    "common": {
+      "highRisk": "High risk",
+      "normal": "Normal",
+      "pilotOrg": "Pilot org",
+      "noEvents": "No audit events are available for the pilot yet."
+    }
+  },
+  "status": {
+    "heading": "Workspace status",
+    "subheading": "A quick health check on your Tenio workspace.",
+    "cards": {
+      "lastImport": "Last import",
+      "claimsImported": "Claims imported",
+      "lastQueueSync": "Last queue sync",
+      "failedActions": "Failed actions (last 24h)",
+      "openClaims": "Open claims"
+    },
+    "cardBodies": {
+      "claimsImported": "Rows processed in the latest import commit.",
+      "lastQueueSync": "Latest queue update across active claims.",
+      "failedActions": "Audit events recorded with a failure outcome.",
+      "openClaims": "Claims not yet resolved in the current workspace."
+    },
+    "notAvailable": "Not available",
+    "outcomePrefix": "Outcome:"
+  },
+  "errors": {
+    "eyebrow": "We need your attention",
+    "openPilotGuide": "Open workspace guide",
+    "contactSupport": "Contact support",
+    "queueUnavailableTitle": "Queue unavailable",
+    "queueUnavailableBody": "The queue could not load from the API. Confirm the API and Postgres are running, then refresh the page.",
+    "claimsUnavailableTitle": "Claims unavailable",
+    "claimsUnavailableBody": "The claims workspace could not load from the API. Confirm the API and database are healthy, then refresh.",
+    "onboardingUnavailableTitle": "Onboarding unavailable",
+    "onboardingUnavailableBody": "The onboarding workspace could not load import and payer setup data. Confirm the API is healthy, then refresh.",
+    "configurationUnavailableTitle": "Configuration unavailable",
+    "configurationUnavailableBody": "The payer configuration workspace could not load live configuration data. Confirm the API is healthy, then refresh.",
+    "performanceUnavailableTitle": "Performance unavailable",
+    "performanceUnavailableBody": "The performance dashboard could not load live metrics from the API. Confirm the API is healthy, then refresh.",
+    "auditUnavailableTitle": "Audit log unavailable",
+    "auditUnavailableBody": "The audit log could not load from the API. Confirm the API and Postgres container are healthy, then refresh.",
+    "statusLoadTitle": "Status unavailable",
+    "statusLoadBody": "The status view could not load from the API. Confirm the API and database are healthy, then refresh.",
+    "statusForbiddenTitle": "Status unavailable",
+    "statusForbiddenBody": "Only owner and manager roles can view workspace status.",
+    "resultsUnavailableTitle": "Resolved view unavailable",
+    "resultsUnavailableBody": "The resolved claims view could not load from the API. Confirm the API and Postgres container are healthy, then refresh.",
+    "claimDetailUnavailableTitle": "Claim unavailable",
+    "claimDetailUnavailableBody": "The claim detail view for claim {claimId} could not load from the API. Confirm the API and database are healthy, then try again.",
+    "resultDetailUnavailableTitle": "Result unavailable",
+    "resultDetailUnavailableBody": "The result detail view for result {resultId} could not load from the API. Confirm the API and database are healthy, then try again."
   }
 }

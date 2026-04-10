@@ -7,13 +7,19 @@ import { ChevronDown, Download, FileText, Search } from "lucide-react";
 
 import { IntakeClaimForm } from "../../../components/intake-claim-form";
 import { KPICard } from "../../../components/kpi-card";
+import { PageRoleBanner } from "../../../components/page-role-banner";
 import { StatusPill, statusVariantFromText } from "../../../components/status-pill";
+import { getClaimStatusLabel } from "../../../lib/display-labels";
+import type { TenioMessages } from "../../../lib/locale";
 import type { ClaimsListItemView } from "../../../lib/pilot-api";
+import fallbackMessages from "../../../messages/en.json";
 
 type ClaimsClientProps = {
   items: ClaimsListItemView[];
   organizationId: string;
   currentRole: UserRole;
+  messages: TenioMessages["claims"];
+  roleHelpTitle: string;
   payerOptions: Array<{
     id: string;
     label: string;
@@ -113,12 +119,17 @@ export function ClaimsClient({
   items,
   organizationId,
   currentRole,
+  messages,
+  roleHelpTitle,
   payerOptions
 }: ClaimsClientProps) {
+  const claimsMessages = messages ?? fallbackMessages.claims;
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("ops_default");
   const canExport = hasPermission(currentRole, "claims:export");
   const canMutate = hasPermission(currentRole, "claims:write");
+  const roleHelpBody =
+    currentRole === "owner" ? null : claimsMessages.roleHelp[currentRole] ?? null;
 
   const filteredItems = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -151,34 +162,31 @@ export function ClaimsClient({
     <div className="h-full overflow-auto">
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Claims</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Search, sort, and inspect the full record of claim-status activity across
-            payers and teams.
-          </p>
+          <h1 className="text-2xl font-semibold text-gray-900">{claimsMessages.heading}</h1>
+          <p className="mt-1 text-sm text-gray-600">{claimsMessages.subheading}</p>
         </div>
 
+        {roleHelpBody ? <PageRoleBanner title={roleHelpTitle} body={roleHelpBody} /> : null}
+
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <KPICard label="Total Claims Tracked" value={String(items.length)} />
+          <KPICard label={claimsMessages.kpis.total} value={String(items.length)} />
           <KPICard
-            label="Active Claims"
+            label={claimsMessages.kpis.active}
             value={String(items.filter((item) => item.resolutionState !== "Resolved").length)}
           />
           <KPICard
-            label="Resolved Claims"
+            label={claimsMessages.kpis.resolved}
             value={String(items.filter((item) => item.resolutionState === "Resolved").length)}
             variant="success"
           />
-          <KPICard label="Visible Claims" value={String(filteredItems.length)} />
+          <KPICard label={claimsMessages.kpis.visible} value={String(filteredItems.length)} />
         </div>
 
         {canMutate ? (
           <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-3">
-              <h2 className="text-sm font-semibold text-gray-900">Intake New Claim</h2>
-              <p className="mt-1 text-xs text-gray-600">
-                Create a live claim record and place it into the retrieval queue.
-              </p>
+              <h2 className="text-sm font-semibold text-gray-900">{claimsMessages.intakeLabel}</h2>
+              <p className="mt-1 text-xs text-gray-600">{claimsMessages.intakeBody}</p>
             </div>
             <IntakeClaimForm organizationId={organizationId} payerOptions={payerOptions} />
           </div>
@@ -192,13 +200,15 @@ export function ClaimsClient({
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by claim ID, payer, patient, service date, or owner..."
+                placeholder={claimsMessages.searchPlaceholder}
                 className="w-full rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-600">Sort by:</span>
+                <span className="text-sm font-medium text-gray-600">
+                  {claimsMessages.sortLabel}:
+                </span>
                 <div className="relative">
                   <select
                     value={sortBy}
@@ -207,7 +217,7 @@ export function ClaimsClient({
                   >
                     {sortOptions.map((option) => (
                       <option key={option.value} value={option.value}>
-                        {option.label}
+                        {claimsMessages.sortOptions[option.value]}
                       </option>
                     ))}
                   </select>
@@ -217,29 +227,63 @@ export function ClaimsClient({
               {canExport ? (
                 <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                   <Download className="h-4 w-4" />
-                  Export
+                  {claimsMessages.exportButton}
                 </button>
               ) : null}
             </div>
           </div>
         </div>
 
+        {filteredItems.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-8">
+            <div className="mx-auto max-w-xl text-center">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {items.length === 0
+                  ? claimsMessages.empty.title
+                  : claimsMessages.noSearch.title}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                {items.length === 0
+                  ? claimsMessages.empty.body
+                  : claimsMessages.noSearch.body}
+              </p>
+              <div className="mt-6">
+                {items.length === 0 ? (
+                  <Link
+                    href="/app/onboarding"
+                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    {claimsMessages.empty.cta}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    {claimsMessages.clearFilters}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {[
-                    "Claim ID",
-                    "Payer",
-                    "Service Date",
-                    "Current Status",
-                    "Owner",
-                    "Last Updated",
-                    "Resolution State",
-                    "Evidence",
-                    "Follow-up Reason",
-                    "Actions"
+                    claimsMessages.headers.claim,
+                    claimsMessages.headers.payer,
+                    claimsMessages.headers.service,
+                    claimsMessages.headers.status,
+                    claimsMessages.headers.owner,
+                    claimsMessages.headers.lastTouched,
+                    claimsMessages.headers.resolution,
+                    claimsMessages.headers.evidence,
+                    claimsMessages.headers.nextAction,
+                    claimsMessages.headers.actions
                   ].map((header) => (
                     <th
                       key={header}
@@ -260,11 +304,11 @@ export function ClaimsClient({
                       <Link
                         href={`/app/claim/${item.claimId}`}
                         className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                      >
-                        {item.claimNumber}
-                      </Link>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {item.claimType ?? "Unspecified"}
+                        >
+                          {item.claimNumber}
+                        </Link>
+                        <div className="mt-1 text-xs text-gray-500">
+                        {item.claimType ?? claimsMessages.common.unspecified}
                         {item.serviceProviderType
                           ? ` · ${item.serviceProviderType.replaceAll("_", " ")}`
                           : ""}
@@ -281,16 +325,16 @@ export function ClaimsClient({
                     <td className="px-4 py-3 text-sm text-gray-600">
                       <div>{item.serviceDate}</div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {item.serviceCode ?? "No service code"}
+                        {item.serviceCode ?? claimsMessages.common.noServiceCode}
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill variant={statusVariantFromText(item.currentStatus)}>
-                        {item.currentStatus}
+                        {getClaimStatusLabel(item.currentStatus, claimsMessages.status)}
                       </StatusPill>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.owner ?? "Unassigned"}
+                      {item.owner ?? claimsMessages.common.unassigned}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{item.lastUpdated}</td>
                     <td className="px-4 py-3">{resolutionBadge(item.resolutionState)}</td>
@@ -306,7 +350,7 @@ export function ClaimsClient({
                         href={`/app/claim/${item.claimId}`}
                         className="text-sm text-blue-600 hover:text-blue-700"
                       >
-                        View
+                        {claimsMessages.common.view}
                       </Link>
                     </td>
                   </tr>
@@ -316,11 +360,18 @@ export function ClaimsClient({
           </div>
           <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
             <div className="text-sm text-gray-600">
-              Showing <span className="font-medium">{filteredItems.length}</span> claim
-              {filteredItems.length === 1 ? "" : "s"}
+              {claimsMessages.common.visibleSummary}:{" "}
+              <span className="font-medium">{filteredItems.length}</span>
             </div>
-            <div className="text-sm text-gray-500">Sorted by your selection</div>
+            <div className="text-sm text-gray-500">{claimsMessages.common.sortedBySelection}</div>
           </div>
+        </div>
+        )}
+
+        <div className="mt-4">
+          <Link href="/app/queue" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            {claimsMessages.goToQueueCta}
+          </Link>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ConfidenceBadge } from "../../../../components/confidence-badge";
 import { PilotErrorState } from "../../../../components/pilot-error-state";
-import { getLocaleMessages } from "../../../../lib/locale";
+import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../../lib/locale";
 import { getClaimDetail, getCurrentSession } from "../../../../lib/pilot-api";
 import { ClaimDetailTabs } from "./claim-detail-tabs";
 
@@ -19,6 +19,11 @@ export default async function ClaimDetailPage({
   let claim;
   const session = await getCurrentSession();
   const { messages } = await getLocaleMessages();
+  const fallbackMessages = getMessagesForLocale("en");
+  const pilotError = getPilotErrorChrome(messages);
+  const claimMessages = messages.claim ?? fallbackMessages.claim;
+  const followUpMessages = messages.followUp ?? fallbackMessages.followUp;
+  const retrieveMessages = messages.retrieve ?? fallbackMessages.retrieve;
   const canDownloadEvidence = session
     ? hasPermission(session.role, "evidence:download")
     : false;
@@ -31,19 +36,26 @@ export default async function ClaimDetailPage({
   } catch {
     return (
       <PilotErrorState
-        title="Claim detail unavailable"
-        body={`The claim detail view for ${id} could not load from the API. Confirm the API and database are healthy, then try again.`}
+        eyebrow={pilotError.eyebrow}
+        openPilotGuide={pilotError.openPilotGuide}
+        contactSupport={pilotError.contactSupport}
+        title={pilotError.claimDetailUnavailableTitle}
+        body={pilotError.claimDetailUnavailableBody.replace("{claimId}", id)}
       />
     );
   }
 
   const overviewRows = [
-    ["Claim ID", claim.item.claimNumber, claim.item.patientName],
-    ["Claim Status", claim.statusLabel, ""],
-    ["Payer", claim.item.payerName, ""],
-    ["Owner", claim.item.owner ?? "Unassigned", ""],
-    ["Last Updated", claim.lastUpdatedLabel, ""],
-    ["SLA Status", claim.slaLabel, ""]
+    [claimMessages.summaryLabels.claimId, claim.item.claimNumber, claim.item.patientName],
+    [claimMessages.summaryLabels.claimStatus, claim.statusLabel, ""],
+    [claimMessages.summaryLabels.payer, claim.item.payerName, ""],
+    [
+      claimMessages.summaryLabels.owner,
+      claim.item.owner ?? claimMessages.common.unassigned,
+      ""
+    ],
+    [claimMessages.summaryLabels.lastUpdated, claim.lastUpdatedLabel, ""],
+    [claimMessages.summaryLabels.slaStatus, claim.slaLabel, ""]
   ] as const;
 
   return (
@@ -52,7 +64,7 @@ export default async function ClaimDetailPage({
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Link href="/app/queue" className="flex items-center gap-1 hover:text-gray-900">
             <ChevronLeft className="h-4 w-4" />
-            Claims Work Queue
+            {claimMessages.backToQueue}
           </Link>
           <ChevronRight className="h-4 w-4" />
           <span className="font-medium text-gray-900">{id}</span>
@@ -62,11 +74,8 @@ export default async function ClaimDetailPage({
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Claim Detail</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Complete source-of-truth record for claim-status work and operational
-              decisions
-            </p>
+            <h1 className="text-xl font-semibold text-gray-900">{claimMessages.pageHeading}</h1>
+            <p className="mt-1 text-sm text-gray-600">{claimMessages.pageSubheading}</p>
           </div>
         </div>
 
@@ -76,7 +85,7 @@ export default async function ClaimDetailPage({
               <div className="mb-1 text-xs text-gray-600">{label}</div>
               <div
                 className={`text-sm ${
-                  label === "SLA Status"
+                  label === claimMessages.summaryLabels.slaStatus
                     ? "font-semibold text-green-700"
                     : "font-semibold text-gray-900"
                 }`}
@@ -107,12 +116,12 @@ export default async function ClaimDetailPage({
           <div className="mt-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             <div>
               <div className="font-semibold text-red-900">
-                Manual payer phone call required
+                {claimMessages.phoneCallRequired}
               </div>
               <div className="mt-0.5">
                 {claim.phoneCallRequiredAt
-                  ? `Flagged ${new Date(claim.phoneCallRequiredAt).toLocaleString()}`
-                  : "Flagged in workflow"}
+                  ? `${claimMessages.phoneCallFlagged} ${new Date(claim.phoneCallRequiredAt).toLocaleString()}`
+                  : claimMessages.phoneCallWorkflowFlagged}
               </div>
             </div>
           </div>
@@ -126,7 +135,9 @@ export default async function ClaimDetailPage({
             canDownloadEvidence={canDownloadEvidence}
             canWorkClaims={canWorkClaims}
             canQueueWork={canQueueWork}
-            labels={messages.claim.tabs}
+            claimMessages={claimMessages}
+            followUpMessages={followUpMessages}
+            retrieveMessages={retrieveMessages}
           />
         </div>
       </div>

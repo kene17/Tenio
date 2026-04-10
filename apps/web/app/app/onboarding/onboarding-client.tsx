@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 
 import { KPICard } from "../../../components/kpi-card";
-import type { Locale, TenioMessages } from "../../../lib/locale";
+import { PageRoleBanner } from "../../../components/page-role-banner";
+import type { TenioMessages } from "../../../lib/locale";
 import { parseCsvText } from "../../../lib/csv";
 import type { OnboardingStateView, OnboardingStepId } from "../../../lib/pilot-api";
 import fallbackMessages from "../../../messages/en.json";
@@ -134,6 +135,14 @@ function actionBadge(
     );
   }
 
+  if (action === "duplicate_in_file") {
+    return (
+      <span className="inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+        {messages.actionDuplicate}
+      </span>
+    );
+  }
+
   return (
     <span className="inline-flex rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
       {messages.actionSkip}
@@ -182,15 +191,15 @@ function setupStatusBadge(
 }
 
 export function OnboardingClient({
-  locale,
   messages,
   currentRole,
+  roleHelpTitle,
   setupState,
   payers
 }: {
-  locale: Locale;
   messages: TenioMessages["onboarding"];
   currentRole: UserRole;
+  roleHelpTitle: string;
   setupState: OnboardingStateView | null;
   payers: Array<{
     payerId: string;
@@ -204,6 +213,8 @@ export function OnboardingClient({
   const router = useRouter();
   const canImport = hasPermission(currentRole, "claims:import");
   const canSeeSetupChecklist = hasPermission(currentRole, "users:read");
+  const roleHelpBody =
+    currentRole === "owner" ? null : onboardingMessages.roleHelp[currentRole] ?? null;
   const [rawRows, setRawRows] = useState<RawImportRow[]>([]);
   const [importProfile, setImportProfile] = useState<ImportProfileId>("jane_app_csv");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -242,6 +253,7 @@ export function OnboardingClient({
   );
 
   const nextStepId = setupState?.progress.nextStepId ?? null;
+  const commitButtonLabel = `${onboardingMessages.commitButtonPrefix} ${readyRows} ${onboardingMessages.commitButtonSuffix}`;
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -318,11 +330,7 @@ export function OnboardingClient({
       setPreview(payload.item);
       const committedCount = payload.item.summary.importedCount ?? readyRows;
       setCommittedCount(committedCount);
-      setNotice(
-        locale === "fr"
-          ? `${committedCount} ${messages.commitNoticeSuffix}`
-          : `${messages.commitNoticePrefix} ${committedCount} ${messages.commitNoticeSuffix}`
-      );
+      setNotice(null);
       router.refresh();
     });
   }
@@ -461,9 +469,18 @@ export function OnboardingClient({
             ) : null}
           </div>
         </div>
-        {!canImport ? (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Onboarding imports are limited to owner, manager, and operator roles.
+
+        {roleHelpBody ? <PageRoleBanner title={roleHelpTitle} body={roleHelpBody} /> : null}
+
+        {!preview && committedCount === null && rawRows.length === 0 ? (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-5">
+            <h2 className="text-base font-semibold text-blue-900">
+              {onboardingMessages.firstVisit.title}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-blue-800">
+              {onboardingMessages.firstVisit.body}
+            </p>
+            <p className="mt-3 text-xs text-blue-700">{onboardingMessages.firstVisit.helper}</p>
           </div>
         ) : null}
 
@@ -539,25 +556,28 @@ export function OnboardingClient({
                 <span className="font-medium text-gray-700">{fileName ?? messages.none}</span>
               </div>
             </div>
+            {committedCount && committedCount > 0 ? (
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
+                <div className="text-sm font-semibold">
+                  {committedCount} {onboardingMessages.complete.bodySuffix}
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/app/queue")}
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    {messages.setup.goToQueue}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {notice ? (
               <div className="mt-4 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <span>{notice}</span>
-                  {committedCount && committedCount > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => router.push("/app/queue")}
-                      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
-                        canSeeSetupChecklist
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                          : "border border-green-300 bg-white text-green-800 hover:bg-green-100"
-                      }`}
-                    >
-                      {messages.setup.goToQueue}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -584,9 +604,10 @@ export function OnboardingClient({
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 <Upload className="h-4 w-4" />
-                {messages.commitReadyRows}
+                {commitButtonLabel}
               </button>
             </div>
+            <p className="mt-3 text-xs text-gray-500">{messages.commitButtonSubtext}</p>
           </section>
 
           <section className="rounded-lg border border-gray-200 bg-white p-5">
