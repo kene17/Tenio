@@ -823,7 +823,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/pilot-guide"
-              className="text-small flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-semibold transition-all duration-200"
+              className="text-small flex items-center gap-1.5 rounded-full px-4 py-1.5 font-semibold transition-all duration-200"
               style={{
                 background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
                 color: "#fff",
@@ -879,7 +879,7 @@ export default function HomePage() {
               <Link
                 href="/pilot-guide"
                 className="text-small mt-2 block rounded-lg py-2.5 text-center font-semibold"
-                style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)", color: "#fff" }}
+                style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)", color: "#fff", borderRadius: 9999 }}
                 onClick={() => setMobileOpen(false)}
               >
                 Pilot Access
@@ -889,26 +889,28 @@ export default function HomePage() {
         ) : null}
       </nav>
 
-      <section className="hero-bg dot-grid relative overflow-hidden" style={{ paddingTop: 148, paddingBottom: 96 }}>
+      <section className="hero-bg relative overflow-hidden" style={{ paddingTop: 180, paddingBottom: 0 }}>
+        {/* Top radial glow */}
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden>
           <div
             className="absolute top-0 left-1/2 -translate-x-1/2"
             style={{
-              width: 1000,
-              height: 600,
-              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.13) 0%, rgba(99,102,241,0.06) 50%, transparent 72%)"
+              width: 1200,
+              height: 700,
+              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.11) 0%, rgba(99,102,241,0.05) 55%, transparent 75%)"
             }}
           />
         </div>
 
-        <div className="relative mx-auto max-w-4xl px-6 text-center">
-          <div className="reveal mb-8 flex justify-center">
+        <div className="relative mx-auto max-w-5xl px-6 text-center">
+          {/* Announcement pill */}
+          <div className="reveal mb-10 flex justify-center">
             <div
-              className="text-micro inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 font-bold tracking-widest uppercase"
+              className="text-micro inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold tracking-widest uppercase"
               style={{
-                background: "rgba(37,99,235,0.07)",
-                border: "1px solid rgba(37,99,235,0.18)",
-                color: "#1D4ED8"
+                background: "rgba(37,99,235,0.06)",
+                border: "1px solid rgba(37,99,235,0.16)",
+                color: "#2563EB"
               }}
             >
               <div className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "#2563EB" }} />
@@ -916,62 +918,76 @@ export default function HomePage() {
             </div>
           </div>
 
-          <h1 className="text-hero gradient-text reveal reveal-d1" style={{ marginBottom: "1.25rem" }}>
+          {/* Hero headline */}
+          <h1 className="text-hero gradient-text reveal reveal-d1" style={{ marginBottom: "1.5rem" }}>
             Stop chasing payers.
             <br />
             <span className="gradient-text-blue">Start closing claims.</span>
           </h1>
 
-          <p className="text-body reveal reveal-d2 mx-auto mb-10" style={{ maxWidth: 480, color: "#475569" }}>
+          {/* Subheadline */}
+          <p className="text-body reveal reveal-d2 mx-auto mb-12" style={{ maxWidth: 520, color: "#475569", fontSize: 17 }}>
             Tenio replaces your billing team&apos;s portal spreadsheet with a governed, auditable claim-status
             workflow. Built for Canadian paramedical clinics.
           </p>
 
-          <div className="reveal reveal-d3 mb-20 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          {/* CTAs — full pill shape */}
+          <div className="reveal reveal-d3 mb-24 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/pilot-guide"
-              className="text-small flex items-center gap-2 rounded-xl px-7 py-3.5 font-semibold transition-all duration-200"
+              className="text-small flex items-center gap-2 px-8 py-3.5 font-semibold transition-all duration-200"
               style={{
                 background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
                 color: "#fff",
-                boxShadow: "0 4px 20px rgba(37,99,235,0.32)"
+                borderRadius: 9999,
+                boxShadow: "0 4px 20px rgba(37,99,235,0.35), 0 1px 3px rgba(37,99,235,0.2)"
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 12px 36px rgba(37,99,235,0.44)";
+                e.currentTarget.style.boxShadow = "0 14px 40px rgba(37,99,235,0.45), 0 4px 12px rgba(37,99,235,0.25)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.32)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.35), 0 1px 3px rgba(37,99,235,0.2)";
               }}
             >
               Request pilot access <ArrowRight className="h-4 w-4" />
             </Link>
             <a
               href="#product"
-              className="text-small flex items-center gap-2 rounded-xl px-7 py-3.5 font-medium transition-all duration-200"
+              className="text-small flex items-center gap-2 px-8 py-3.5 font-medium transition-all duration-200"
               style={{
                 background: "#fff",
-                border: "1px solid rgba(15,23,42,0.10)",
+                border: "1px solid rgba(15,23,42,0.12)",
                 color: "#475569",
-                boxShadow: "0 2px 8px rgba(15,23,42,0.06)"
+                borderRadius: 9999,
+                boxShadow: "0 1px 4px rgba(15,23,42,0.06)"
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "rgba(37,99,235,0.25)";
+                e.currentTarget.style.borderColor = "rgba(37,99,235,0.3)";
                 e.currentTarget.style.color = "#1D4ED8";
-                e.currentTarget.style.boxShadow = "0 4px 16px rgba(37,99,235,0.10)";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(37,99,235,0.12)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(15,23,42,0.10)";
+                e.currentTarget.style.borderColor = "rgba(15,23,42,0.12)";
                 e.currentTarget.style.color = "#475569";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,23,42,0.06)";
+                e.currentTarget.style.boxShadow = "0 1px 4px rgba(15,23,42,0.06)";
               }}
             >
               See the product <ChevronRight className="h-4 w-4" />
             </a>
           </div>
 
-          <div className="reveal reveal-d4 mx-auto" style={{ maxWidth: 820 }}>
+          {/* Floating product screenshot */}
+          <div className="reveal reveal-d4 relative mx-auto" style={{ maxWidth: 900 }}>
+            {/* Glow halo behind the screenshot */}
+            <div
+              className="pointer-events-none absolute -inset-4 -z-10"
+              style={{
+                background: "radial-gradient(ellipse 80% 60% at 50% 80%, rgba(37,99,235,0.14) 0%, rgba(99,102,241,0.07) 50%, transparent 75%)",
+                filter: "blur(20px)"
+              }}
+            />
             <BrowserFrame url="tenio.app/queue">
               <QueueScreen />
             </BrowserFrame>
@@ -979,14 +995,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div
-        className="overflow-hidden border-y py-3.5"
-        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#f0f4ff" }}
-      >
+      {/* Payer proof strip — borderless, subtle */}
+      <div className="overflow-hidden py-5" style={{ background: "#fff" }}>
         <div className="flex items-center">
-          <div className="scroll-track flex w-max items-center gap-10 px-6">
+          <div className="scroll-track flex w-max items-center gap-12 px-6">
             {[...PAYERS, ...PAYERS].map((p, i) => (
-              <span key={`${p}-${i}`} className="text-small font-medium whitespace-nowrap" style={{ color: "#94A3B8" }}>
+              <span key={`${p}-${i}`} className="text-small font-medium whitespace-nowrap" style={{ color: "#cbd5e1", letterSpacing: "0.02em" }}>
                 {p}
               </span>
             ))}
@@ -994,8 +1008,9 @@ export default function HomePage() {
         </div>
       </div>
 
-      <section id="product" className="border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#fff" }}>
-        <div className="mx-auto grid max-w-6xl grid-cols-1 px-6 py-16 sm:grid-cols-3">
+      {/* KPI stats — no borders, generous padding */}
+      <section id="product" style={{ background: "#fff" }}>
+        <div className="mx-auto grid max-w-5xl grid-cols-1 px-6 py-24 sm:grid-cols-3 sm:gap-8">
           {(
             [
               { n: "40%", label: "Fewer manual touches", sub: "Automated retrieval eliminates most portal log-ins" },
@@ -1003,13 +1018,9 @@ export default function HomePage() {
               { n: "89%", label: "SLA compliance at go-live", sub: "Queue prioritization keeps nothing hidden" }
             ] as const
           ).map(({ n, label, sub }, i) => (
-            <div
-              key={label}
-              className="reveal-count reveal py-6"
-              style={i > 0 ? { borderLeft: "1px solid rgba(15,23,42,0.07)", paddingLeft: "2.5rem" } : { paddingRight: "2.5rem" }}
-            >
-              <div className="stat-num gradient-text-blue mb-2">{n}</div>
-              <div className="text-small mb-1 font-semibold" style={{ color: "#0f172a" }}>
+            <div key={label} className="reveal-count reveal py-8 text-center">
+              <div className="stat-num gradient-text-blue mb-3">{n}</div>
+              <div className="mb-1 font-semibold" style={{ color: "#0f172a", fontSize: 15 }}>
                 {label}
               </div>
               <div className="text-small" style={{ color: "#64748b" }}>
@@ -1076,35 +1087,31 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section
-        id="security"
-        className="section-alt border-t py-28"
-        style={{ borderColor: "rgba(15,23,42,0.07)" }}
-      >
+      <section id="security" className="section-alt py-36">
         <div className="mx-auto max-w-6xl px-6">
-          <div className="mx-auto mb-16 max-w-xl text-center">
-            <p className="text-micro reveal mb-4 font-bold tracking-widest uppercase" style={{ color: "#2563EB" }}>
+          <div className="mx-auto mb-20 max-w-xl text-center">
+            <p className="text-micro reveal mb-5 font-bold tracking-widest uppercase" style={{ color: "#2563EB" }}>
               Security & compliance
             </p>
             <h2 className="text-title gradient-text reveal reveal-d1">Patient data stays in Canada.</h2>
-            <p className="text-body reveal reveal-d2 mt-4" style={{ color: "#475569" }}>
+            <p className="text-body reveal reveal-d2 mt-5" style={{ color: "#475569" }}>
               PHIPA-aligned. Every claim record, evidence file, and audit event stays on Canadian soil and never
               leaves without your permission.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {TRUST.map(({ Icon, label, sub }, i) => (
               <div
                 key={label}
-                className={`surface surface-hover reveal-scale reveal rounded-2xl p-6 text-center reveal-d${i + 1}`}
+                className={`surface surface-hover reveal-scale reveal rounded-2xl p-7 text-center reveal-d${i + 1}`}
               >
                 <div
-                  className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl"
+                  className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl"
                   style={{ background: "rgba(37,99,235,0.07)" }}
                 >
                   <Icon className="h-5 w-5" style={{ color: "#2563EB" }} />
                 </div>
-                <div className="text-small mb-1 font-semibold" style={{ color: "#0f172a" }}>
+                <div className="mb-1.5 font-semibold" style={{ color: "#0f172a", fontSize: 15 }}>
                   {label}
                 </div>
                 <div className="text-small" style={{ color: "#64748b" }}>
@@ -1116,47 +1123,49 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="relative overflow-hidden border-t py-28" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#f0f4ff" }}>
+      {/* CTA — no border, clean gradient bg, pill button */}
+      <section className="relative overflow-hidden py-36" style={{ background: "#edf2ff" }}>
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            background: "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(37,99,235,0.10), transparent)"
+            background: "radial-gradient(ellipse 70% 80% at 50% 110%, rgba(37,99,235,0.13), transparent)"
           }}
         />
         <div className="relative mx-auto max-w-2xl px-6 text-center">
           <h2 className="text-title gradient-text reveal">Ready to cut follow-up time in half?</h2>
-          <p className="text-body reveal reveal-d1 mt-4 mb-10" style={{ color: "#475569" }}>
+          <p className="text-body reveal reveal-d1 mt-6 mb-12" style={{ color: "#475569" }}>
             We&apos;re accepting design partners in Ottawa now. Bring your Jane App export. You&apos;ll be live in
             under an hour.
           </p>
           <div className="reveal reveal-d2 flex justify-center">
             <Link
               href="/pilot-guide"
-              className="text-small flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold transition-all duration-200"
+              className="text-small flex items-center gap-2 px-9 py-4 font-semibold transition-all duration-200"
               style={{
                 background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
                 color: "#fff",
-                boxShadow: "0 4px 20px rgba(37,99,235,0.32)"
+                borderRadius: 9999,
+                boxShadow: "0 4px 20px rgba(37,99,235,0.35), 0 1px 3px rgba(37,99,235,0.2)"
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 12px 40px rgba(37,99,235,0.44)";
+                e.currentTarget.style.boxShadow = "0 14px 40px rgba(37,99,235,0.45), 0 4px 12px rgba(37,99,235,0.25)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.32)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.35), 0 1px 3px rgba(37,99,235,0.2)";
               }}
             >
               Apply for pilot access <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-          <p className="text-small reveal reveal-d3 mt-5" style={{ color: "#94A3B8" }}>
+          <p className="text-small reveal reveal-d3 mt-6" style={{ color: "#94A3B8" }}>
             No commitment. Design partners get 90 days free.
           </p>
         </div>
       </section>
 
-      <footer className="border-t py-10" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#fff" }}>
+      <footer className="py-10" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.06)" }}>
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
           <div className="flex items-center gap-2">
             <div
