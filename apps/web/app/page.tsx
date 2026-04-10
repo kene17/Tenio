@@ -1,317 +1,1189 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, ComponentType, ReactNode, RefObject } from "react";
 import Link from "next/link";
-import { useState } from "react";
 import {
   ArrowRight,
-  BarChart3,
-  CheckCircle,
-  Clock,
+  ChevronRight,
   FileText,
+  Globe,
+  Lock,
   Menu,
   Shield,
-  Target,
   Users,
   X
 } from "lucide-react";
 
-const navItems = [
-  { label: "Product", href: "#product" },
-  { label: "How It Works", href: "#how-it-works" },
-  { label: "Customers", href: "#customers" },
-  { label: "Security", href: "#security" }
+function useScrollReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll(
+      ".reveal,.reveal-scale,.reveal-left,.reveal-right,.reveal-count"
+    );
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) e.target.classList.add("in-view");
+        }),
+      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
+function useCursorSpotlight() {
+  useEffect(() => {
+    document.body.classList.add("cursor-spotlight");
+    const onMove = (e: MouseEvent) => {
+      document.body.style.setProperty("--mouse-x", `${e.clientX}px`);
+      document.body.style.setProperty("--mouse-y", `${e.clientY}px`);
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      document.body.classList.remove("cursor-spotlight");
+      document.body.style.removeProperty("--mouse-x");
+      document.body.style.removeProperty("--mouse-y");
+    };
+  }, []);
+}
+
+function useStickyStep(ref: RefObject<HTMLElement | null>, numSteps: number) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const handler = () => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const scrolled = -rect.top;
+      const total = rect.height - window.innerHeight;
+      const progress = Math.max(0, Math.min(1, total > 0 ? scrolled / total : 0));
+      setStep(Math.min(numSteps - 1, Math.floor(progress * numSteps)));
+    };
+    window.addEventListener("scroll", handler, { passive: true });
+    handler();
+    return () => window.removeEventListener("scroll", handler);
+  }, [ref, numSteps]);
+  return step;
+}
+
+function BrowserFrame({ children, url = "tenio.app" }: { children: ReactNode; url?: string }) {
+  return (
+    <div
+      style={{
+        background: "#0C0C18",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: 14,
+        overflow: "hidden",
+        boxShadow:
+          "0 2px 0 rgba(255,255,255,0.06) inset, 0 32px 80px rgba(15,23,42,0.18), 0 8px 24px rgba(15,23,42,0.10)"
+      }}
+    >
+      <div
+        style={{
+          background: "#13131F",
+          borderBottom: "1px solid rgba(255,255,255,0.055)",
+          padding: "10px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12
+        }}
+      >
+        <div style={{ display: "flex", gap: 6 }}>
+          {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
+            <div
+              key={c}
+              style={{ height: 11, width: 11, borderRadius: "50%", background: c, opacity: 0.85 }}
+            />
+          ))}
+        </div>
+        <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+          <div
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: 6,
+              padding: "3px 14px",
+              fontSize: 11,
+              color: "rgba(255,255,255,0.32)",
+              minWidth: 200,
+              textAlign: "center",
+              fontFamily: "var(--font-inter, ui-monospace)",
+              letterSpacing: "0.01em"
+            }}
+          >
+            {url}
+          </div>
+        </div>
+        <div style={{ width: 52 }} />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const M = {
+  bg: "#0C0C18",
+  surface: "#13131F",
+  raised: "#1A1A2A",
+  border: "rgba(255,255,255,0.06)",
+  text: "#E8EDF8",
+  sub: "#7B8499",
+  muted: "#3D4459"
+};
+
+function SLABadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    overdue: { bg: "rgba(220,38,38,0.15)", color: "#F87171", label: "Overdue" },
+    risk: { bg: "rgba(217,119,6,0.15)", color: "#FCD34D", label: "At risk" },
+    ok: { bg: "rgba(5,150,105,0.15)", color: "#34D399", label: "On track" }
+  };
+  const s = map[status] ?? map.ok;
+  return (
+    <span
+      style={{
+        background: s.bg,
+        color: s.color,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.07em",
+        textTransform: "uppercase",
+        padding: "2px 7px",
+        borderRadius: 99,
+        whiteSpace: "nowrap"
+      }}
+    >
+      {s.label}
+    </span>
+  );
+}
+
+function ImportScreen() {
+  return (
+    <div style={{ background: M.bg, padding: "22px 24px" }}>
+      <p
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: M.muted,
+          margin: "0 0 4px"
+        }}
+      >
+        IMPORT
+      </p>
+      <h3 style={{ fontSize: 16, fontWeight: 600, color: M.text, margin: "0 0 16px" }}>
+        Import Claims from Jane App
+      </h3>
+
+      <div
+        style={{
+          border: "1.5px dashed rgba(37,99,235,0.38)",
+          borderRadius: 12,
+          padding: "26px 24px",
+          textAlign: "center",
+          background: "rgba(37,99,235,0.04)",
+          marginBottom: 14
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: "rgba(37,99,235,0.14)",
+            margin: "0 auto 10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18
+          }}
+        >
+          📄
+        </div>
+        <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 600, color: M.text }}>
+          claims_export_2024-11-05.csv
+        </p>
+        <p style={{ margin: 0, fontSize: 11, color: M.muted }}>47 rows detected · 6 columns mapped</p>
+      </div>
+
+      <div
+        style={{ borderRadius: 8, border: `1px solid ${M.border}`, overflow: "hidden", marginBottom: 14 }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr auto",
+            padding: "7px 12px",
+            background: M.surface,
+            borderBottom: `1px solid ${M.border}`,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: M.muted
+          }}
+        >
+          <span>Jane column</span>
+          <span>Tenio field</span>
+          <span />
+        </div>
+        {(
+          [
+            ["claim_id", "Claim ID"],
+            ["patient_last", "Patient name"],
+            ["insurer_name", "Payer"],
+            ["service_date", "Service date"],
+            ["billed_amount", "Amount"]
+          ] as const
+        ).map(([j, t]) => (
+          <div
+            key={j}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr auto",
+              padding: "7px 12px",
+              borderBottom: `1px solid ${M.border}`,
+              alignItems: "center",
+              fontSize: 12
+            }}
+          >
+            <span style={{ color: M.sub, fontFamily: "ui-monospace, monospace" }}>{j}</span>
+            <span style={{ color: M.text }}>{t}</span>
+            <span style={{ color: "#34D399", fontSize: 13 }}>✓</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <div
+          style={{
+            flex: 1,
+            background: "#2563EB",
+            borderRadius: 8,
+            padding: "9px 16px",
+            textAlign: "center",
+            fontSize: 13,
+            fontWeight: 600,
+            color: "#fff",
+            cursor: "pointer"
+          }}
+        >
+          Import 47 claims
+        </div>
+        <div
+          style={{
+            background: M.surface,
+            border: `1px solid ${M.border}`,
+            borderRadius: 8,
+            padding: "9px 16px",
+            fontSize: 13,
+            color: M.sub,
+            cursor: "pointer"
+          }}
+        >
+          Preview
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const QUEUE_ROWS = [
+  { name: "Tremblay, M.", payer: "Sun Life", service: "Physiotherapy", status: "overdue", amount: "$240" },
+  { name: "Okonkwo, A.", payer: "Manulife", service: "Chiropractic", status: "risk", amount: "$165" },
+  { name: "Chen, L.", payer: "Green Shield", service: "Massage", status: "ok", amount: "$90" },
+  { name: "Lefebvre, P.", payer: "Canada Life", service: "Physiotherapy", status: "ok", amount: "$310" },
+  { name: "Singh, R.", payer: "Desjardins", service: "Naturopath", status: "risk", amount: "$120" }
 ];
 
-const workflowPillars = [
+const QUEUE_GRID: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.15fr) auto minmax(52px,64px)",
+  columnGap: 10,
+  alignItems: "center"
+};
+
+function QueueScreen() {
+  return (
+    <div style={{ background: M.bg }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          borderBottom: `1px solid ${M.border}`
+        }}
+      >
+        {(
+          [
+            ["Open claims", "47"],
+            ["Overdue", "3"],
+            ["SLA compliance", "89%"]
+          ] as const
+        ).map(([label, val], i) => (
+          <div
+            key={label}
+            style={{
+              padding: "12px 16px",
+              borderRight: i < 2 ? `1px solid ${M.border}` : "none"
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: M.muted,
+                marginBottom: 2,
+                textTransform: "uppercase",
+                letterSpacing: "0.07em",
+                fontWeight: 700
+              }}
+            >
+              {label}
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: val === "3" ? "#F87171" : M.text }}>{val}</div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          ...QUEUE_GRID,
+          padding: "8px 16px",
+          background: M.surface,
+          borderBottom: `1px solid ${M.border}`,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.07em",
+          textTransform: "uppercase",
+          color: M.muted
+        }}
+      >
+        <span>Patient</span>
+        <span>Payer</span>
+        <span>Service</span>
+        <span>SLA</span>
+        <span style={{ textAlign: "right" }}>Amt</span>
+      </div>
+      {QUEUE_ROWS.map((row, i) => (
+        <div
+          key={row.name}
+          style={{
+            ...QUEUE_GRID,
+            padding: "10px 16px",
+            fontSize: 12,
+            background: i === 0 ? "rgba(220,38,38,0.05)" : "transparent",
+            borderBottom: i < QUEUE_ROWS.length - 1 ? `1px solid ${M.border}` : "none"
+          }}
+        >
+          <span
+            style={{
+              color: M.text,
+              fontWeight: 500,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap"
+            }}
+          >
+            {row.name}
+          </span>
+          <span
+            style={{ color: M.sub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {row.payer}
+          </span>
+          <span
+            style={{ color: M.sub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {row.service}
+          </span>
+          <SLABadge status={row.status} />
+          <span style={{ color: M.sub, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+            {row.amount}
+          </span>
+        </div>
+      ))}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          padding: "9px 16px",
+          borderTop: `1px solid ${M.border}`,
+          fontSize: 11,
+          color: M.muted
+        }}
+      >
+        <span>47 claims · sorted by SLA risk</span>
+        <span style={{ color: "#3B82F6", cursor: "pointer" }}>View all →</span>
+      </div>
+    </div>
+  );
+}
+
+function ClaimDetailScreen() {
+  return (
+    <div style={{ background: M.bg, padding: "20px 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 11, color: M.muted, cursor: "pointer" }}>← Queue</span>
+        <span style={{ color: M.muted, fontSize: 11 }}>/</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: M.text }}>Tremblay, M.</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          <span
+            style={{
+              background: "rgba(220,38,38,0.14)",
+              color: "#F87171",
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 99,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase"
+            }}
+          >
+            Overdue
+          </span>
+        </div>
+      </div>
+      <div style={{ display: "flex", borderBottom: `1px solid ${M.border}`, marginBottom: 16 }}>
+        {["Overview", "Evidence", "Timeline"].map((tab, i) => (
+          <div
+            key={tab}
+            style={{
+              padding: "7px 14px",
+              fontSize: 12,
+              fontWeight: i === 0 ? 600 : 400,
+              cursor: "pointer",
+              color: i === 0 ? "#3B82F6" : M.muted,
+              borderBottom: i === 0 ? "2px solid #3B82F6" : "2px solid transparent",
+              marginBottom: -1
+            }}
+          >
+            {tab}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+        {(
+          [
+            ["Payer", "Sun Life PSHCP"],
+            ["Service", "Physiotherapy"],
+            ["Amount", "$240.00"],
+            ["Service date", "Oct 28, 2024"],
+            ["Submitted", "Nov 1, 2024"],
+            ["SLA due", "Today"]
+          ] as const
+        ).map(([label, val]) => (
+          <div
+            key={label}
+            style={{
+              background: M.surface,
+              border: `1px solid ${M.border}`,
+              borderRadius: 8,
+              padding: "9px 12px"
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: M.muted,
+                marginBottom: 3,
+                textTransform: "uppercase",
+                letterSpacing: "0.07em",
+                fontWeight: 700
+              }}
+            >
+              {label}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: label === "SLA due" ? "#F87171" : M.text
+              }}
+            >
+              {val}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          background: "rgba(37,99,235,0.10)",
+          border: "1px solid rgba(37,99,235,0.22)",
+          borderRadius: 10,
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#93C5FD", marginBottom: 2 }}>
+            Request status check
+          </div>
+          <div style={{ fontSize: 11, color: M.muted }}>Fetch latest status from Sun Life portal</div>
+        </div>
+        <div
+          style={{
+            background: "#2563EB",
+            borderRadius: 7,
+            padding: "7px 14px",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#fff",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+            marginLeft: 12
+          }}
+        >
+          Check now →
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EvidenceScreen() {
+  return (
+    <div style={{ background: M.bg, padding: "20px 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 11, color: M.muted, cursor: "pointer" }}>← Tremblay, M.</span>
+        <div style={{ marginLeft: "auto" }}>
+          <span
+            style={{
+              background: "rgba(5,150,105,0.14)",
+              color: "#34D399",
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 99,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase"
+            }}
+          >
+            Resolved
+          </span>
+        </div>
+      </div>
+      <div style={{ display: "flex", borderBottom: `1px solid ${M.border}`, marginBottom: 16 }}>
+        {["Overview", "Evidence", "Timeline"].map((tab, i) => (
+          <div
+            key={tab}
+            style={{
+              padding: "7px 14px",
+              fontSize: 12,
+              fontWeight: i === 1 ? 600 : 400,
+              cursor: "pointer",
+              color: i === 1 ? "#3B82F6" : M.muted,
+              borderBottom: i === 1 ? "2px solid #3B82F6" : "2px solid transparent",
+              marginBottom: -1
+            }}
+          >
+            {tab}
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          background: M.surface,
+          border: `1px solid ${M.border}`,
+          borderRadius: 12,
+          padding: "16px",
+          marginBottom: 12
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 12
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: M.text, marginBottom: 2 }}>
+              Sun Life Financial
+            </div>
+            <div style={{ fontSize: 11, color: M.muted }}>Claim #TRE-2024-0847 · Physiotherapy</div>
+          </div>
+          <span
+            style={{
+              background: "rgba(5,150,105,0.14)",
+              color: "#34D399",
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: 99,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              whiteSpace: "nowrap",
+              marginLeft: 10,
+              flexShrink: 0
+            }}
+          >
+            Approved
+          </span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+          {(
+            [
+              ["Benefit paid", "$216.00"],
+              ["Patient owes", "$24.00"],
+              ["Coverage", "90%"]
+            ] as const
+          ).map(([l, v]) => (
+            <div key={l}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: M.muted,
+                  marginBottom: 3,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
+                  fontWeight: 700
+                }}
+              >
+                {l}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: M.text }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ paddingTop: 10, borderTop: `1px solid ${M.border}`, fontSize: 11, color: M.muted }}>
+          Retrieved by Tenio · 2 minutes ago
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            background: "rgba(5,150,105,0.14)",
+            flexShrink: 0,
+            marginTop: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 12,
+            color: "#34D399"
+          }}
+        >
+          ✓
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: M.text, marginBottom: 2 }}>
+            Status checked — claim resolved
+          </div>
+          <div style={{ fontSize: 11, color: M.muted }}>A. Osei · Nov 5, 2024 at 9:42 AM</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ShowcaseItem = {
+  n: string;
+  url: string;
+  title: string;
+  desc: string;
+  Screen: ComponentType;
+};
+
+const SHOWCASE: ShowcaseItem[] = [
   {
-    title: "Queue And Ownership",
-    body: "Run claim-status work in one queue with clear assignment, review state, and next-action visibility."
+    n: "01",
+    url: "tenio.app/import",
+    title: "Import in seconds.",
+    desc: "Export from Jane App and drop the file in. Tenio maps every column automatically, validates all 47 rows, and shows you a preview before a single record saves.",
+    Screen: ImportScreen
   },
   {
-    title: "Routing And SLA Control",
-    body: "Move claims through governed review paths with escalation signals, backlog visibility, and manager oversight."
+    n: "02",
+    url: "tenio.app/queue",
+    title: "Work your priority queue.",
+    desc: "Every claim ranked by real SLA risk — not just age. Red is overdue, orange is at risk. Your team starts at the top and works down. No triage, no spreadsheet.",
+    Screen: QueueScreen
   },
   {
-    title: "Evidence And Auditability",
-    body: "Attach retrieval evidence, timestamps, and history so every claim decision can be trusted and explained."
+    n: "03",
+    url: "tenio.app/claims/TRE-847",
+    title: "Request status in one click.",
+    desc: 'Open a claim, hit "Check now." The payer response lands in the evidence panel automatically — no portal log-in, no copy-paste.',
+    Screen: ClaimDetailScreen
+  },
+  {
+    n: "04",
+    url: "tenio.app/claims/TRE-847/evidence",
+    title: "Evidence captured. Claim closed.",
+    desc: "Follow-up logged, outcome recorded, full audit trail attached. Every claim decision documented with provenance. Ready for billing audit.",
+    Screen: EvidenceScreen
   }
 ];
 
-const proofPoints = [
-  {
-    icon: Shield,
-    title: "Governed workflow",
-    body: "Automation proposes candidate outcomes. The workflow layer owns official state, review, and audit trail."
-  },
-  {
-    icon: CheckCircle,
-    title: "Evidence on every claim",
-    body: "Tenio captures retrieval context and links it to the claim record so operators do not reconstruct history by hand."
-  },
-  {
-    icon: Clock,
-    title: "Built for operational trust",
-    body: "Managers can see backlog, review load, escalation patterns, and SLA risk without stitching together multiple tools."
-  }
+const PAYERS = [
+  "Sun Life PSHCP",
+  "Manulife",
+  "Green Shield Canada",
+  "Canada Life",
+  "Desjardins",
+  "TELUS eClaims",
+  "Blue Cross Ontario",
+  "GWL",
+  "Medavie"
 ];
+
+const TRUST = [
+  { Icon: Globe, label: "Canadian data residency", sub: "AWS ca-central-1 — PHI never leaves Canada" },
+  { Icon: Lock, label: "PHIPA-aligned controls", sub: "Audit log, access control, encryption at rest" },
+  { Icon: Users, label: "Role-based access", sub: "Owner · Manager · Operator · Viewer" },
+  { Icon: Shield, label: "End-to-end encryption", sub: "TLS in transit, AES-256 at rest" }
+];
+
+const NAV_LINKS = ["Product", "How It Works", "Security"] as const;
+
+function navHref(label: (typeof NAV_LINKS)[number]) {
+  if (label === "How It Works") return "#how-it-works";
+  if (label === "Security") return "#security";
+  return "#product";
+}
 
 export default function HomePage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const supportEmail = process.env.NEXT_PUBLIC_PILOT_SUPPORT_EMAIL ?? "pilot-support@example.com";
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const showcaseRef = useRef<HTMLElement | null>(null);
+  const activeStep = useStickyStep(showcaseRef, SHOWCASE.length);
+
+  useScrollReveal();
+  useCursorSpotlight();
+
+  useEffect(() => {
+    const h = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
+  }, []);
 
   return (
-    <div className="bg-white">
-      <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded bg-slate-900">
-              <FileText className="h-4 w-4 text-white" />
+    <div style={{ minHeight: "100vh", background: "#fafafa" }}>
+      <nav
+        className="fixed top-0 right-0 left-0 z-50 transition-all duration-300"
+        style={{
+          background: scrolled ? "rgba(250,250,252,0.88)" : "transparent",
+          borderBottom: scrolled ? "1px solid rgba(15,23,42,0.07)" : "1px solid transparent",
+          backdropFilter: scrolled ? "blur(18px) saturate(180%)" : "none"
+        }}
+      >
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#2563EB" }}>
+              <FileText className="h-3.5 w-3.5 text-white" />
             </div>
-            <span className="text-[15px] font-semibold text-slate-900">Tenio</span>
+            <span className="font-semibold tracking-tight" style={{ color: "#0f172a" }}>
+              Tenio
+            </span>
           </div>
-          <div className="hidden items-center gap-6 md:flex">
-            {navItems.map((item) => (
-              <a key={item.href} href={item.href} className="text-[13px] text-slate-600 hover:text-slate-900">
-                {item.label}
+
+          <div className="hidden items-center gap-8 md:flex">
+            {NAV_LINKS.map((item) => (
+              <a
+                key={item}
+                href={navHref(item)}
+                className="text-small transition-colors duration-200"
+                style={{ color: "#94A3B8" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "#0f172a";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "#94A3B8";
+                }}
+              >
+                {item}
               </a>
             ))}
           </div>
+
           <div className="flex items-center gap-3">
-            <Link href="/login" className="hidden text-[13px] text-slate-600 hover:text-slate-900 md:block">
-              Sign In
+            <Link
+              href="/login"
+              className="text-small hidden transition-colors duration-200 md:block"
+              style={{ color: "#94A3B8" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#0f172a";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#94A3B8";
+              }}
+            >
+              Sign in
             </Link>
-            <Link href="/pilot-guide" className="hidden rounded bg-slate-900 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-slate-800 sm:block">
-              Pilot Guide
+            <Link
+              href="/pilot-guide"
+              className="text-small flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-semibold transition-all duration-200"
+              style={{ background: "#2563EB", color: "#fff" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.9";
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              Pilot Access <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <button
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              className="rounded p-2 text-slate-600 hover:bg-slate-50 md:hidden"
+              type="button"
+              className="p-1 md:hidden"
+              style={{ color: "#475569" }}
+              onClick={() => setMobileOpen(!mobileOpen)}
             >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
-        {mobileMenuOpen ? (
-          <div className="border-t border-gray-200 bg-white md:hidden">
-            <div className="space-y-3 px-6 py-4">
-              {navItems.map((item) => (
-                <a key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)} className="block py-2 text-[14px] text-slate-700 hover:text-slate-900">
-                  {item.label}
+
+        {mobileOpen ? (
+          <div
+            className="border-t px-6 pt-2 pb-5 md:hidden"
+            style={{ borderColor: "rgba(15,23,42,0.07)", background: "rgba(250,250,252,0.97)" }}
+          >
+            <div className="space-y-3">
+              {NAV_LINKS.map((item) => (
+                <a
+                  key={item}
+                  href={navHref(item)}
+                  className="text-small block py-1.5"
+                  style={{ color: "#475569" }}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item}
                 </a>
               ))}
-              <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="block py-2 text-[14px] text-slate-700 hover:text-slate-900">
-                Sign In
+              <Link
+                href="/login"
+                className="text-small block py-1.5"
+                style={{ color: "#475569" }}
+                onClick={() => setMobileOpen(false)}
+              >
+                Sign in
               </Link>
-              <Link href="/pilot-guide" className="block w-full rounded bg-slate-900 px-4 py-2 text-center text-[14px] font-medium text-white hover:bg-slate-800">
-                Pilot Guide
+              <Link
+                href="/pilot-guide"
+                className="text-small mt-2 block rounded-lg py-2.5 text-center font-semibold"
+                style={{ background: "#2563EB", color: "#fff" }}
+                onClick={() => setMobileOpen(false)}
+              >
+                Pilot Access
               </Link>
             </div>
           </div>
         ) : null}
       </nav>
 
-      <section className="border-b border-gray-200">
-        <div className="mx-auto max-w-6xl px-6 pt-20 pb-16">
-          <div className="mb-12 max-w-2xl">
-            <div className="mb-6 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-medium text-slate-700">
-              Workflow OS For Claim-Status Work
-            </div>
-            <h1 className="mb-5 text-[42px] leading-[1.1] font-bold text-slate-900">
-              The operating system for claim-status follow-up.
-            </h1>
-            <p className="mb-8 text-[17px] leading-[1.6] text-slate-600">
-              Tenio gives revenue cycle teams one governed workflow for queue ownership,
-              routing, review, evidence, and auditability while automation handles payer
-              retrieval and first-pass interpretation.
-            </p>
-            <div className="flex items-center gap-3">
-              <Link href="/pilot-guide" className="flex items-center gap-2 rounded bg-slate-900 px-5 py-2.5 text-[14px] font-medium text-white hover:bg-slate-800">
-                Pilot Guide
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link href="/login" className="rounded border border-slate-300 px-5 py-2.5 text-[14px] font-medium text-slate-700 hover:bg-slate-50">
-                Sign In
-              </Link>
+      <section className="hero-bg dot-grid relative overflow-hidden" style={{ paddingTop: 148, paddingBottom: 96 }}>
+        <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden>
+          <div
+            className="absolute top-0 left-1/2 -translate-x-1/2"
+            style={{
+              width: 900,
+              height: 520,
+              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.10) 0%, transparent 68%)"
+            }}
+          />
+        </div>
+
+        <div className="relative mx-auto max-w-4xl px-6 text-center">
+          <div className="reveal mb-8 flex justify-center">
+            <div
+              className="text-micro inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 font-bold tracking-widest uppercase"
+              style={{
+                background: "rgba(37,99,235,0.08)",
+                border: "1px solid rgba(37,99,235,0.14)",
+                color: "#1D4ED8"
+              }}
+            >
+              <div className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "#2563EB" }} />
+              Ottawa Paramedical · Design Partner Program
             </div>
           </div>
 
-          <div className="mb-12 grid gap-4 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <div className="mb-2 text-[12px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-                What Tenio Is
-              </div>
-              <p className="text-[15px] leading-7 text-slate-700">
-                The workflow system where claim-status work gets done: queue, ownership,
-                routing, review, evidence, SLA visibility, and operational reporting.
-              </p>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-              <div className="mb-2 text-[12px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-                What Tenio Does
-              </div>
-              <p className="text-[15px] leading-7 text-slate-700">
-                Automation retrieves claim status, normalizes messy payer output, scores
-                confidence, and sends uncertain cases into human review instead of
-                deciding official state on its own.
-              </p>
-            </div>
+          <h1 className="text-hero gradient-text reveal reveal-d1" style={{ marginBottom: "1.25rem" }}>
+            Stop chasing payers.
+            <br />
+            <span className="gradient-text-blue">Start closing claims.</span>
+          </h1>
+
+          <p className="text-body reveal reveal-d2 mx-auto mb-10" style={{ maxWidth: 480, color: "#475569" }}>
+            Tenio replaces your billing team&apos;s portal spreadsheet with a governed, auditable claim-status
+            workflow. Built for Canadian paramedical clinics.
+          </p>
+
+          <div className="reveal reveal-d3 mb-20 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/pilot-guide"
+              className="text-small flex items-center gap-2 rounded-xl px-7 py-3.5 font-semibold transition-all duration-200"
+              style={{
+                background: "#2563EB",
+                color: "#fff",
+                boxShadow: "0 4px 20px rgba(37,99,235,0.28)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 10px 36px rgba(37,99,235,0.38)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.28)";
+              }}
+            >
+              Request pilot access <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#product"
+              className="text-small flex items-center gap-2 rounded-xl px-7 py-3.5 font-medium transition-all duration-200"
+              style={{
+                background: "#fff",
+                border: "1px solid rgba(15,23,42,0.11)",
+                color: "#475569",
+                boxShadow: "0 1px 4px rgba(15,23,42,0.05)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(15,23,42,0.2)";
+                e.currentTarget.style.color = "#0f172a";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(15,23,42,0.11)";
+                e.currentTarget.style.color = "#475569";
+              }}
+            >
+              See the product <ChevronRight className="h-4 w-4" />
+            </a>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5">
-              <div className="flex items-center gap-3">
-                <span className="text-[13px] font-medium text-slate-900">Claims Work Queue</span>
-                <span className="text-[12px] text-slate-500">24 unresolved</span>
+          <div className="reveal reveal-d4 mx-auto" style={{ maxWidth: 820 }}>
+            <BrowserFrame url="tenio.app/queue">
+              <QueueScreen />
+            </BrowserFrame>
+          </div>
+        </div>
+      </section>
+
+      <div
+        className="overflow-hidden border-y py-3.5"
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#f8fafc" }}
+      >
+        <div className="flex items-center">
+          <div className="scroll-track flex w-max items-center gap-10 px-6">
+            {[...PAYERS, ...PAYERS].map((p, i) => (
+              <span key={`${p}-${i}`} className="text-small font-medium whitespace-nowrap" style={{ color: "#94A3B8" }}>
+                {p}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <section id="product" className="border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+        <div
+          className="mx-auto grid max-w-6xl grid-cols-1 px-6 py-16 sm:grid-cols-3 sm:divide-x sm:divide-black/7"
+          style={{ "--divide-color": "rgba(15,23,42,0.07)" } as CSSProperties}
+        >
+          {(
+            [
+              { n: "40%", label: "Fewer manual touches", sub: "Automated retrieval eliminates most portal log-ins" },
+              { n: "3 hr", label: "Saved per coordinator/day", sub: "Time back from chasing payer portals" },
+              { n: "89%", label: "SLA compliance at go-live", sub: "Queue prioritization keeps nothing hidden" }
+            ] as const
+          ).map(({ n, label, sub }, i) => (
+            <div
+              key={label}
+              className={`reveal-count reveal py-6 ${i > 0 ? "sm:border-l sm:border-black/7 sm:px-10" : "sm:pr-10"}`}
+            >
+              <div className="stat-num gradient-text-blue mb-2">{n}</div>
+              <div className="text-small mb-1 font-semibold" style={{ color: "#0f172a" }}>
+                {label}
+              </div>
+              <div className="text-small" style={{ color: "#94A3B8" }}>
+                {sub}
               </div>
             </div>
-            <div className="p-4">
-              <div className="divide-y divide-slate-100 rounded border border-slate-200 bg-white">
-                {[
-                  ["CLM-204938", "Martinez, Rosa", "Aetna", "$2,847", "Pending Review", "At Risk", "S. Chen"],
-                  ["CLM-204821", "Johnson, Michael", "UnitedHealthcare", "$1,205", "In Process", "Healthy", "M. Williams"],
-                  ["CLM-203657", "Lee, David", "Cigna", "$894", "Needs Follow-up", "At Risk", "D. Park"]
-                ].map(([id, patient, payer, amount, status, sla, owner]) => (
-                  <div key={id} className="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-slate-50">
-                    <div className="flex flex-1 items-center gap-6">
-                      <div className="w-32">
-                        <div className="text-[13px] font-medium text-blue-600">{id}</div>
-                        <div className="text-[11px] text-slate-500">{patient}</div>
-                      </div>
-                      <div className="w-32">
-                        <div className="text-[12px] text-slate-900">{payer}</div>
-                        <div className="text-[11px] text-slate-500">{amount}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                          {status}
-                        </span>
-                        <span className={`inline-flex rounded px-2 py-0.5 text-[11px] font-medium ${sla === "At Risk" ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                          {sla}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-[12px] text-slate-600">{owner}</span>
-                      <ArrowRight className="h-4 w-4 text-slate-400" />
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="how-it-works"
+        ref={showcaseRef}
+        style={{ height: `${SHOWCASE.length * 100}vh` }}
+      >
+        <div className="showcase-sticky">
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 px-6 md:grid-cols-[360px_1fr] lg:gap-20">
+            <div>
+              <p className="text-micro mb-8 font-bold tracking-widest uppercase" style={{ color: "#2563EB" }}>
+                How it works
+              </p>
+              {SHOWCASE.map((f, i) => (
+                <div key={f.n} className={`feature-step ${activeStep === i ? "active" : ""}`}>
+                  <div className="mb-1.5 flex items-center gap-3">
+                    <span
+                      className="text-micro font-bold transition-colors duration-300"
+                      style={{ color: activeStep === i ? "#2563EB" : "#CBD5E1" }}
+                    >
+                      {f.n}
+                    </span>
+                    <div
+                      className="h-px flex-1 transition-colors duration-300"
+                      style={{
+                        background: activeStep === i ? "rgba(37,99,235,0.18)" : "rgba(15,23,42,0.06)"
+                      }}
+                    />
+                  </div>
+                  <h3
+                    className="text-heading mb-1 font-semibold transition-colors duration-300"
+                    style={{ color: activeStep === i ? "#0f172a" : "#CBD5E1" }}
+                  >
+                    {f.title}
+                  </h3>
+                  <p className="text-small step-desc">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="relative" style={{ height: 520 }}>
+              {SHOWCASE.map((f, i) => {
+                const Screen = f.Screen;
+                return (
+                  <div key={f.n} className={`mock-screen ${activeStep === i ? "active" : ""}`}>
+                    <div className="w-full">
+                      <BrowserFrame url={f.url}>
+                        <Screen />
+                      </BrowserFrame>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </section>
 
-      <section id="product" className="border-b border-gray-200 py-20">
+      <section
+        id="security"
+        className="section-alt border-t py-28"
+        style={{ borderColor: "rgba(15,23,42,0.07)" }}
+      >
         <div className="mx-auto max-w-6xl px-6">
-          <div className="mb-12 max-w-3xl">
-            <h2 className="mb-3 text-[28px] font-bold text-slate-900">Workflow first. Automation underneath it.</h2>
-            <p className="text-[15px] leading-7 text-slate-600">
-              Tenio is not a generic agent or a simple scraper. It is the governed
-              workflow layer revenue cycle teams use to run claim-status operations,
-              with automation reducing the manual work around retrieval and interpretation.
+          <div className="mx-auto mb-16 max-w-xl text-center">
+            <p className="text-micro reveal mb-4 font-bold tracking-widest uppercase" style={{ color: "#2563EB" }}>
+              Security & compliance
+            </p>
+            <h2 className="text-title gradient-text reveal reveal-d1">Patient data stays in Canada.</h2>
+            <p className="text-body reveal reveal-d2 mt-4" style={{ color: "#475569" }}>
+              PHIPA-aligned. Every claim record, evidence file, and audit event stays on Canadian soil and never
+              leaves without your permission.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {workflowPillars.map((pillar) => (
-              <div key={pillar.title} className="rounded-lg border border-slate-200 bg-white p-6">
-                <h3 className="mb-3 text-[15px] font-semibold text-slate-900">{pillar.title}</h3>
-                <p className="text-[13px] leading-6 text-slate-600">{pillar.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="how-it-works" className="border-b border-gray-200 py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="mb-12 max-w-2xl">
-            <h2 className="mb-3 text-[28px] font-bold text-slate-900">How it works</h2>
-            <p className="text-[15px] text-slate-600">
-              A governed loop for retrieving, interpreting, routing, and resolving claim-status work.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-            {["Retrieve", "Interpret", "Route", "Resolve"].map((step, index) => (
-              <div key={step}>
-                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded bg-slate-900 text-[14px] font-semibold text-white">{index + 1}</div>
-                <h3 className="mb-2 text-[15px] font-semibold text-slate-900">{step}</h3>
-                <p className="text-[13px] leading-relaxed text-slate-600">
-                  {step === "Retrieve" && "Collect claim status from payer portals or payer-connected channels with evidence attached."}
-                  {step === "Interpret" && "Normalize messy payer responses into candidate results with confidence scoring."}
-                  {step === "Route" && "Send uncertain, unresolved, or high-risk claims into governed review and ownership paths."}
-                  {step === "Resolve" && "Track ownership, next action, and SLA until claims are resolved."}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="customers" className="border-b border-gray-200 bg-slate-50 py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="mb-12 max-w-2xl">
-            <h2 className="mb-3 text-[28px] font-bold text-slate-900">Built for revenue cycle operations</h2>
-            <p className="text-[15px] text-slate-600">
-              Teams managing claim-status follow-up across multiple payers, large backlogs,
-              and operational pressure around ownership, throughput, and SLA risk.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {[
-              [BarChart3, "Revenue Cycle Leaders", "Throughput visibility, bottleneck analysis, and SLA performance tracking."],
-              [FileText, "Claims Follow-up Teams", "Single queue for unresolved work, clear ownership, and structured review."],
-              [Target, "Operations Managers", "Routing logic, SLA management, and team performance monitoring."],
-              [Users, "RCM BPO Providers", "Higher claim throughput with audit-ready evidence and structured output."]
-            ].map(([Icon, title, body]) => (
-              <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-5">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded border border-slate-200 bg-slate-50">
-                  <Icon className="h-5 w-5 text-slate-700" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {TRUST.map(({ Icon, label, sub }, i) => (
+              <div
+                key={label}
+                className={`surface surface-hover reveal-scale reveal rounded-2xl p-6 text-center reveal-d${i + 1}`}
+              >
+                <div
+                  className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(37,99,235,0.07)" }}
+                >
+                  <Icon className="h-5 w-5" style={{ color: "#2563EB" }} />
                 </div>
-                <h3 className="mb-2 text-[14px] font-semibold text-slate-900">{title as string}</h3>
-                <p className="text-[12px] leading-relaxed text-slate-600">{body as string}</p>
+                <div className="text-small mb-1 font-semibold" style={{ color: "#0f172a" }}>
+                  {label}
+                </div>
+                <div className="text-small" style={{ color: "#94A3B8" }}>
+                  {sub}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="security" className="py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="mb-12 max-w-3xl">
-            <h2 className="mb-4 text-[32px] font-bold text-slate-900">Built for trust, not just automation demos.</h2>
-            <p className="text-[15px] leading-7 text-slate-600">
-              The core rule in Tenio is simple: automation can retrieve, interpret, and
-              propose, but the workflow layer owns official state, review, and auditability.
-            </p>
+      <section className="relative overflow-hidden border-t py-28" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: "radial-gradient(ellipse 70% 60% at 50% 110%, rgba(37,99,235,0.07), transparent)"
+          }}
+        />
+        <div className="relative mx-auto max-w-2xl px-6 text-center">
+          <h2 className="text-title gradient-text reveal">Ready to cut follow-up time in half?</h2>
+          <p className="text-body reveal reveal-d1 mt-4 mb-10" style={{ color: "#475569" }}>
+            We&apos;re accepting design partners in Ottawa now. Bring your Jane App export. You&apos;ll be live in
+            under an hour.
+          </p>
+          <div className="reveal reveal-d2 flex justify-center">
+            <Link
+              href="/pilot-guide"
+              className="text-small flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold transition-all duration-200"
+              style={{
+                background: "#2563EB",
+                color: "#fff",
+                boxShadow: "0 4px 20px rgba(37,99,235,0.26)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 12px 40px rgba(37,99,235,0.36)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.26)";
+              }}
+            >
+              Apply for pilot access <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
-          <div className="mb-12 grid gap-5 md:grid-cols-3">
-            {proofPoints.map(({ icon: Icon, title, body }) => (
-              <div key={title} className="rounded-lg border border-slate-200 bg-slate-50 p-6">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                  <Icon className="h-5 w-5 text-slate-700" />
-                </div>
-                <h3 className="mb-2 text-[15px] font-semibold text-slate-900">{title}</h3>
-                <p className="text-[13px] leading-6 text-slate-600">{body}</p>
-              </div>
-            ))}
+          <p className="text-small reveal reveal-d3 mt-5" style={{ color: "#94A3B8" }}>
+            No commitment. Design partners get 90 days free.
+          </p>
+        </div>
+      </section>
+
+      <footer className="border-t py-10" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "#2563EB" }}>
+              <FileText className="h-3 w-3 text-white" />
+            </div>
+            <span className="text-small font-semibold" style={{ color: "#0f172a" }}>
+              Tenio
+            </span>
+            <span className="text-small ml-1" style={{ color: "#94A3B8" }}>
+              · Ottawa, Canada
+            </span>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-8 text-center">
-            <h3 className="mb-3 text-[24px] font-bold text-slate-900">See how claim-status operations should work.</h3>
-            <p className="mb-8 text-[15px] text-slate-600">
-              One system for queue, ownership, routing, evidence, and resolution, powered by retrieval automation.
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <Link href="/pilot-guide" className="rounded bg-slate-900 px-6 py-3 text-[14px] font-semibold text-white hover:bg-slate-800">
-                Pilot Guide
-              </Link>
-              <a href={`mailto:${supportEmail}`} className="rounded border border-slate-300 px-6 py-3 text-[14px] font-semibold text-slate-700 hover:bg-slate-50">
-                Contact Pilot Support
+          <div className="flex items-center gap-6">
+            {(["Privacy", "Terms", "Security", "Contact"] as const).map((item) => (
+              <a
+                key={item}
+                href="#"
+                className="text-small transition-colors duration-200"
+                style={{ color: "#94A3B8" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "#475569";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "#94A3B8";
+                }}
+              >
+                {item}
               </a>
-            </div>
+            ))}
           </div>
+          <p className="text-small" style={{ color: "#94A3B8" }}>
+            © {new Date().getFullYear()} Tenio Inc.
+          </p>
         </div>
-      </section>
+      </footer>
     </div>
   );
 }

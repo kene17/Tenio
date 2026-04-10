@@ -33,3 +33,425 @@ select,
 textarea {
   font: inherit;
 }
+
+/* ─── Design tokens ─────────────────────────────────────────── */
+:root {
+  --bg-base: #080810;
+  --bg-surface: #0e0e1a;
+  --bg-elevated: #14141f;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.11);
+  --border-bright: rgba(255, 255, 255, 0.18);
+  --accent-blue: #3b82f6;
+  --accent-blue-dim: rgba(59, 130, 246, 0.12);
+  --accent-glow: rgba(59, 130, 246, 0.06);
+  --accent-purple: #818cf8;
+  --text-primary: #f0f4ff;
+  --text-secondary: #8b96b0;
+  --text-muted: #434d62;
+  --emerald-text: #34d399;
+  --emerald-soft: rgba(52, 211, 153, 0.1);
+  --amber-text: #fcd34d;
+  --amber-soft: rgba(252, 211, 77, 0.1);
+  --red-text: #f87171;
+  --red-soft: rgba(248, 113, 113, 0.1);
+}
+
+/* ─── Typography ─────────────────────────────────────────────── */
+.text-hero {
+  font-size: clamp(44px, 6.5vw, 80px);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+.text-title {
+  font-size: clamp(26px, 3.5vw, 44px);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+.text-heading {
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.text-body {
+  font-size: 16px;
+  line-height: 1.75;
+}
+.text-small {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.text-micro {
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+}
+
+/* ─── Marketing page shell (ensures dark theme even if tokens fail to cascade) ─ */
+.tenio-marketing {
+  background-color: #080810;
+  color: #f0f4ff;
+}
+
+/* ─── Gradient text (solid fallback when background-clip is unsupported) ─ */
+/* Uses dark slate tones — readable on the light marketing-page background. */
+.gradient-text {
+  color: #0f172a;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .gradient-text {
+    background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+.gradient-text-blue {
+  color: #93c5fd;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .gradient-text-blue {
+    background: linear-gradient(135deg, #93c5fd 0%, #3b82f6 50%, #818cf8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+.gradient-text-subtle {
+  color: #94a3b8;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .gradient-text-subtle {
+    background: linear-gradient(135deg, #cbd5e1 0%, #64748b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+
+/* ─── Surface utilities ──────────────────────────────────────── */
+.surface {
+  background-color: #0e0e1a;
+  background: var(--bg-surface, #0e0e1a);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+.surface-hover {
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s ease;
+}
+.surface-hover:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
+  transform: translateY(-2px);
+}
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+.glow-blue {
+  box-shadow:
+    0 0 60px rgba(59, 130, 246, 0.12),
+    0 0 120px rgba(59, 130, 246, 0.04);
+}
+
+/* ─── Scroll-reveal base states ──────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-d1 {
+  transition-delay: 0.05s;
+}
+.reveal-d2 {
+  transition-delay: 0.12s;
+}
+.reveal-d3 {
+  transition-delay: 0.19s;
+}
+.reveal-d4 {
+  transition-delay: 0.26s;
+}
+.reveal-d5 {
+  transition-delay: 0.33s;
+}
+.reveal-d6 {
+  transition-delay: 0.4s;
+}
+
+.reveal-scale {
+  opacity: 0;
+  transform: translateY(20px) scale(0.97);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-scale.in-view {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-32px);
+  transition:
+    opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-left.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.reveal-right {
+  opacity: 0;
+  transform: translateX(32px);
+  transition:
+    opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-right.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.reveal-line {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-line.in-view {
+  transform: scaleX(1);
+}
+
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal-count.in-view {
+  animation: countUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Hero ambient glow ──────────────────────────────────────── */
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.04);
+  }
+}
+.hero-glow {
+  animation: pulseGlow 6s ease-in-out infinite;
+}
+
+/* ─── Scrolling proof strip ──────────────────────────────────── */
+@keyframes scrollLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.scroll-track {
+  animation: scrollLeft 28s linear infinite;
+  will-change: transform;
+}
+.scroll-track:hover {
+  animation-play-state: paused;
+}
+
+/* ─── Cursor spotlight (applied to body via JS) ──────────────── */
+/* Overlay only — does NOT set a base background colour so it works on
+   both light (marketing) and dark (app) pages. The page itself supplies
+   its own background; we just add the radial glow on top. */
+.cursor-spotlight {
+  background:
+    radial-gradient(
+      600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+      rgba(59, 130, 246, 0.04),
+      transparent 70%
+    );
+}
+
+/* ─── Sticky product demo ────────────────────────────────────── */
+.sticky-demo {
+  position: sticky;
+  top: 80px;
+  height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Number highlight ───────────────────────────────────────── */
+.stat-num {
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+/* ─── Step connector line ────────────────────────────────────── */
+.step-line {
+  position: absolute;
+  left: 19px;
+  top: 40px;
+  bottom: -24px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--border-medium) 0%, transparent 100%);
+}
+
+/* ─── Floating badge ─────────────────────────────────────────── */
+@keyframes floatBadge {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.float-badge {
+  animation: floatBadge 4s ease-in-out infinite;
+}
+.float-badge-slow {
+  animation: floatBadge 5.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-scale,
+  .reveal-left,
+  .reveal-right,
+  .reveal-line,
+  .reveal-count.in-view {
+    transition: none;
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .hero-glow,
+  .scroll-track,
+  .float-badge,
+  .float-badge-slow {
+    animation: none;
+  }
+}
+
+/* ─── Sticky scroll showcase ──────────────────────────────── */
+.showcase-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+/* Mock screen slots — absolutely positioned, cross-fade on .active */
+.mock-screen {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(14px) scale(0.985);
+  transition:
+    opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+.mock-screen.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Feature step items on the left panel */
+.feature-step {
+  border-left: 2px solid transparent;
+  border-radius: 14px;
+  padding: 18px 20px;
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease;
+}
+.feature-step.active {
+  background: rgba(37, 99, 235, 0.04);
+  border-left-color: #2563eb;
+}
+.feature-step .step-desc {
+  color: transparent;
+  max-height: 0;
+  overflow: hidden;
+  transition:
+    color 0.3s ease,
+    max-height 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.feature-step.active .step-desc {
+  color: #475569;
+  max-height: 100px;
+}
+
+/* Mobile: collapse sticky, show mocks inline */
+@media (max-width: 767px) {
+  .showcase-sticky {
+    position: relative;
+    height: auto;
+    min-height: 0;
+    padding: 40px 0;
+  }
+  .mock-screen {
+    position: relative;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    display: none;
+  }
+  .mock-screen.active {
+    display: flex;
+  }
+}
+
+/* ─── Hero section background ─────────────────────────────── */
+.hero-bg {
+  background: linear-gradient(180deg, #eef3ff 0%, #f8fafc 100%);
+}
+.hero-bg-alt {
+  background: linear-gradient(180deg, #f0f5ff 0%, #fafbff 60%, #fafafa 100%);
+}
+
+/* ─── Section alt background ──────────────────────────────── */
+.section-alt {
+  background: #f4f7ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mock-screen {
+    transition: none;
+  }
+}
