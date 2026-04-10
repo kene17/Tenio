@@ -72,18 +72,18 @@ function BrowserFrame({ children, url = "tenio.app" }: { children: ReactNode; ur
   return (
     <div
       style={{
-        background: "#0C0C18",
-        border: "1px solid rgba(255,255,255,0.07)",
+        background: "#ffffff",
+        border: "1px solid rgba(15,23,42,0.09)",
         borderRadius: 14,
         overflow: "hidden",
         boxShadow:
-          "0 2px 0 rgba(255,255,255,0.06) inset, 0 32px 80px rgba(15,23,42,0.18), 0 8px 24px rgba(15,23,42,0.10)"
+          "0 0 0 1px rgba(15,23,42,0.04) inset, 0 32px 80px rgba(15,23,42,0.13), 0 8px 24px rgba(15,23,42,0.06)"
       }}
     >
       <div
         style={{
-          background: "#13131F",
-          borderBottom: "1px solid rgba(255,255,255,0.055)",
+          background: "#f1f5f9",
+          borderBottom: "1px solid rgba(15,23,42,0.08)",
           padding: "10px 16px",
           display: "flex",
           alignItems: "center",
@@ -94,19 +94,19 @@ function BrowserFrame({ children, url = "tenio.app" }: { children: ReactNode; ur
           {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
             <div
               key={c}
-              style={{ height: 11, width: 11, borderRadius: "50%", background: c, opacity: 0.85 }}
+              style={{ height: 11, width: 11, borderRadius: "50%", background: c }}
             />
           ))}
         </div>
         <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
           <div
             style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.07)",
+              background: "#ffffff",
+              border: "1px solid rgba(15,23,42,0.10)",
               borderRadius: 6,
               padding: "3px 14px",
               fontSize: 11,
-              color: "rgba(255,255,255,0.32)",
+              color: "rgba(15,23,42,0.40)",
               minWidth: 200,
               textAlign: "center",
               fontFamily: "var(--font-inter, ui-monospace)",
@@ -124,20 +124,20 @@ function BrowserFrame({ children, url = "tenio.app" }: { children: ReactNode; ur
 }
 
 const M = {
-  bg: "#0C0C18",
-  surface: "#13131F",
-  raised: "#1A1A2A",
-  border: "rgba(255,255,255,0.06)",
-  text: "#E8EDF8",
-  sub: "#7B8499",
-  muted: "#3D4459"
+  bg: "#ffffff",
+  surface: "#f8fafc",
+  raised: "#eef3ff",
+  border: "rgba(15,23,42,0.07)",
+  text: "#0f172a",
+  sub: "#475569",
+  muted: "#94a3b8"
 };
 
 function SLABadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
-    overdue: { bg: "rgba(220,38,38,0.15)", color: "#F87171", label: "Overdue" },
-    risk: { bg: "rgba(217,119,6,0.15)", color: "#FCD34D", label: "At risk" },
-    ok: { bg: "rgba(5,150,105,0.15)", color: "#34D399", label: "On track" }
+    overdue: { bg: "rgba(220,38,38,0.09)", color: "#dc2626", label: "OVERDUE" },
+    risk: { bg: "rgba(217,119,6,0.09)", color: "#b45309", label: "AT RISK" },
+    ok: { bg: "rgba(5,150,105,0.09)", color: "#059669", label: "ON TRACK" }
   };
   const s = map[status] ?? map.ok;
   return (
@@ -252,7 +252,7 @@ function ImportScreen() {
           >
             <span style={{ color: M.sub, fontFamily: "ui-monospace, monospace" }}>{j}</span>
             <span style={{ color: M.text }}>{t}</span>
-            <span style={{ color: "#34D399", fontSize: 13 }}>✓</span>
+            <span style={{ color: "#059669", fontSize: 13 }}>✓</span>
           </div>
         ))}
       </div>
@@ -342,7 +342,7 @@ function QueueScreen() {
             >
               {label}
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: val === "3" ? "#F87171" : M.text }}>{val}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: val === "3" ? "#dc2626" : M.text }}>{val}</div>
           </div>
         ))}
       </div>
@@ -430,8 +430,8 @@ function ClaimDetailScreen() {
         <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
           <span
             style={{
-              background: "rgba(220,38,38,0.14)",
-              color: "#F87171",
+              background: "rgba(220,38,38,0.09)",
+              color: "#dc2626",
               fontSize: 10,
               fontWeight: 700,
               padding: "2px 8px",
@@ -508,8 +508,8 @@ function ClaimDetailScreen() {
       </div>
       <div
         style={{
-          background: "rgba(37,99,235,0.10)",
-          border: "1px solid rgba(37,99,235,0.22)",
+          background: "rgba(37,99,235,0.05)",
+          border: "1px solid rgba(37,99,235,0.16)",
           borderRadius: 10,
           padding: "12px 16px",
           display: "flex",
@@ -518,7 +518,7 @@ function ClaimDetailScreen() {
         }}
       >
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#93C5FD", marginBottom: 2 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#1D4ED8", marginBottom: 2 }}>
             Request status check
           </div>
           <div style={{ fontSize: 11, color: M.muted }}>Fetch latest status from Sun Life portal</div>
@@ -552,8 +552,8 @@ function EvidenceScreen() {
         <div style={{ marginLeft: "auto" }}>
           <span
             style={{
-              background: "rgba(5,150,105,0.14)",
-              color: "#34D399",
+              background: "rgba(5,150,105,0.09)",
+              color: "#059669",
               fontSize: 10,
               fontWeight: 700,
               padding: "2px 8px",
@@ -609,8 +609,8 @@ function EvidenceScreen() {
           </div>
           <span
             style={{
-              background: "rgba(5,150,105,0.14)",
-              color: "#34D399",
+              background: "rgba(5,150,105,0.09)",
+              color: "#059669",
               fontSize: 10,
               fontWeight: 700,
               padding: "3px 8px",
@@ -660,14 +660,14 @@ function EvidenceScreen() {
             width: 26,
             height: 26,
             borderRadius: "50%",
-            background: "rgba(5,150,105,0.14)",
+            background: "rgba(5,150,105,0.09)",
             flexShrink: 0,
             marginTop: 2,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: 12,
-            color: "#34D399"
+            color: "#059669"
           }}
         >
           ✓
@@ -765,18 +765,22 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#fafafa" }}>
+    <div style={{ minHeight: "100vh", background: "#f8faff" }}>
       <nav
         className="fixed top-0 right-0 left-0 z-50 transition-all duration-300"
         style={{
-          background: scrolled ? "rgba(250,250,252,0.88)" : "transparent",
-          borderBottom: scrolled ? "1px solid rgba(15,23,42,0.07)" : "1px solid transparent",
-          backdropFilter: scrolled ? "blur(18px) saturate(180%)" : "none"
+          background: scrolled ? "rgba(248,250,255,0.92)" : "transparent",
+          borderBottom: scrolled ? "1px solid rgba(15,23,42,0.06)" : "1px solid transparent",
+          backdropFilter: scrolled ? "blur(20px) saturate(200%)" : "none",
+          boxShadow: scrolled ? "0 1px 24px rgba(15,23,42,0.06)" : "none"
         }}
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#2563EB" }}>
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-lg"
+              style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)", boxShadow: "0 2px 8px rgba(37,99,235,0.35)" }}
+            >
               <FileText className="h-3.5 w-3.5 text-white" />
             </div>
             <span className="font-semibold tracking-tight" style={{ color: "#0f172a" }}>
@@ -790,12 +794,12 @@ export default function HomePage() {
                 key={item}
                 href={navHref(item)}
                 className="text-small transition-colors duration-200"
-                style={{ color: "#94A3B8" }}
+                style={{ color: "#64748b" }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.color = "#0f172a";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "#94A3B8";
+                  e.currentTarget.style.color = "#64748b";
                 }}
               >
                 {item}
@@ -807,12 +811,12 @@ export default function HomePage() {
             <Link
               href="/login"
               className="text-small hidden transition-colors duration-200 md:block"
-              style={{ color: "#94A3B8" }}
+              style={{ color: "#64748b" }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = "#0f172a";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = "#94A3B8";
+                e.currentTarget.style.color = "#64748b";
               }}
             >
               Sign in
@@ -820,14 +824,18 @@ export default function HomePage() {
             <Link
               href="/pilot-guide"
               className="text-small flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-semibold transition-all duration-200"
-              style={{ background: "#2563EB", color: "#fff" }}
+              style={{
+                background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+                color: "#fff",
+                boxShadow: "0 2px 10px rgba(37,99,235,0.30)"
+              }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.9";
                 e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 6px 20px rgba(37,99,235,0.40)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1";
                 e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 2px 10px rgba(37,99,235,0.30)";
               }}
             >
               Pilot Access <ArrowRight className="h-3.5 w-3.5" />
@@ -835,7 +843,7 @@ export default function HomePage() {
             <button
               type="button"
               className="p-1 md:hidden"
-              style={{ color: "#475569" }}
+              style={{ color: "#64748b" }}
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -846,7 +854,7 @@ export default function HomePage() {
         {mobileOpen ? (
           <div
             className="border-t px-6 pt-2 pb-5 md:hidden"
-            style={{ borderColor: "rgba(15,23,42,0.07)", background: "rgba(250,250,252,0.97)" }}
+            style={{ borderColor: "rgba(15,23,42,0.06)", background: "rgba(248,250,255,0.98)" }}
           >
             <div className="space-y-3">
               {NAV_LINKS.map((item) => (
@@ -871,7 +879,7 @@ export default function HomePage() {
               <Link
                 href="/pilot-guide"
                 className="text-small mt-2 block rounded-lg py-2.5 text-center font-semibold"
-                style={{ background: "#2563EB", color: "#fff" }}
+                style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)", color: "#fff" }}
                 onClick={() => setMobileOpen(false)}
               >
                 Pilot Access
@@ -886,9 +894,9 @@ export default function HomePage() {
           <div
             className="absolute top-0 left-1/2 -translate-x-1/2"
             style={{
-              width: 900,
-              height: 520,
-              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.10) 0%, transparent 68%)"
+              width: 1000,
+              height: 600,
+              background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.13) 0%, rgba(99,102,241,0.06) 50%, transparent 72%)"
             }}
           />
         </div>
@@ -898,8 +906,8 @@ export default function HomePage() {
             <div
               className="text-micro inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 font-bold tracking-widest uppercase"
               style={{
-                background: "rgba(37,99,235,0.08)",
-                border: "1px solid rgba(37,99,235,0.14)",
+                background: "rgba(37,99,235,0.07)",
+                border: "1px solid rgba(37,99,235,0.18)",
                 color: "#1D4ED8"
               }}
             >
@@ -924,17 +932,17 @@ export default function HomePage() {
               href="/pilot-guide"
               className="text-small flex items-center gap-2 rounded-xl px-7 py-3.5 font-semibold transition-all duration-200"
               style={{
-                background: "#2563EB",
+                background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
                 color: "#fff",
-                boxShadow: "0 4px 20px rgba(37,99,235,0.28)"
+                boxShadow: "0 4px 20px rgba(37,99,235,0.32)"
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 10px 36px rgba(37,99,235,0.38)";
+                e.currentTarget.style.boxShadow = "0 12px 36px rgba(37,99,235,0.44)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.28)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.32)";
               }}
             >
               Request pilot access <ArrowRight className="h-4 w-4" />
@@ -944,17 +952,19 @@ export default function HomePage() {
               className="text-small flex items-center gap-2 rounded-xl px-7 py-3.5 font-medium transition-all duration-200"
               style={{
                 background: "#fff",
-                border: "1px solid rgba(15,23,42,0.11)",
+                border: "1px solid rgba(15,23,42,0.10)",
                 color: "#475569",
-                boxShadow: "0 1px 4px rgba(15,23,42,0.05)"
+                boxShadow: "0 2px 8px rgba(15,23,42,0.06)"
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "rgba(15,23,42,0.2)";
-                e.currentTarget.style.color = "#0f172a";
+                e.currentTarget.style.borderColor = "rgba(37,99,235,0.25)";
+                e.currentTarget.style.color = "#1D4ED8";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(37,99,235,0.10)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(15,23,42,0.11)";
+                e.currentTarget.style.borderColor = "rgba(15,23,42,0.10)";
                 e.currentTarget.style.color = "#475569";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,23,42,0.06)";
               }}
             >
               See the product <ChevronRight className="h-4 w-4" />
@@ -971,7 +981,7 @@ export default function HomePage() {
 
       <div
         className="overflow-hidden border-y py-3.5"
-        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#f8fafc" }}
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#f0f4ff" }}
       >
         <div className="flex items-center">
           <div className="scroll-track flex w-max items-center gap-10 px-6">
@@ -984,11 +994,8 @@ export default function HomePage() {
         </div>
       </div>
 
-      <section id="product" className="border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-        <div
-          className="mx-auto grid max-w-6xl grid-cols-1 px-6 py-16 sm:grid-cols-3 sm:divide-x sm:divide-black/7"
-          style={{ "--divide-color": "rgba(15,23,42,0.07)" } as CSSProperties}
-        >
+      <section id="product" className="border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#fff" }}>
+        <div className="mx-auto grid max-w-6xl grid-cols-1 px-6 py-16 sm:grid-cols-3">
           {(
             [
               { n: "40%", label: "Fewer manual touches", sub: "Automated retrieval eliminates most portal log-ins" },
@@ -998,13 +1005,14 @@ export default function HomePage() {
           ).map(({ n, label, sub }, i) => (
             <div
               key={label}
-              className={`reveal-count reveal py-6 ${i > 0 ? "sm:border-l sm:border-black/7 sm:px-10" : "sm:pr-10"}`}
+              className="reveal-count reveal py-6"
+              style={i > 0 ? { borderLeft: "1px solid rgba(15,23,42,0.07)", paddingLeft: "2.5rem" } : { paddingRight: "2.5rem" }}
             >
               <div className="stat-num gradient-text-blue mb-2">{n}</div>
               <div className="text-small mb-1 font-semibold" style={{ color: "#0f172a" }}>
                 {label}
               </div>
-              <div className="text-small" style={{ color: "#94A3B8" }}>
+              <div className="text-small" style={{ color: "#64748b" }}>
                 {sub}
               </div>
             </div>
@@ -1099,7 +1107,7 @@ export default function HomePage() {
                 <div className="text-small mb-1 font-semibold" style={{ color: "#0f172a" }}>
                   {label}
                 </div>
-                <div className="text-small" style={{ color: "#94A3B8" }}>
+                <div className="text-small" style={{ color: "#64748b" }}>
                   {sub}
                 </div>
               </div>
@@ -1108,11 +1116,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="relative overflow-hidden border-t py-28" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+      <section className="relative overflow-hidden border-t py-28" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#f0f4ff" }}>
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            background: "radial-gradient(ellipse 70% 60% at 50% 110%, rgba(37,99,235,0.07), transparent)"
+            background: "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(37,99,235,0.10), transparent)"
           }}
         />
         <div className="relative mx-auto max-w-2xl px-6 text-center">
@@ -1126,17 +1134,17 @@ export default function HomePage() {
               href="/pilot-guide"
               className="text-small flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold transition-all duration-200"
               style={{
-                background: "#2563EB",
+                background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
                 color: "#fff",
-                boxShadow: "0 4px 20px rgba(37,99,235,0.26)"
+                boxShadow: "0 4px 20px rgba(37,99,235,0.32)"
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 12px 40px rgba(37,99,235,0.36)";
+                e.currentTarget.style.boxShadow = "0 12px 40px rgba(37,99,235,0.44)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.26)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(37,99,235,0.32)";
               }}
             >
               Apply for pilot access <ArrowRight className="h-4 w-4" />
@@ -1148,10 +1156,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t py-10" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+      <footer className="border-t py-10" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#fff" }}>
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "#2563EB" }}>
+            <div
+              className="flex h-6 w-6 items-center justify-center rounded-md"
+              style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)" }}
+            >
               <FileText className="h-3 w-3 text-white" />
             </div>
             <span className="text-small font-semibold" style={{ color: "#0f172a" }}>
@@ -1169,7 +1180,7 @@ export default function HomePage() {
                 className="text-small transition-colors duration-200"
                 style={{ color: "#94A3B8" }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#475569";
+                  e.currentTarget.style.color = "#1D4ED8";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.color = "#94A3B8";

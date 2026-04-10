@@ -36,25 +36,25 @@ textarea {
 
 /* ─── Design tokens ─────────────────────────────────────────── */
 :root {
-  --bg-base: #080810;
-  --bg-surface: #0e0e1a;
-  --bg-elevated: #14141f;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-medium: rgba(255, 255, 255, 0.11);
-  --border-bright: rgba(255, 255, 255, 0.18);
-  --accent-blue: #3b82f6;
-  --accent-blue-dim: rgba(59, 130, 246, 0.12);
-  --accent-glow: rgba(59, 130, 246, 0.06);
-  --accent-purple: #818cf8;
-  --text-primary: #f0f4ff;
-  --text-secondary: #8b96b0;
-  --text-muted: #434d62;
-  --emerald-text: #34d399;
-  --emerald-soft: rgba(52, 211, 153, 0.1);
-  --amber-text: #fcd34d;
-  --amber-soft: rgba(252, 211, 77, 0.1);
-  --red-text: #f87171;
-  --red-soft: rgba(248, 113, 113, 0.1);
+  --bg-base: #f8faff;
+  --bg-surface: #ffffff;
+  --bg-elevated: #eef3ff;
+  --border-subtle: rgba(15, 23, 42, 0.06);
+  --border-medium: rgba(15, 23, 42, 0.10);
+  --border-bright: rgba(15, 23, 42, 0.18);
+  --accent-blue: #2563eb;
+  --accent-blue-dim: rgba(37, 99, 235, 0.08);
+  --accent-glow: rgba(37, 99, 235, 0.05);
+  --accent-purple: #4f46e5;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --emerald-text: #059669;
+  --emerald-soft: rgba(5, 150, 105, 0.08);
+  --amber-text: #d97706;
+  --amber-soft: rgba(217, 119, 6, 0.08);
+  --red-text: #dc2626;
+  --red-soft: rgba(220, 38, 38, 0.08);
 }
 
 /* ─── Typography ─────────────────────────────────────────────── */
@@ -87,20 +87,20 @@ textarea {
   letter-spacing: 0.08em;
 }
 
-/* ─── Marketing page shell (ensures dark theme even if tokens fail to cascade) ─ */
+/* ─── Marketing page shell ──────────────────────────────────── */
 .tenio-marketing {
-  background-color: #080810;
-  color: #f0f4ff;
+  background-color: #f8faff;
+  color: #0f172a;
 }
 
 /* ─── Gradient text (solid fallback when background-clip is unsupported) ─ */
-/* Uses dark slate tones — readable on the light marketing-page background. */
+/* Dark-on-light: deep navy to royal blue, premium on bright backgrounds. */
 .gradient-text {
   color: #0f172a;
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .gradient-text {
-    background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -108,11 +108,11 @@ textarea {
   }
 }
 .gradient-text-blue {
-  color: #93c5fd;
+  color: #1d4ed8;
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .gradient-text-blue {
-    background: linear-gradient(135deg, #93c5fd 0%, #3b82f6 50%, #818cf8 100%);
+    background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -134,23 +134,26 @@ textarea {
 
 /* ─── Surface utilities ──────────────────────────────────────── */
 .surface {
-  background-color: #0e0e1a;
-  background: var(--bg-surface, #0e0e1a);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background-color: #ffffff;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.06));
+  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.05);
 }
 .surface-hover {
   transition:
     background 0.25s ease,
     border-color 0.25s ease,
+    box-shadow 0.25s ease,
     transform 0.25s ease;
 }
 .surface-hover:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-medium);
+  background: var(--bg-elevated, #eef3ff);
+  border-color: rgba(37, 99, 235, 0.18);
+  box-shadow: 0 8px 28px rgba(37, 99, 235, 0.10);
   transform: translateY(-2px);
 }
 .dot-grid {
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
   background-size: 30px 30px;
 }
 .glow-blue {
@@ -290,8 +293,8 @@ textarea {
 .cursor-spotlight {
   background:
     radial-gradient(
-      600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-      rgba(59, 130, 246, 0.04),
+      700px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+      rgba(37, 99, 235, 0.05),
       transparent 70%
     );
 }
@@ -369,7 +372,7 @@ textarea {
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--bg-base, #f8faff);
 }
 
 /* Mock screen slots — absolutely positioned, cross-fade on .active */
@@ -413,7 +416,7 @@ textarea {
     max-height 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .feature-step.active .step-desc {
-  color: #475569;
+  color: var(--text-secondary, #475569);
   max-height: 100px;
 }
 
@@ -447,7 +450,7 @@ textarea {
 
 /* ─── Section alt background ──────────────────────────────── */
 .section-alt {
-  background: #f4f7ff;
+  background: var(--bg-elevated, #eef3ff);
 }
 
 @media (prefers-reduced-motion: reduce) {
