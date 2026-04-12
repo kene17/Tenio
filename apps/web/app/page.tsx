@@ -904,7 +904,7 @@ export default function HomePage() {
         ) : null}
       </nav>
 
-      <section className="hero-bg relative overflow-hidden" style={{ paddingTop: 180, paddingBottom: 0 }}>
+      <section className="hero-bg relative overflow-hidden" style={{ paddingTop: 140, paddingBottom: 0 }}>
         {/* Layered ambient orbs — depth without imagery */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           {/* Large indigo orb — top right */}
@@ -964,20 +964,20 @@ export default function HomePage() {
           </div>
 
           {/* Hero headline */}
-          <h1 className="text-hero gradient-text reveal reveal-d1" style={{ marginBottom: "1.5rem" }}>
+          <h1 className="text-hero gradient-text hero-reveal hero-reveal-d1" style={{ marginBottom: "1.5rem" }}>
             Stop chasing payers.
             <br />
             <span className="gradient-text-blue">Start closing claims.</span>
           </h1>
 
           {/* Subheadline */}
-          <p className="text-body reveal reveal-d2 mx-auto mb-12" style={{ maxWidth: 520, color: "#475569", fontSize: 17 }}>
+          <p className="text-body hero-reveal hero-reveal-d2 mx-auto mb-12" style={{ maxWidth: 520, color: "#475569", fontSize: 17 }}>
             Tenio replaces your billing team&apos;s portal spreadsheet with a governed, auditable claim-status
             workflow. Built for Canadian paramedical clinics.
           </p>
 
           {/* CTAs — full pill shape */}
-          <div className="reveal reveal-d3 mb-24 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="hero-reveal hero-reveal-d3 mb-24 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/pilot-guide"
               className="text-small flex items-center gap-2 px-8 py-3.5 font-semibold transition-all duration-200"
@@ -1024,7 +1024,7 @@ export default function HomePage() {
           </div>
 
           {/* Floating product screenshot */}
-          <div className="reveal reveal-d4 relative mx-auto" style={{ maxWidth: 900 }}>
+          <div className="hero-reveal hero-reveal-d4 relative mx-auto" style={{ maxWidth: 900 }}>
             {/* Glow halo behind the screenshot */}
             <div
               className="pointer-events-none absolute -inset-4 -z-10"
@@ -1053,26 +1053,67 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* KPI stats — no borders, generous padding */}
-      <section id="product" style={{ background: "#fff" }}>
-        <div className="mx-auto grid max-w-5xl grid-cols-1 px-6 py-24 sm:grid-cols-3 sm:gap-8">
-          {(
-            [
-              { n: "40%", label: "Fewer manual touches", sub: "Automated retrieval eliminates most portal log-ins" },
-              { n: "3 hr", label: "Saved per coordinator/day", sub: "Time back from chasing payer portals" },
-              { n: "89%", label: "SLA compliance at go-live", sub: "Queue prioritization keeps nothing hidden" }
-            ] as const
-          ).map(({ n, label, sub }, i) => (
-            <div key={label} className="reveal-count reveal py-8 text-center">
-              <div className="stat-num gradient-text-blue mb-3">{n}</div>
-              <div className="mb-1 font-semibold" style={{ color: "#0f172a", fontSize: 15 }}>
-                {label}
+      {/* KPI stats — display-scale editorial treatment */}
+      <section id="product" style={{ background: "#f5f7ff", borderTop: "1px solid rgba(15,23,42,0.05)", borderBottom: "1px solid rgba(15,23,42,0.05)" }}>
+        <div className="mx-auto max-w-6xl px-6" style={{ paddingTop: 88, paddingBottom: 88 }}>
+          {/* Section label */}
+          <div className="reveal mb-16 text-center">
+            <span style={{
+              display: "inline-block",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "#2563eb",
+              background: "rgba(37,99,235,0.08)",
+              borderRadius: 999,
+              padding: "5px 14px",
+              marginBottom: 16
+            }}>By the numbers</span>
+            <p style={{ color: "#64748b", fontSize: 16, maxWidth: 420, margin: "0 auto", lineHeight: 1.6 }}>
+              What clinics see after their first 90 days on Tenio
+            </p>
+          </div>
+
+          {/* Stats grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
+            {(
+              [
+                { n: "40%", label: "Fewer manual touches", sub: "Automated retrieval eliminates most portal log-ins" },
+                { n: "3 hr", label: "Saved per coordinator / day", sub: "Time back from chasing payer portals" },
+                { n: "89%", label: "SLA compliance at go-live", sub: "Queue prioritization keeps nothing hidden" }
+              ] as const
+            ).map(({ n, label, sub }, i) => (
+              <div
+                key={label}
+                className="reveal-count reveal"
+                style={{
+                  padding: "0 40px",
+                  textAlign: "center",
+                  borderLeft: i > 0 ? "1px solid rgba(15,23,42,0.08)" : undefined
+                }}
+              >
+                {/* Giant number */}
+                <div className="stat-num gradient-text-blue" style={{ marginBottom: 12 }}>{n}</div>
+
+                {/* Rule */}
+                <div style={{
+                  width: 32,
+                  height: 2,
+                  background: "linear-gradient(90deg, #2563eb, #4f46e5)",
+                  borderRadius: 99,
+                  margin: "0 auto 14px"
+                }} />
+
+                <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 15, marginBottom: 6, lineHeight: 1.4 }}>
+                  {label}
+                </div>
+                <div style={{ color: "#64748b", fontSize: 13.5, lineHeight: 1.55 }}>
+                  {sub}
+                </div>
               </div>
-              <div className="text-small" style={{ color: "#64748b" }}>
-                {sub}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 

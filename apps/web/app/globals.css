@@ -169,6 +169,33 @@ textarea {
     0 0 120px rgba(59, 130, 246, 0.04);
 }
 
+/* ─── Hero entrance animations (no IntersectionObserver needed) ── */
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.hero-reveal {
+  animation: heroFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hero-reveal-d1 { animation-delay: 0.05s; }
+.hero-reveal-d2 { animation-delay: 0.15s; }
+.hero-reveal-d3 { animation-delay: 0.25s; }
+.hero-reveal-d4 { animation-delay: 0.38s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* ─── Scroll-reveal base states ──────────────────────────────── */
 .reveal {
   opacity: 0;
@@ -317,10 +344,12 @@ textarea {
 
 /* ─── Number highlight ───────────────────────────────────────── */
 .stat-num {
-  font-size: clamp(36px, 5vw, 56px);
+  font-family: var(--font-fraunces, Georgia, serif);
+  font-size: clamp(64px, 9vw, 96px);
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
+  font-variation-settings: "opsz" 144;
 }
 
 /* ─── Step connector line ────────────────────────────────────── */
