@@ -766,145 +766,228 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8faff" }}>
-      <nav
-        className="fixed top-0 right-0 left-0 z-50 transition-all duration-300"
-        style={{
-          background: scrolled ? "rgba(248,250,255,0.92)" : "transparent",
-          borderBottom: scrolled ? "1px solid rgba(15,23,42,0.06)" : "1px solid transparent",
-          backdropFilter: scrolled ? "blur(20px) saturate(200%)" : "none",
-          boxShadow: scrolled ? "0 1px 24px rgba(15,23,42,0.06)" : "none"
-        }}
-      >
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-1.5">
-            <span
+      {/* ── Floating pill nav ─────────────────────────────────────── */}
+      <nav className="fixed top-0 right-0 left-0 z-50 flex items-start justify-between px-5 pt-4 md:justify-center">
+
+        {/* ── Desktop: centered floating island ── */}
+        <div
+          className="hidden md:flex items-center transition-all duration-300"
+          style={{
+            background: scrolled ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.72)",
+            backdropFilter: "blur(24px) saturate(180%)",
+            WebkitBackdropFilter: "blur(24px) saturate(180%)",
+            border: "1px solid rgba(15,23,42,0.09)",
+            borderRadius: 9999,
+            boxShadow: scrolled
+              ? "0 4px 32px rgba(15,23,42,0.10), 0 1px 0 rgba(255,255,255,0.8) inset"
+              : "0 2px 16px rgba(15,23,42,0.06), 0 1px 0 rgba(255,255,255,0.8) inset",
+            padding: "6px 6px 6px 20px",
+            gap: 2,
+          }}
+        >
+          {/* Wordmark */}
+          <a href="#" style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none", marginRight: 8 }}>
+            <span style={{
+              fontFamily: "var(--font-fraunces, Georgia, serif)",
+              fontWeight: 700,
+              fontSize: 20,
+              color: "#0f172a",
+              letterSpacing: "-0.03em",
+              fontVariationSettings: '"opsz" 72',
+              lineHeight: 1,
+            }}>Tenio</span>
+            <span style={{
+              display: "inline-block", width: 5, height: 5, borderRadius: "50%",
+              background: "linear-gradient(135deg, #2563EB, #4f46e5)",
+              flexShrink: 0, marginBottom: 0,
+            }} />
+          </a>
+
+          {/* Divider */}
+          <span style={{ width: 1, height: 16, background: "rgba(15,23,42,0.10)", marginRight: 8, marginLeft: 6, flexShrink: 0 }} />
+
+          {/* Nav links */}
+          {NAV_LINKS.map((item) => (
+            <a
+              key={item}
+              href={navHref(item)}
               style={{
-                fontFamily: "var(--font-fraunces, Georgia, serif)",
-                fontWeight: 700,
-                fontSize: 22,
-                color: "#0f172a",
-                letterSpacing: "-0.03em",
-                fontVariationSettings: '"opsz" 72',
-                lineHeight: 1
+                fontSize: 13.5,
+                fontWeight: 500,
+                color: "#475569",
+                textDecoration: "none",
+                padding: "7px 14px",
+                borderRadius: 9999,
+                transition: "color 0.15s, background 0.15s",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#0f172a";
+                e.currentTarget.style.background = "rgba(15,23,42,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#475569";
+                e.currentTarget.style.background = "transparent";
               }}
             >
-              Tenio
-            </span>
-            <span
-              style={{
-                display: "inline-block",
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #2563EB, #4f46e5)",
-                marginBottom: 1,
-                flexShrink: 0
-              }}
-            />
-          </div>
+              {item}
+            </a>
+          ))}
 
-          <div className="hidden items-center gap-8 md:flex">
+          {/* Sign in — ghost pill so it reads as a button */}
+          <Link
+            href="/login"
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "#0f172a",
+              textDecoration: "none",
+              padding: "7px 16px",
+              borderRadius: 9999,
+              border: "1px solid rgba(15,23,42,0.15)",
+              background: "rgba(255,255,255,0.6)",
+              transition: "color 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s",
+              whiteSpace: "nowrap",
+              marginLeft: 4,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#fff";
+              e.currentTarget.style.borderColor = "rgba(15,23,42,0.22)";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,23,42,0.08)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.6)";
+              e.currentTarget.style.borderColor = "rgba(15,23,42,0.15)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            Sign in
+          </Link>
+
+          {/* CTA pill — sits flush inside the island */}
+          <Link
+            href="/pilot-guide"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "8px 16px",
+              borderRadius: 9999,
+              background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+              boxShadow: "0 2px 10px rgba(37,99,235,0.28), 0 1px 0 rgba(255,255,255,0.18) inset",
+              transition: "transform 0.15s, box-shadow 0.15s",
+              whiteSpace: "nowrap",
+              marginLeft: 4,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-1px)";
+              e.currentTarget.style.boxShadow = "0 6px 20px rgba(37,99,235,0.40), 0 1px 0 rgba(255,255,255,0.18) inset";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 2px 10px rgba(37,99,235,0.28), 0 1px 0 rgba(255,255,255,0.18) inset";
+            }}
+          >
+            Get Pilot Access <ArrowRight style={{ width: 13, height: 13, strokeWidth: 2.5 }} />
+          </Link>
+        </div>
+
+        {/* ── Mobile: minimal logo + hamburger ── */}
+        <div
+          className="flex md:hidden w-full items-center justify-between"
+          style={{
+            background: "rgba(255,255,255,0.88)",
+            backdropFilter: "blur(20px) saturate(180%)",
+            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+            border: "1px solid rgba(15,23,42,0.09)",
+            borderRadius: 14,
+            padding: "10px 14px",
+            boxShadow: "0 2px 16px rgba(15,23,42,0.07)"
+          }}
+        >
+          <a href="#" style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none" }}>
+            <span style={{
+              fontFamily: "var(--font-fraunces, Georgia, serif)",
+              fontWeight: 700, fontSize: 19, color: "#0f172a",
+              letterSpacing: "-0.03em", fontVariationSettings: '"opsz" 72', lineHeight: 1
+            }}>Tenio</span>
+            <span style={{
+              display: "inline-block", width: 5, height: 5, borderRadius: "50%",
+              background: "linear-gradient(135deg, #2563EB, #4f46e5)", flexShrink: 0,
+            }} />
+          </a>
+          <button
+            type="button"
+            style={{ color: "#475569", background: "none", border: "none", cursor: "pointer", padding: 4 }}
+            onClick={() => setMobileOpen(!mobileOpen)}
+          >
+            {mobileOpen ? <X style={{ width: 20, height: 20 }} /> : <Menu style={{ width: 20, height: 20 }} />}
+          </button>
+        </div>
+
+        {/* Mobile dropdown */}
+        {mobileOpen ? (
+          <div
+            className="md:hidden absolute top-16 left-5 right-5"
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(15,23,42,0.09)",
+              borderRadius: 14,
+              padding: "12px 8px",
+              boxShadow: "0 8px 32px rgba(15,23,42,0.12)"
+            }}
+          >
             {NAV_LINKS.map((item) => (
               <a
                 key={item}
                 href={navHref(item)}
-                className="text-small transition-colors duration-200"
-                style={{ color: "#64748b" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#0f172a";
+                style={{
+                  display: "block", padding: "10px 14px", fontSize: 14, fontWeight: 500,
+                  color: "#475569", textDecoration: "none", borderRadius: 9,
                 }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "#64748b";
-                }}
+                onClick={() => setMobileOpen(false)}
               >
                 {item}
               </a>
             ))}
-          </div>
-
-          <div className="flex items-center gap-3">
+            <div style={{ height: 1, background: "rgba(15,23,42,0.06)", margin: "8px 14px" }} />
             <Link
               href="/login"
-              className="text-small hidden transition-colors duration-200 md:block"
-              style={{ color: "#64748b" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#0f172a";
+              style={{
+                display: "block", margin: "4px 6px 2px", padding: "11px 14px",
+                fontSize: 14, fontWeight: 600, color: "#0f172a", textDecoration: "none",
+                borderRadius: 9999, textAlign: "center",
+                border: "1px solid rgba(15,23,42,0.15)",
+                background: "rgba(255,255,255,0.6)",
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "#64748b";
-              }}
+              onClick={() => setMobileOpen(false)}
             >
               Sign in
             </Link>
+            <div style={{ height: 6 }} />
             <Link
               href="/pilot-guide"
-              className="text-small flex items-center gap-1.5 rounded-full px-4 py-1.5 font-semibold transition-all duration-200"
               style={{
+                display: "block", margin: "4px 6px 2px", padding: "11px 14px",
+                fontSize: 14, fontWeight: 600, color: "#fff", textDecoration: "none",
+                borderRadius: 9999, textAlign: "center",
                 background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
-                color: "#fff",
-                boxShadow: "0 2px 10px rgba(37,99,235,0.30)"
+                boxShadow: "0 2px 10px rgba(37,99,235,0.28)",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow = "0 6px 20px rgba(37,99,235,0.40)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 2px 10px rgba(37,99,235,0.30)";
-              }}
+              onClick={() => setMobileOpen(false)}
             >
-              Pilot Access <ArrowRight className="h-3.5 w-3.5" />
+              Get Pilot Access
             </Link>
-            <button
-              type="button"
-              className="p-1 md:hidden"
-              style={{ color: "#64748b" }}
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          </div>
-        </div>
-
-        {mobileOpen ? (
-          <div
-            className="border-t px-6 pt-2 pb-5 md:hidden"
-            style={{ borderColor: "rgba(15,23,42,0.06)", background: "rgba(248,250,255,0.98)" }}
-          >
-            <div className="space-y-3">
-              {NAV_LINKS.map((item) => (
-                <a
-                  key={item}
-                  href={navHref(item)}
-                  className="text-small block py-1.5"
-                  style={{ color: "#475569" }}
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {item}
-                </a>
-              ))}
-              <Link
-                href="/login"
-                className="text-small block py-1.5"
-                style={{ color: "#475569" }}
-                onClick={() => setMobileOpen(false)}
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/pilot-guide"
-                className="text-small mt-2 block rounded-lg py-2.5 text-center font-semibold"
-                style={{ background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)", color: "#fff", borderRadius: 9999 }}
-                onClick={() => setMobileOpen(false)}
-              >
-                Pilot Access
-              </Link>
-            </div>
           </div>
         ) : null}
       </nav>
 
-      <section className="hero-bg relative overflow-hidden" style={{ paddingTop: 140, paddingBottom: 0 }}>
+      <section className="hero-bg relative overflow-hidden" style={{ paddingTop: 128, paddingBottom: 0 }}>
         {/* Layered ambient orbs — depth without imagery */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           {/* Large indigo orb — top right */}
