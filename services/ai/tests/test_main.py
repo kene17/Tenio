@@ -15,7 +15,6 @@ from services.ai.app.schemas import (
     AgentRunContext,
     AiClaimStatusAnalysisRequest,
     OpenAiPlannerDirectiveEnvelope,
-    PlannerDirectiveEnvelope,
 )
 
 
@@ -813,79 +812,85 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(directive.tool_call.args.connector_id, "telus-eclaims-api")
         self.assertEqual(directive.tool_call.args.mode, "api")
 
-    def test_openai_planner_directive_is_used_in_auto_mode(self) -> None:
-        class FakeResponse:
-            def __init__(self) -> None:
-                self.output_parsed = OpenAiPlannerDirectiveEnvelope.model_validate(
-                    {
-                        "directive": {
-                            "type": "tool_call",
-                            "publicReason": "Switch to browser fallback based on planner output.",
-                            "toolCall": {
-                                "toolName": "execute_connector",
-                                "args": {
-                                    "connectorId": "portal-browser-fallback",
-                                    "mode": "browser",
-                                    "attemptLabel": "openai-browser-fallback",
-                                },
-                            },
-                        }
-                    }
-                )
-                self.usage = type(
-                    "Usage",
-                    (),
-                    {"input_tokens": 321, "output_tokens": 45},
-                )()
+    def test_claude_planner_directive_is_used_in_auto_mode(self) -> None:
+        envelope = OpenAiPlannerDirectiveEnvelope.model_validate(
+            {
+                "directive": {
+                    "type": "tool_call",
+                    "publicReason": "Switch to browser fallback based on planner output.",
+                    "toolCall": {
+                        "toolName": "execute_connector",
+                        "args": {
+                            "connectorId": "portal-browser-fallback",
+                            "mode": "browser",
+                            "attemptLabel": "claude-browser-fallback",
+                        },
+                    },
+                }
+            }
+        )
 
-        class FakeResponses:
+        class FakeToolBlock:
+            type = "tool_use"
+            name = ai_main.PLANNER_DIRECTIVE_TOOL_NAME
+            input = envelope.model_dump(mode="json", by_alias=True)
+
+        class FakeMessage:
+            usage = type(
+                "Usage",
+                (),
+                {"input_tokens": 321, "output_tokens": 45},
+            )()
+            content = [FakeToolBlock()]
+
+        class FakeMessages:
             def __init__(self) -> None:
                 self.calls: list[dict] = []
 
-            def parse(self, **kwargs: object) -> FakeResponse:
+            def create(self, **kwargs: object) -> FakeMessage:
                 self.calls.append(kwargs)
-                return FakeResponse()
+                return FakeMessage()
 
         class FakeClient:
             def __init__(self) -> None:
-                self.responses = FakeResponses()
+                self.messages = FakeMessages()
 
         fake_client = FakeClient()
 
         with (
             patch.object(ai_main, "AGENT_PROVIDER_MODE", "auto"),
-            patch.object(ai_main, "get_openai_client", return_value=fake_client),
+            patch.object(ai_main, "get_anthropic_client", return_value=fake_client),
         ):
-            directive = ai_main.plan_agent_step(build_agent_context(), "trace-openai")
+            directive = ai_main.plan_agent_step(build_agent_context(), "trace-claude")
 
         self.assertEqual(directive.type, "tool_call")
         self.assertEqual(directive.tool_call.args.connector_id, "portal-browser-fallback")
         self.assertEqual(directive.tool_call.args.mode, "browser")
-        self.assertEqual(directive.planner_usage.provider, "openai")
-        self.assertEqual(directive.planner_usage.model, ai_main.OPENAI_AGENT_MODEL)
+        self.assertEqual(directive.planner_usage.provider, "claude")
+        self.assertEqual(directive.planner_usage.model, ai_main.CLAUDE_AGENT_MODEL)
         self.assertEqual(directive.planner_usage.input_tokens, 321)
         self.assertEqual(directive.planner_usage.output_tokens, 45)
-        self.assertEqual(fake_client.responses.calls[0]["model"], ai_main.OPENAI_AGENT_MODEL)
+        self.assertEqual(fake_client.messages.calls[0]["model"], ai_main.CLAUDE_AGENT_MODEL)
 
-    def test_openai_auto_mode_falls_back_to_heuristic_when_unavailable(self) -> None:
+    def test_claude_auto_mode_falls_back_to_heuristic_when_unavailable(self) -> None:
         with (
             patch.object(ai_main, "AGENT_PROVIDER_MODE", "auto"),
-            patch.object(ai_main, "try_openai_plan_agent_step", return_value=None),
+            patch.object(ai_main, "try_claude_plan_agent_step", return_value=None),
         ):
-            directive = ai_main.plan_agent_step(build_agent_context(), "trace-openai-fallback")
+            directive = ai_main.plan_agent_step(build_agent_context(), "trace-claude-fallback")
 
         self.assertEqual(directive.type, "tool_call")
         self.assertEqual(directive.tool_call.args.connector_id, "aetna-claim-status-api")
         self.assertEqual(directive.tool_call.args.mode, "api")
         self.assertEqual(directive.planner_usage.provider, "tenio-heuristic")
 
-    def test_openai_only_mode_raises_when_planner_is_unavailable(self) -> None:
+    def test_claude_only_mode_raises_when_planner_is_unavailable(self) -> None:
         with (
-            patch.object(ai_main, "AGENT_PROVIDER_MODE", "openai"),
-            patch.object(ai_main, "try_openai_plan_agent_step", return_value=None),
+            patch.object(ai_main, "AGENT_PROVIDER_MODE", "claude"),
+            patch.object(ai_main, "try_claude_plan_agent_step", return_value=None),
         ):
-            with self.assertRaisesRegex(RuntimeError, "OpenAI planner is unavailable"):
-                ai_main.plan_agent_step(build_agent_context(), "trace-openai-required")
+            with self.assertRaisesRegex(RuntimeError, "Claude planner is unavailable"):
+                ai_main.plan_agent_step(build_agent_context(), "trace-claude-required")
 
 
 class HealthTests(unittest.TestCase):

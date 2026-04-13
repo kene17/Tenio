@@ -1,0 +1,8 @@
+.row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.row:hover {
+  background: #f8fafc;
+}
