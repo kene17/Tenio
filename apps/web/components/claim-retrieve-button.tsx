@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 type ClaimRetrieveButtonProps = {
   claimId: string;
   className?: string;
+  style?: CSSProperties;
   children: React.ReactNode;
   title?: string;
   loadingText?: string;
@@ -16,6 +17,7 @@ type ClaimRetrieveButtonProps = {
 export function ClaimRetrieveButton({
   claimId,
   className,
+  style,
   children,
   title,
   loadingText = "Loading...",
@@ -56,6 +58,7 @@ export function ClaimRetrieveButton({
       disabled={isLoading}
       title={title}
       className={className}
+      style={style}
     >
       {isLoading ? loadingText : statusText ?? children}
     </button>

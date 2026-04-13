@@ -67,16 +67,10 @@
       "claimId": "No de réclamation",
       "patient": "Patient",
       "payer": "Payeur",
-      "service": "Service",
       "status": "Statut",
       "nextAction": "Prochaine action",
-      "queueReason": "File / raison",
       "owner": "Responsable",
-      "lastTouched": "Dernier suivi",
-      "sla": "Âge / SLA",
-      "confidence": "Confiance",
-      "evidence": "Preuves",
-      "actions": "Actions"
+      "sla": "Âge / SLA"
     },
     "sla": {
       "onTrack": "En bonne voie",
