@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  ShieldCheck,
   Upload,
   X
 } from "lucide-react";
@@ -93,123 +94,318 @@ export function DashboardShell({
     startTransition(async () => {
       await fetch("/api/preferences/locale", {
         method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ locale: nextLocale })
       });
       router.refresh();
     });
   }
 
+  const Wordmark = ({ size = 20 }: { size?: number }) => (
+    <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span
+        style={{
+          fontFamily: "var(--font-fraunces, Georgia, serif)",
+          fontWeight: 700,
+          fontSize: size,
+          color: "#0f172a",
+          letterSpacing: "-0.03em",
+          fontVariationSettings: '"opsz" 72',
+          lineHeight: 1,
+        }}
+      >
+        Tenio
+      </span>
+      <span
+        style={{
+          display: "inline-block",
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          background: "linear-gradient(135deg, #2563EB, #4f46e5)",
+          flexShrink: 0,
+        }}
+      />
+    </span>
+  );
+
+  const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
+    <>
+      {/* Logo */}
+      <div
+        style={{
+          height: 64,
+          display: "flex",
+          alignItems: "center",
+          padding: "0 20px",
+          borderBottom: "1px solid rgba(15,23,42,0.06)",
+          flexShrink: 0,
+        }}
+      >
+        <Wordmark size={20} />
+      </div>
+
+      {/* Nav */}
+      <nav style={{ flex: 1, overflowY: "auto", padding: "12px 10px" }}>
+        {[...navigation, ...secondaryNavigation].map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={onNav}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 12px",
+                borderRadius: 8,
+                fontSize: 13.5,
+                fontWeight: active ? 600 : 500,
+                color: active ? "#1d4ed8" : "#475569",
+                background: active ? "rgba(37,99,235,0.07)" : "transparent",
+                textDecoration: "none",
+                transition: "background 0.15s, color 0.15s",
+                marginBottom: 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = "rgba(15,23,42,0.04)";
+                  e.currentTarget.style.color = "#0f172a";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "#475569";
+                }
+              }}
+            >
+              <item.icon
+                style={{
+                  width: 16,
+                  height: 16,
+                  flexShrink: 0,
+                  color: active ? "#2563eb" : "#94a3b8",
+                }}
+              />
+              {item.name}
+            </Link>
+          );
+        })}
+
+        {/* Divider before sign-out (mobile only) */}
+        {onNav && (
+          <>
+            <div style={{ height: 1, background: "rgba(15,23,42,0.06)", margin: "10px 4px" }} />
+            <form action="/api/auth/logout" method="post">
+              <button
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  color: "#475569",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "background 0.15s, color 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(15,23,42,0.04)";
+                  e.currentTarget.style.color = "#0f172a";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "#475569";
+                }}
+              >
+                <LogOut style={{ width: 16, height: 16, flexShrink: 0, color: "#94a3b8" }} />
+                {messages.signOut}
+              </button>
+            </form>
+          </>
+        )}
+      </nav>
+    </>
+  );
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div style={{ display: "flex", height: "100vh", background: "#f8faff" }}>
       <SentryUserBootstrap
         userId={userId}
         userEmail={userEmail}
         orgId={organizationId}
         role={currentRole}
       />
-      <div className="hidden w-60 flex-col border-r border-gray-200 bg-white lg:flex">
-        <div className="flex h-16 items-center border-b border-gray-200 px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <ListChecks className="h-5 w-5 text-white" />
-            </div>
-            <div className="font-semibold text-gray-900">Tenio</div>
-          </div>
-        </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {[...navigation, ...secondaryNavigation].map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive(item.href)
-                  ? "bg-blue-50 font-medium text-blue-700"
-                  : "text-gray-700 hover:bg-gray-50"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.name}
-            </Link>
-          ))}
-        </nav>
-      </div>
 
+      {/* ── Desktop sidebar ── */}
+      <aside
+        className="hidden lg:flex"
+        style={{
+          width: 232,
+          flexDirection: "column",
+          background: "#ffffff",
+          borderRight: "1px solid rgba(15,23,42,0.07)",
+          flexShrink: 0,
+        }}
+      >
+        <SidebarContent />
+      </aside>
+
+      {/* ── Mobile overlay ── */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-gray-900/50 lg:hidden"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 40,
+            background: "rgba(15,23,42,0.35)",
+            backdropFilter: "blur(2px)",
+          }}
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      <div
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 transform border-r border-gray-200 bg-white transition-transform duration-300 lg:hidden",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        )}
+      {/* ── Mobile drawer ── */}
+      <aside
+        className="lg:hidden"
+        style={{
+          position: "fixed",
+          inset: "0 auto 0 0",
+          zIndex: 50,
+          width: 240,
+          display: "flex",
+          flexDirection: "column",
+          background: "#ffffff",
+          borderRight: "1px solid rgba(15,23,42,0.07)",
+          transform: mobileMenuOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 0.25s cubic-bezier(0.16,1,0.3,1)",
+        }}
       >
-        <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <ListChecks className="h-5 w-5 text-white" />
-            </div>
-            <div className="font-semibold text-gray-900">Tenio</div>
-          </div>
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="rounded-lg p-2 text-gray-600 hover:bg-gray-100"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <nav className="space-y-1 overflow-y-auto px-3 py-4">
-          {[...navigation, ...secondaryNavigation].map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive(item.href)
-                  ? "bg-blue-50 font-medium text-blue-700"
-                  : "text-gray-700 hover:bg-gray-50"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.name}
-            </Link>
-          ))}
-          <form action="/api/auth/logout" method="post" className="pt-3">
-            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50">
-              <LogOut className="h-5 w-5" />
-              {messages.signOut}
-            </button>
-          </form>
-        </nav>
-      </div>
+        <button
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            background: "rgba(15,23,42,0.05)",
+            border: "none",
+            borderRadius: 8,
+            padding: 6,
+            cursor: "pointer",
+            color: "#475569",
+          }}
+        >
+          <X style={{ width: 16, height: 16 }} />
+        </button>
+        <SidebarContent onNav={() => setMobileMenuOpen(false)} />
+      </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
-          <div className="flex flex-1 items-center gap-4">
+      {/* ── Main area ── */}
+      <div style={{ display: "flex", flex: 1, flexDirection: "column", overflow: "hidden" }}>
+
+        {/* ── Header ── */}
+        <header
+          style={{
+            height: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 20px",
+            background: "#ffffff",
+            borderBottom: "1px solid rgba(15,23,42,0.07)",
+            flexShrink: 0,
+            gap: 12,
+          }}
+        >
+          {/* Left — mobile hamburger + org switcher */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
             <button
+              className="lg:hidden"
               onClick={() => setMobileMenuOpen(true)}
-              className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#475569",
+                padding: 6,
+                borderRadius: 8,
+                flexShrink: 0,
+              }}
             >
-              <Menu className="h-5 w-5" />
+              <Menu style={{ width: 18, height: 18 }} />
             </button>
-            <button className="hidden items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50 sm:flex">
-              <Building2 className="h-4 w-4 text-gray-600" />
-              <span className="hidden text-sm text-gray-700 md:inline">{organizationName}</span>
-              <span className="text-sm text-gray-700 md:hidden">{organizationName.split(" ")[0]}</span>
-              <ChevronDown className="h-4 w-4 text-gray-400" />
+
+            {/* Org switcher */}
+            <button
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "6px 12px 6px 10px",
+                borderRadius: 8,
+                border: "1px solid rgba(15,23,42,0.10)",
+                background: "#fff",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#0f172a",
+                transition: "background 0.15s, border-color 0.15s",
+                whiteSpace: "nowrap",
+                maxWidth: 240,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#f8faff";
+                e.currentTarget.style.borderColor = "rgba(37,99,235,0.25)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fff";
+                e.currentTarget.style.borderColor = "rgba(15,23,42,0.10)";
+              }}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  background: "linear-gradient(135deg, #eef3ff, #dbeafe)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Building2 style={{ width: 12, height: 12, color: "#2563eb" }} />
+              </span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{organizationName}</span>
+              <ChevronDown style={{ width: 13, height: 13, color: "#94a3b8", flexShrink: 0 }} />
             </button>
           </div>
-          <div className="flex items-center gap-2 lg:gap-3">
-            <div className="hidden items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 md:flex">
-              <span className="px-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">
+
+          {/* Right — controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+
+            {/* Language toggle */}
+            <div
+              className="hidden md:flex"
+              style={{
+                alignItems: "center",
+                gap: 2,
+                padding: "3px 3px 3px 10px",
+                borderRadius: 8,
+                border: "1px solid rgba(15,23,42,0.09)",
+                background: "#f8faff",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+              }}
+            >
+              <span style={{ color: "#94a3b8", textTransform: "uppercase", marginRight: 2 }}>
                 {messages.languageLabel}
               </span>
               {(["en", "fr"] as const).map((option) => (
@@ -218,45 +414,172 @@ export function DashboardShell({
                   type="button"
                   onClick={() => switchLocale(option)}
                   disabled={isPending || option === locale}
-                  className={cn(
-                    "rounded-md px-2 py-1 text-xs font-medium uppercase transition-colors",
-                    option === locale
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-600 hover:bg-gray-100",
-                    isPending ? "opacity-70" : ""
-                  )}
+                  style={{
+                    padding: "4px 9px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: option === locale ? "default" : "pointer",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    background: option === locale
+                      ? "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)"
+                      : "transparent",
+                    color: option === locale ? "#fff" : "#64748b",
+                    transition: "background 0.15s, color 0.15s",
+                    opacity: isPending ? 0.6 : 1,
+                  }}
                 >
                   {option}
                 </button>
               ))}
             </div>
-            <div className="hidden items-center gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 md:flex">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+
+            {/* Protected badge */}
+            <div
+              className="hidden md:flex"
+              style={{
+                alignItems: "center",
+                gap: 5,
+                padding: "5px 10px",
+                borderRadius: 8,
+                border: "1px solid rgba(5,150,105,0.18)",
+                background: "rgba(5,150,105,0.06)",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#059669",
+              }}
+            >
+              <ShieldCheck style={{ width: 13, height: 13 }} />
               {messages.protected}
             </div>
-            <button className="relative rounded-lg p-2 text-gray-600 hover:bg-gray-50">
-              <Bell className="h-5 w-5" />
+
+            {/* Bell */}
+            <button
+              style={{
+                position: "relative",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#64748b",
+                padding: 8,
+                borderRadius: 8,
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(15,23,42,0.05)";
+                e.currentTarget.style.color = "#0f172a";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "none";
+                e.currentTarget.style.color = "#64748b";
+              }}
+            >
+              <Bell style={{ width: 17, height: 17 }} />
             </button>
+
+            {/* Divider */}
+            <span style={{ width: 1, height: 20, background: "rgba(15,23,42,0.08)", flexShrink: 0 }} />
+
+            {/* Sign out — ghost pill */}
             <form action="/api/auth/logout" method="post" className="hidden sm:block">
-              <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                <LogOut className="h-4 w-4" />
+              <button
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 14px",
+                  borderRadius: 9999,
+                  border: "1px solid rgba(15,23,42,0.13)",
+                  background: "rgba(255,255,255,0.7)",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#374151",
+                  transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "rgba(15,23,42,0.20)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,23,42,0.07)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.7)";
+                  e.currentTarget.style.borderColor = "rgba(15,23,42,0.13)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                <LogOut style={{ width: 13, height: 13 }} />
                 {messages.signOut}
               </button>
             </form>
-            <div className="hidden cursor-pointer items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50 md:flex">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-medium text-white">
+
+            {/* User chip */}
+            <button
+              className="hidden md:flex"
+              style={{
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 10px 4px 4px",
+                borderRadius: 9999,
+                border: "1px solid rgba(15,23,42,0.09)",
+                background: "#fff",
+                cursor: "pointer",
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#f8faff";
+                e.currentTarget.style.borderColor = "rgba(37,99,235,0.20)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fff";
+                e.currentTarget.style.borderColor = "rgba(15,23,42,0.09)";
+              }}
+            >
+              {/* Avatar */}
+              <span
+                style={{
+                  display: "flex",
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#fff",
+                  flexShrink: 0,
+                  letterSpacing: "0.02em",
+                }}
+              >
                 {currentUserInitials}
-              </div>
-              <span className="text-sm text-gray-700">{currentUserName}</span>
-              <span className="rounded border border-gray-200 px-2 py-0.5 text-xs uppercase tracking-wide text-gray-500">
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>
+                {currentUserName}
+              </span>
+              {/* Role badge */}
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.07em",
+                  textTransform: "uppercase",
+                  color: "#2563eb",
+                  background: "rgba(37,99,235,0.08)",
+                  borderRadius: 4,
+                  padding: "2px 6px",
+                }}
+              >
                 {roleLabel(currentRole)}
               </span>
-              <ChevronDown className="h-4 w-4 text-gray-400" />
-            </div>
+              <ChevronDown style={{ width: 13, height: 13, color: "#94a3b8" }} />
+            </button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
       </div>
     </div>
   );

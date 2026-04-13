@@ -10,10 +10,9 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
-  FileText,
   Filter,
-  MoreHorizontal,
   Search,
+  ShieldAlert,
   X
 } from "lucide-react";
 
@@ -43,50 +42,85 @@ type QueueClientProps = {
 };
 
 function getPriorityIcon(priority: QueueItemView["priority"]) {
-  if (priority === "urgent") return <AlertCircle className="h-4 w-4 text-red-600" />;
-  if (priority === "high") return <AlertTriangle className="h-4 w-4 text-amber-600" />;
-  return <Clock className="h-4 w-4 text-gray-400" />;
+  if (priority === "urgent") {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 24, height: 24, borderRadius: "50%",
+        background: "rgba(220,38,38,0.08)",
+      }}>
+        <AlertCircle style={{ width: 13, height: 13, color: "#dc2626" }} />
+      </span>
+    );
+  }
+  if (priority === "high") {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 24, height: 24, borderRadius: "50%",
+        background: "rgba(245,158,11,0.08)",
+      }}>
+        <AlertTriangle style={{ width: 13, height: 13, color: "#d97706" }} />
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      width: 24, height: 24, borderRadius: "50%",
+      background: "rgba(15,23,42,0.04)",
+    }}>
+      <Clock style={{ width: 13, height: 13, color: "#94a3b8" }} />
+    </span>
+  );
 }
 
-function getSLABadge(
-  risk: QueueItemView["slaRisk"],
-  messages: TenioMessages["queue"]["sla"]
-) {
+function getSLABadge(risk: QueueItemView["slaRisk"], messages: TenioMessages["queue"]["sla"]) {
   if (risk === "breached") {
     return (
-      <span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-        <AlertCircle className="h-3 w-3" />
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 7px", borderRadius: 4,
+        background: "rgba(220,38,38,0.07)",
+        color: "#dc2626", fontSize: 11, fontWeight: 600,
+        border: "1px solid rgba(220,38,38,0.15)",
+      }}>
+        <AlertCircle style={{ width: 10, height: 10 }} />
         {messages.overdue}
       </span>
     );
   }
-
   if (risk === "at-risk") {
     return (
-      <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-        <AlertTriangle className="h-3 w-3" />
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 7px", borderRadius: 4,
+        background: "rgba(245,158,11,0.07)",
+        color: "#b45309", fontSize: 11, fontWeight: 600,
+        border: "1px solid rgba(245,158,11,0.18)",
+      }}>
+        <AlertTriangle style={{ width: 10, height: 10 }} />
         {messages.atRisk}
       </span>
     );
   }
-
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-      <CheckCircle className="h-3 w-3" />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 7px", borderRadius: 4,
+      background: "rgba(5,150,105,0.07)",
+      color: "#059669", fontSize: 11, fontWeight: 600,
+      border: "1px solid rgba(5,150,105,0.15)",
+    }}>
+      <CheckCircle style={{ width: 10, height: 10 }} />
       {messages.onTrack}
     </span>
   );
 }
 
 function ownerInitials(owner: string | null) {
-  if (!owner) {
-    return "NA";
-  }
-
-  return owner
-    .split(" ")
-    .map((name) => name[0])
-    .join("");
+  if (!owner) return "—";
+  return owner.split(" ").map((n) => n[0]).join("");
 }
 
 function serviceSummary(claim: QueueItemView) {
@@ -96,30 +130,15 @@ function serviceSummary(claim: QueueItemView) {
 }
 
 function sortQueueItems(items: QueueItemView[]) {
-  const priorityRank: Record<QueueItemView["priority"], number> = {
-    urgent: 0,
-    high: 1,
-    normal: 2,
-    low: 3
-  };
-  const slaRank: Record<QueueItemView["slaRisk"], number> = {
-    breached: 0,
-    "at-risk": 1,
-    healthy: 2
-  };
+  const priorityRank: Record<QueueItemView["priority"], number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+  const slaRank: Record<QueueItemView["slaRisk"], number> = { breached: 0, "at-risk": 1, healthy: 2 };
 
-  return [...items].sort((left, right) => {
-    const priorityDelta = priorityRank[left.priority] - priorityRank[right.priority];
-    if (priorityDelta !== 0) {
-      return priorityDelta;
-    }
-
-    const slaDelta = slaRank[left.slaRisk] - slaRank[right.slaRisk];
-    if (slaDelta !== 0) {
-      return slaDelta;
-    }
-
-    return new Date(left.lastTouchedAt).getTime() - new Date(right.lastTouchedAt).getTime();
+  return [...items].sort((a, b) => {
+    const pd = priorityRank[a.priority] - priorityRank[b.priority];
+    if (pd !== 0) return pd;
+    const sd = slaRank[a.slaRisk] - slaRank[b.slaRisk];
+    if (sd !== 0) return sd;
+    return new Date(a.lastTouchedAt).getTime() - new Date(b.lastTouchedAt).getTime();
   });
 }
 
@@ -131,26 +150,43 @@ function setupStatusBadge(
 ) {
   if (status === "complete") {
     return (
-      <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+      <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 9999, border: "1px solid rgba(5,150,105,0.2)", background: "rgba(5,150,105,0.06)", fontSize: 11, fontWeight: 600, color: "#059669" }}>
         {messages.setup.statusComplete}
       </span>
     );
   }
-
   if (status === "current") {
     return (
-      <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+      <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 9999, border: "1px solid rgba(37,99,235,0.2)", background: "rgba(37,99,235,0.06)", fontSize: 11, fontWeight: 600, color: "#2563eb" }}>
         {messages.setup.statusCurrent}
       </span>
     );
   }
-
   return (
-    <span className="inline-flex rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
+    <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 9999, border: "1px solid rgba(15,23,42,0.1)", background: "rgba(15,23,42,0.03)", fontSize: 11, fontWeight: 600, color: "#64748b" }}>
       {messages.setup.statusPending}
     </span>
   );
 }
+
+const COL_STYLE: React.CSSProperties = {
+  padding: "10px 14px",
+  fontSize: 13,
+  color: "#374151",
+  verticalAlign: "middle",
+};
+
+const TH_STYLE: React.CSSProperties = {
+  padding: "10px 14px",
+  fontSize: 10.5,
+  fontWeight: 600,
+  letterSpacing: "0.07em",
+  textTransform: "uppercase",
+  color: "#94a3b8",
+  background: "#f8faff",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+};
 
 export function QueueClient({
   items,
@@ -165,7 +201,8 @@ export function QueueClient({
   const queueOnboardingMessages = onboardingMessages ?? fallbackMessages.onboarding;
   const messages = queueMessages ?? fallbackMessages.queue;
   const setupMessages = queueOnboardingMessages.setup;
-  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(items[0]?.claimId ?? null);
+
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [setupState, setSetupState] = useState<OnboardingStateView | null>(onboardingState);
@@ -175,219 +212,198 @@ export function QueueClient({
   const [isPending, startTransition] = useTransition();
 
   const filteredItems = useMemo(() => {
-    const matchingItems = items.filter((item) => {
+    const matching = items.filter((item) => {
       const matchesSearch =
         searchTerm.length === 0 ||
-        [
-          item.claimNumber,
-          item.patientName,
-          item.payerName,
-          item.claimType ?? "",
-          item.serviceProviderType ?? "",
-          item.serviceCode ?? "",
-          item.provinceOfService ?? "",
-          item.countryCode ?? "",
-          item.owner ?? "",
-          item.queueReason
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
+        [item.claimNumber, item.patientName, item.payerName, item.claimType ?? "",
+         item.serviceProviderType ?? "", item.serviceCode ?? "", item.provinceOfService ?? "",
+         item.countryCode ?? "", item.owner ?? "", item.queueReason]
+          .join(" ").toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter =
         activeFilters.length === 0 ||
-        (activeFilters.includes("SLA: At Risk") &&
-          (item.slaRisk === "at-risk" || item.slaRisk === "breached"));
-
+        (activeFilters.includes("SLA: At Risk") && (item.slaRisk === "at-risk" || item.slaRisk === "breached"));
       return matchesSearch && matchesFilter;
     });
-
-    return sortQueueItems(matchingItems);
+    return sortQueueItems(matching);
   }, [activeFilters, items, searchTerm]);
 
-  const selectedClaim =
-    selectedClaimId === null
-      ? null
-      : filteredItems.find((item) => item.claimId === selectedClaimId) ?? null;
+  const selectedClaim = selectedClaimId === null
+    ? null
+    : filteredItems.find((item) => item.claimId === selectedClaimId) ?? null;
 
   const openClaims = items.length;
-  const needsReview = items.filter((item) => item.claimStatus.includes("Review")).length;
-  const atRisk = items.filter(
-    (item) => item.slaRisk === "at-risk" || item.slaRisk === "breached"
-  ).length;
-  const avgConfidence =
-    items.length > 0
-      ? `${Math.round(items.reduce((sum, item) => sum + item.confidence, 0) / items.length)}%`
-      : "0%";
+  const needsReview = items.filter((i) => i.claimStatus.includes("Review")).length;
+  const atRisk = items.filter((i) => i.slaRisk === "at-risk" || i.slaRisk === "breached").length;
+  const avgConfidence = items.length > 0
+    ? `${Math.round(items.reduce((s, i) => s + i.confidence, 0) / items.length)}%`
+    : "0%";
+
   const shouldShowWelcome = setupState?.welcome.shouldShow ?? false;
-  const shouldShowTour =
-    Boolean(setupState?.queueTour.shouldShow) && !shouldShowWelcome && isDesktopLayout;
+  const shouldShowTour = Boolean(setupState?.queueTour.shouldShow) && !shouldShowWelcome && isDesktopLayout;
   const activeTourTarget = shouldShowTour ? queueTourTargets[tourStepIndex] : null;
   const canRequestStatus = hasPermission(currentRole, "queue:work");
-  const roleHelpBody =
-    currentRole === "owner" ? null : messages.roleHelp[currentRole] ?? null;
+  const roleHelpBody = currentRole === "owner" ? null : messages.roleHelp[currentRole] ?? null;
   const isFiltering = searchTerm.trim().length > 0 || activeFilters.length > 0;
 
-  useEffect(() => {
-    setSetupState(onboardingState);
-  }, [onboardingState]);
+  const todayLabel = new Intl.DateTimeFormat("en-CA", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
+  useEffect(() => { setSetupState(onboardingState); }, [onboardingState]);
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
-    const syncLayout = () => setIsDesktopLayout(mediaQuery.matches);
-    syncLayout();
-    mediaQuery.addEventListener("change", syncLayout);
-    return () => mediaQuery.removeEventListener("change", syncLayout);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsDesktopLayout(mq.matches);
+    sync(); mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, []);
-
   useEffect(() => {
-    if (!shouldShowTour) {
-      setTourStepIndex(0);
-      return;
-    }
-
+    if (!shouldShowTour) { setTourStepIndex(0); return; }
     const selector = activeTourTarget ? `[data-tour="${activeTourTarget}"]` : null;
     const target = selector ? document.querySelector<HTMLElement>(selector) : null;
     target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }, [activeTourTarget, shouldShowTour]);
 
   async function updateOnboarding(action: "dismiss_welcome" | "complete_queue_tour") {
-    const response = await fetch("/api/onboarding/state", {
+    const res = await fetch("/api/onboarding/state", {
       method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ action })
     });
-
-    if (!response.ok) {
-      throw new Error(setupMessages.updateError);
-    }
-
-    const payload = (await response.json()) as { item: OnboardingStateView };
+    if (!res.ok) throw new Error(setupMessages.updateError);
+    const payload = (await res.json()) as { item: OnboardingStateView };
     setSetupState(payload.item);
     setSetupError(null);
   }
 
-  function stepCopy(stepId: OnboardingStepId) {
-    return setupMessages.steps[stepId];
-  }
+  function stepCopy(stepId: OnboardingStepId) { return setupMessages.steps[stepId]; }
 
   function completeTour() {
     startTransition(async () => {
-      try {
-        await updateOnboarding("complete_queue_tour");
-      } catch (error) {
-        setSetupError(error instanceof Error ? error.message : setupMessages.updateError);
-      }
+      try { await updateOnboarding("complete_queue_tour"); }
+      catch (err) { setSetupError(err instanceof Error ? err.message : setupMessages.updateError); }
     });
   }
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
+    <div style={{ display: "flex", height: "100%" }}>
+      {/* ── Main scroll area ── */}
+      <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+        <div style={{ padding: "32px 28px 40px" }}>
+
+          {/* ── Welcome modal ── */}
           {shouldShowWelcome ? (
-            <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/40 px-6">
-              <div className="w-full max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-                <div className="mb-5 flex flex-col gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+            <div style={{
+              position: "fixed", inset: 0, zIndex: 40,
+              display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px",
+              background: "rgba(15,23,42,0.35)", backdropFilter: "blur(4px)",
+            }}>
+              <div style={{
+                width: "100%", maxWidth: 560,
+                background: "#fff", borderRadius: 18,
+                border: "1px solid rgba(15,23,42,0.08)",
+                boxShadow: "0 24px 80px rgba(15,23,42,0.16)",
+                padding: 28,
+              }}>
+                <div style={{ marginBottom: 20 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2563eb" }}>
                     {setupMessages.welcomeEyebrow}
                   </span>
-                  <h2 className="text-2xl font-semibold text-gray-900">
+                  <h2 style={{ fontFamily: "var(--font-inter, system-ui, sans-serif)", fontWeight: 700, fontSize: 20, color: "#0f172a", letterSpacing: "-0.02em", marginTop: 6, marginBottom: 6 }}>
                     {setupMessages.welcomeTitle}
                   </h2>
-                  <p className="text-sm text-gray-600">{setupMessages.welcomeBody}</p>
+                  <p style={{ fontSize: 13.5, color: "#475569", lineHeight: 1.6 }}>{setupMessages.welcomeBody}</p>
                 </div>
-                <div className="space-y-3">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {setupState?.steps.map((step) => {
                     const copy = stepCopy(step.id);
                     return (
-                      <div
-                        key={step.id}
-                        className="flex flex-col gap-2 rounded-lg border border-gray-200 px-4 py-3"
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
+                      <div key={step.id} style={{
+                        display: "flex", flexDirection: "column", gap: 4,
+                        border: "1px solid rgba(15,23,42,0.07)", borderRadius: 10,
+                        padding: "12px 16px", background: "#f8faff",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           {setupStatusBadge(step.status, queueOnboardingMessages)}
-                          <div className="text-sm font-semibold text-gray-900">{copy.title}</div>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>{copy.title}</span>
                         </div>
-                        <p className="text-sm text-gray-600">{copy.description}</p>
+                        <p style={{ fontSize: 12.5, color: "#64748b", lineHeight: 1.5 }}>{copy.description}</p>
                       </div>
                     );
                   })}
                 </div>
-                {setupError ? (
-                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {setupError && (
+                  <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(220,38,38,0.2)", background: "rgba(220,38,38,0.06)", fontSize: 13, color: "#dc2626" }}>
                     {setupError}
                   </div>
-                ) : null}
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                )}
+                <div style={{ marginTop: 24, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                   <Link
                     href="/app/onboarding"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "9px 18px", borderRadius: 9999,
+                      background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+                      color: "#fff", fontSize: 13.5, fontWeight: 600, textDecoration: "none",
+                      boxShadow: "0 2px 10px rgba(37,99,235,0.28)",
+                    }}
                   >
                     {setupMessages.openSetupChecklist}
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight style={{ width: 14, height: 14 }} />
                   </Link>
-                  <div className="space-y-2 text-right">
+                  <div style={{ textAlign: "right" }}>
                     <button
                       type="button"
                       disabled={!setupState?.welcome.dismissible || isPending}
-                      onClick={() =>
-                        startTransition(async () => {
-                          try {
-                            await updateOnboarding("dismiss_welcome");
-                          } catch (error) {
-                            setSetupError(
-                              error instanceof Error
-                                ? error.message
-                                : setupMessages.updateError
-                            );
-                          }
-                        })
-                      }
-                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => startTransition(async () => {
+                        try { await updateOnboarding("dismiss_welcome"); }
+                        catch (err) { setSetupError(err instanceof Error ? err.message : setupMessages.updateError); }
+                      })}
+                      style={{
+                        padding: "8px 16px", borderRadius: 9999,
+                        border: "1px solid rgba(15,23,42,0.13)", background: "#fff",
+                        fontSize: 13, fontWeight: 500, color: "#374151", cursor: "pointer",
+                        opacity: (!setupState?.welcome.dismissible || isPending) ? 0.5 : 1,
+                      }}
                     >
                       {setupMessages.skipForNow}
                     </button>
-                    {!setupState?.welcome.dismissible ? (
-                      <div className="text-xs text-gray-500">
-                        {setupMessages.skipLockedMessage}
-                      </div>
-                    ) : null}
+                    {!setupState?.welcome.dismissible && (
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{setupMessages.skipLockedMessage}</div>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
           ) : null}
 
+          {/* ── Tour tooltip ── */}
           {shouldShowTour ? (
-            <div className="fixed right-6 bottom-6 z-30 w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-                {setupMessages.tourEyebrow} {tourStepIndex + 1} /{" "}
-                {queueTourTargets.length}
+            <div style={{
+              position: "fixed", right: 24, bottom: 24, zIndex: 30,
+              width: "100%", maxWidth: 340,
+              background: "#fff", borderRadius: 16,
+              border: "1px solid rgba(15,23,42,0.08)",
+              boxShadow: "0 16px 48px rgba(15,23,42,0.14)",
+              padding: 20,
+            }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2563eb", marginBottom: 6 }}>
+                {setupMessages.tourEyebrow} {tourStepIndex + 1} / {queueTourTargets.length}
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                {activeTourTarget
-                  ? setupMessages.tour[activeTourTarget].title
-                  : setupMessages.tour.priority.title}
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: "#0f172a", marginBottom: 6 }}>
+                {activeTourTarget ? setupMessages.tour[activeTourTarget].title : setupMessages.tour.priority.title}
               </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {activeTourTarget
-                  ? setupMessages.tour[activeTourTarget].body
-                  : setupMessages.tour.priority.body}
+              <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.55 }}>
+                {activeTourTarget ? setupMessages.tour[activeTourTarget].body : setupMessages.tour.priority.body}
               </p>
-              {setupError ? (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {setupError && (
+                <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, border: "1px solid rgba(220,38,38,0.2)", background: "rgba(220,38,38,0.06)", fontSize: 12, color: "#dc2626" }}>
                   {setupError}
                 </div>
-              ) : null}
-              <div className="mt-4 flex items-center justify-between gap-3">
+              )}
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <button
                   type="button"
                   onClick={completeTour}
                   disabled={isPending}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  style={{ padding: "7px 14px", borderRadius: 9999, border: "1px solid rgba(15,23,42,0.13)", background: "#fff", fontSize: 12.5, fontWeight: 500, color: "#374151", cursor: "pointer" }}
                 >
                   {setupMessages.skipTour}
                 </button>
@@ -395,403 +411,427 @@ export function QueueClient({
                   type="button"
                   disabled={isPending}
                   onClick={() => {
-                    if (tourStepIndex === queueTourTargets.length - 1) {
-                      completeTour();
-                      return;
-                    }
-
-                    setTourStepIndex((current) => current + 1);
+                    if (tourStepIndex === queueTourTargets.length - 1) { completeTour(); return; }
+                    setTourStepIndex((c) => c + 1);
                   }}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "7px 16px", borderRadius: 9999,
+                    background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+                    color: "#fff", fontSize: 12.5, fontWeight: 600, border: "none", cursor: "pointer",
+                  }}
                 >
-                  {tourStepIndex === queueTourTargets.length - 1
-                    ? setupMessages.finishTour
-                    : setupMessages.nextTourStep}
-                  <ChevronRight className="h-4 w-4" />
+                  {tourStepIndex === queueTourTargets.length - 1 ? setupMessages.finishTour : setupMessages.nextTourStep}
+                  <ChevronRight style={{ width: 13, height: 13 }} />
                 </button>
               </div>
             </div>
           ) : null}
 
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900">{messages.heading}</h1>
-            <p className="mt-1 text-sm text-gray-600">{messages.subheading}</p>
+          {/* ── Page heading ── */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#2563eb", marginBottom: 6 }}>
+              {todayLabel}
+            </div>
+            <h1 style={{
+              fontFamily: "var(--font-inter, system-ui, sans-serif)",
+              fontWeight: 700, fontSize: 22,
+              color: "#0f172a", letterSpacing: "-0.025em",
+              lineHeight: 1.25, marginBottom: 4,
+            }}>
+              {messages.heading}
+            </h1>
+            <p style={{ fontSize: 13.5, color: "#64748b", lineHeight: 1.55 }}>{messages.subheading}</p>
           </div>
 
           {roleHelpBody ? <PageRoleBanner title={roleHelpTitle} body={roleHelpBody} /> : null}
 
-          <div className="mb-3 text-sm font-medium text-gray-700">{messages.overviewLabel}</div>
-          <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-            <KPICard label={messages.kpis.openClaims} value={String(openClaims)} />
-            <KPICard
-              label={messages.kpis.needsReview}
-              value={String(needsReview)}
-              variant="warning"
-            />
-            <KPICard label={messages.kpis.atRisk} value={String(atRisk)} variant="warning" />
-            <KPICard
-              label={messages.kpis.evidenceAttached}
-              value={String(items.filter((item) => item.evidenceCount > 0).length)}
-              variant="success"
-            />
-            <KPICard label={messages.kpis.avgConfidence} value={avgConfidence} />
-            <KPICard
-              label={messages.kpis.workspace}
-              value="1"
-              variant="success"
-            />
+          {/* ── KPI strip ── */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 10 }}>
+              {messages.overviewLabel}
+            </div>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(6, 1fr)",
+              border: "1px solid rgba(15,23,42,0.08)",
+              borderRadius: 12,
+              overflow: "hidden",
+              background: "#fff",
+              boxShadow: "0 1px 6px rgba(15,23,42,0.04)",
+            }}>
+              <KPICard strip isFirst label={messages.kpis.openClaims} value={String(openClaims)} />
+              <KPICard strip label={messages.kpis.needsReview} value={String(needsReview)} variant="warning" />
+              <KPICard strip label={messages.kpis.atRisk} value={String(atRisk)} variant="warning" />
+              <KPICard strip label={messages.kpis.evidenceAttached} value={String(items.filter((i) => i.evidenceCount > 0).length)} variant="success" />
+              <KPICard strip label={messages.kpis.avgConfidence} value={avgConfidence} />
+              <KPICard strip label={messages.kpis.workspace} value="1" variant="success" />
+            </div>
           </div>
 
-          <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
-            <div className="mb-3 flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          {/* ── Table card ── */}
+          <div style={{
+            border: "1px solid rgba(15,23,42,0.08)",
+            borderRadius: 12,
+            overflow: "hidden",
+            background: "#fff",
+            boxShadow: "0 1px 6px rgba(15,23,42,0.04)",
+          }}>
+            {/* Search + filter toolbar */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "12px 16px",
+              borderBottom: "1px solid rgba(15,23,42,0.06)",
+              background: "#fff",
+            }}>
+              <div style={{ position: "relative", flex: 1 }}>
+                <Search style={{ position: "absolute", top: "50%", left: 10, transform: "translateY(-50%)", width: 14, height: 14, color: "#94a3b8", pointerEvents: "none" }} />
                 <input
                   type="text"
                   value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder={messages.filterPlaceholder}
-                  className="w-full rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  style={{
+                    width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
+                    borderRadius: 8, border: "1px solid rgba(15,23,42,0.10)",
+                    fontSize: 13, color: "#0f172a", background: "#f8faff", outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.08)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(15,23,42,0.10)"; e.currentTarget.style.boxShadow = "none"; }}
                 />
               </div>
-              <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
-                <Filter className="h-4 w-4" />
+              <button style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", borderRadius: 8,
+                border: "1px solid rgba(15,23,42,0.10)", background: "#fff",
+                fontSize: 13, fontWeight: 500, color: "#374151", cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#f8faff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
+              >
+                <Filter style={{ width: 13, height: 13 }} />
                 {messages.filtersButton}
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown style={{ width: 13, height: 13, color: "#94a3b8" }} />
               </button>
             </div>
 
-            {activeFilters.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-600">{messages.activeFiltersLabel}</span>
-                {activeFilters.map((filter) => (
-                  <span
-                    key={filter}
-                    className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700"
-                  >
-                    {filter}
-                    <button
-                      onClick={() =>
-                        setActiveFilters((current) =>
-                          current.filter((item) => item !== filter)
-                        )
-                      }
-                      className="rounded hover:bg-blue-100"
-                    >
-                      <X className="h-3 w-3" />
+            {/* Active filter chips */}
+            {activeFilters.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 16px", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                <span style={{ fontSize: 11.5, color: "#64748b" }}>{messages.activeFiltersLabel}</span>
+                {activeFilters.map((f) => (
+                  <span key={f} style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "2px 8px", borderRadius: 9999,
+                    border: "1px solid rgba(37,99,235,0.2)", background: "rgba(37,99,235,0.06)",
+                    fontSize: 11.5, color: "#2563eb",
+                  }}>
+                    {f}
+                    <button onClick={() => setActiveFilters((c) => c.filter((x) => x !== f))} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#2563eb", display: "flex" }}>
+                      <X style={{ width: 11, height: 11 }} />
                     </button>
                   </span>
                 ))}
-                <button
-                  onClick={() => setActiveFilters([])}
-                  className="text-xs text-gray-600 hover:text-gray-900"
-                >
+                <button onClick={() => setActiveFilters([])} style={{ fontSize: 11.5, color: "#64748b", background: "none", border: "none", cursor: "pointer" }}>
                   {messages.clearAllFilters}
                 </button>
               </div>
-            ) : null}
-          </div>
+            )}
 
-          {filteredItems.length === 0 ? (
-            <div className="rounded-lg border border-gray-200 bg-white p-8">
-              <div className="mx-auto max-w-xl text-center">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  {isFiltering
-                    ? messages.empty.noMatchesTitle
-                    : hasAnyClaims
-                      ? messages.empty.noAttentionTitle
-                      : messages.empty.noClaimsTitle}
+            {/* Empty state */}
+            {filteredItems.length === 0 ? (
+              <div style={{ padding: "56px 24px", textAlign: "center" }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(37,99,235,0.07)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                  <ShieldAlert style={{ width: 18, height: 18, color: "#2563eb" }} />
+                </div>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: "#0f172a", marginBottom: 6 }}>
+                  {isFiltering ? messages.empty.noMatchesTitle : hasAnyClaims ? messages.empty.noAttentionTitle : messages.empty.noClaimsTitle}
                 </h2>
-                <p className="mt-3 text-sm leading-6 text-gray-600">
-                  {isFiltering
-                    ? messages.empty.noMatchesBody
-                    : hasAnyClaims
-                      ? messages.empty.noAttentionBody
-                      : messages.empty.noClaimsBody}
+                <p style={{ fontSize: 13.5, color: "#64748b", maxWidth: 360, margin: "0 auto 20px", lineHeight: 1.55 }}>
+                  {isFiltering ? messages.empty.noMatchesBody : hasAnyClaims ? messages.empty.noAttentionBody : messages.empty.noClaimsBody}
                 </p>
-                {!isFiltering ? (
-                  <div className="mt-6">
-                    <Link
-                      href="/app/onboarding"
-                      className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-                    >
-                      {hasAnyClaims
-                        ? messages.empty.noAttentionCta
-                        : messages.empty.noClaimsCta}
-                    </Link>
-                  </div>
-                ) : null}
+                {!isFiltering && (
+                  <Link href="/app/onboarding" style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "9px 18px", borderRadius: 9999,
+                    background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+                    color: "#fff", fontSize: 13.5, fontWeight: 600, textDecoration: "none",
+                    boxShadow: "0 2px 10px rgba(37,99,235,0.28)",
+                  }}>
+                    {hasAnyClaims ? messages.empty.noAttentionCta : messages.empty.noClaimsCta}
+                  </Link>
+                )}
               </div>
-            </div>
-          ) : (
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    {[
-                      messages.columns.priority,
-                      messages.columns.claimId,
-                      messages.columns.patient,
-                      messages.columns.payer,
-                      messages.columns.status,
-                      messages.columns.nextAction,
-                      messages.columns.queueReason,
-                      messages.columns.owner,
-                      messages.columns.lastTouched,
-                      messages.columns.sla,
-                      messages.columns.confidence,
-                      messages.columns.evidence,
-                      messages.columns.actions
-                    ].map((header) => {
-                      const target =
-                        header === messages.columns.priority
-                          ? "priority"
-                          : header === messages.columns.claimId
-                            ? "claim"
-                            : header === messages.columns.sla
-                              ? "sla"
-                              : null;
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="hidden lg:block" style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
+                        {[
+                          { label: messages.columns.priority, tour: "priority" },
+                          { label: messages.columns.claimId, tour: "claim" },
+                          { label: messages.columns.patient },
+                          { label: messages.columns.payer },
+                          { label: messages.columns.status },
+                          { label: messages.columns.nextAction },
+                          { label: messages.columns.owner },
+                          { label: messages.columns.sla, tour: "sla" },
+                        ].map(({ label, tour }) => (
+                          <th
+                            key={label}
+                            data-tour={tour ?? undefined}
+                            style={{
+                              ...TH_STYLE,
+                              ...(activeTourTarget !== null && activeTourTarget === tour
+                                ? { background: "rgba(37,99,235,0.07)", color: "#2563eb", outline: "2px solid #2563eb", outlineOffset: -2, borderRadius: 4 }
+                                : {})
+                            }}
+                          >
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredItems.map((claim, idx) => {
+                        const isSelected = selectedClaimId === claim.claimId;
+                        return (
+                          <tr
+                            key={claim.claimId}
+                            onClick={() => setSelectedClaimId(claim.claimId)}
+                            style={{
+                              borderBottom: idx < filteredItems.length - 1 ? "1px solid rgba(15,23,42,0.05)" : "none",
+                              cursor: "pointer",
+                              background: isSelected ? "rgba(37,99,235,0.04)" : "transparent",
+                              transition: "background 0.12s",
+                              borderLeft: isSelected ? "2px solid #2563eb" : "2px solid transparent",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(15,23,42,0.02)";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
+                            }}
+                          >
+                            <td style={COL_STYLE}>{getPriorityIcon(claim.priority)}</td>
+                            <td style={COL_STYLE}>
+                              <Link
+                                href={`/app/claim/${claim.claimId}`}
+                                style={{ fontSize: 13, fontWeight: 600, color: "#2563eb", textDecoration: "none" }}
+                                onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                              >
+                                {claim.claimNumber}
+                              </Link>
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                                {claim.claimType ?? messages.common.unspecified}
+                                {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
+                              </div>
+                            </td>
+                            <td style={{ ...COL_STYLE, fontWeight: 500, color: "#0f172a" }}>{claim.patientName}</td>
+                            <td style={COL_STYLE}>
+                              <div style={{ fontWeight: 500, color: "#0f172a", fontSize: 13 }}>{claim.payerName}</div>
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                                {claim.countryCode ?? "CA"} / {claim.jurisdiction?.toUpperCase() ?? "CA"}
+                                {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
+                              </div>
+                            </td>
+                            <td style={COL_STYLE}>
+                              <StatusPill variant={statusVariantFromText(claim.claimStatus)}>
+                                {claim.claimStatus}
+                              </StatusPill>
+                            </td>
+                            <td style={{ ...COL_STYLE, maxWidth: 160 }}>
+                              <div style={{ fontSize: 13, color: "#0f172a", lineHeight: 1.4 }}>{claim.nextAction}</div>
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, lineHeight: 1.4 }}>{claim.queueReason}</div>
+                            </td>
+                            <td style={COL_STYLE}>
+                              {claim.owner ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                  <span style={{
+                                    display: "inline-flex", width: 24, height: 24, borderRadius: "50%",
+                                    background: "linear-gradient(135deg, #dbeafe, #ede9fe)",
+                                    alignItems: "center", justifyContent: "center",
+                                    fontSize: 10, fontWeight: 700, color: "#1d4ed8",
+                                  }}>
+                                    {ownerInitials(claim.owner)}
+                                  </span>
+                                  <span style={{ fontSize: 13, color: "#374151" }}>{claim.owner}</span>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 12.5, color: "#cbd5e1" }}>{messages.common.unassigned}</span>
+                              )}
+                            </td>
+                            <td style={COL_STYLE}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <span style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{claim.age}</span>
+                                {getSLABadge(claim.slaRisk, messages.sla)}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                      return (
-                      <th
-                        key={header}
-                        data-tour={target ?? undefined}
-                          className={cn(
-                            "px-4 py-3 text-left text-xs font-medium text-gray-600",
-                            activeTourTarget !== null &&
-                              activeTourTarget === target &&
-                              "relative z-20 rounded-md bg-blue-50 ring-2 ring-blue-500 ring-offset-2"
-                          )}
-                        >
-                          {header}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((claim) => (
-                    <tr
+                {/* Mobile cards */}
+                <div className="lg:hidden" style={{ borderTop: "1px solid rgba(15,23,42,0.06)" }}>
+                  {filteredItems.map((claim, idx) => (
+                    <div
                       key={claim.claimId}
                       onClick={() => setSelectedClaimId(claim.claimId)}
-                      className={cn(
-                        "cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50",
-                        selectedClaimId === claim.claimId && "bg-blue-50 hover:bg-blue-50"
-                      )}
+                      style={{
+                        padding: "16px",
+                        borderBottom: idx < filteredItems.length - 1 ? "1px solid rgba(15,23,42,0.06)" : "none",
+                        cursor: "pointer",
+                        background: selectedClaimId === claim.claimId ? "rgba(37,99,235,0.04)" : "transparent",
+                        borderLeft: selectedClaimId === claim.claimId ? "2px solid #2563eb" : "2px solid transparent",
+                      }}
                     >
-                      <td className="px-4 py-3">{getPriorityIcon(claim.priority)}</td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/app/claim/${claim.claimId}`}
-                          className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                        >
-                          {claim.claimNumber}
-                        </Link>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {claim.claimType ?? messages.common.unspecified}
-                          {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{claim.patientName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        <div>{claim.payerName}</div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {claim.countryCode ?? "CA"} / {claim.jurisdiction?.toUpperCase() ?? "CA"}
-                          {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusPill variant={statusVariantFromText(claim.claimStatus)}>
-                          {claim.claimStatus}
-                        </StatusPill>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{claim.nextAction}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{claim.queueReason}</td>
-                      <td className="px-4 py-3">
-                        {claim.owner ? (
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
-                              {ownerInitials(claim.owner)}
+                      <div style={{ display: "flex", alignItems: "flex-start", marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {getPriorityIcon(claim.priority)}
+                          <div>
+                            <Link href={`/app/claim/${claim.claimId}`} style={{ fontSize: 13.5, fontWeight: 600, color: "#2563eb", textDecoration: "none" }}>
+                              {claim.claimNumber}
+                            </Link>
+                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
+                              {claim.claimType ?? messages.common.unspecified}
                             </div>
-                            <span className="text-sm text-gray-700">{claim.owner}</span>
                           </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">{messages.common.unassigned}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{claim.lastUpdate}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm text-gray-900">{claim.age}</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", marginBottom: 4 }}>{claim.patientName}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, color: "#374151" }}>{claim.payerName}</span>
+                        <StatusPill variant={statusVariantFromText(claim.claimStatus)}>{claim.claimStatus}</StatusPill>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "#64748b", marginBottom: 8 }}>{claim.nextAction}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                        <span style={{ fontSize: 11.5, color: "#94a3b8" }}>{claim.owner ?? messages.common.unassigned}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           {getSLABadge(claim.slaRisk, messages.sla)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <ConfidenceBadge confidence={claim.confidence} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">{claim.evidenceCount}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="rounded p-1 hover:bg-gray-100">
-                          <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="divide-y divide-gray-200 lg:hidden">
-              {filteredItems.map((claim) => (
-                <div
-                  key={claim.claimId}
-                  onClick={() => setSelectedClaimId(claim.claimId)}
-                  className={cn(
-                    "cursor-pointer p-4 transition-colors hover:bg-gray-50",
-                    selectedClaimId === claim.claimId && "bg-blue-50"
-                  )}
-                >
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      {getPriorityIcon(claim.priority)}
-                      <div>
-                        <Link
-                          href={`/app/claim/${claim.claimId}`}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                        >
-                          {claim.claimNumber}
-                        </Link>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {claim.claimType ?? messages.common.unspecified}
-                          {serviceSummary(claim) ? ` · ${serviceSummary(claim)}` : ""}
                         </div>
                       </div>
                     </div>
-                    <button className="rounded p-1 hover:bg-gray-100">
-                      <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                    </button>
-                  </div>
-                  <div className="mb-3 space-y-2">
-                    <div className="text-sm text-gray-700">{claim.patientName}</div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{claim.payerName}</span>
-                      <StatusPill variant={statusVariantFromText(claim.claimStatus)}>
-                        {claim.claimStatus}
-                      </StatusPill>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {claim.countryCode ?? "CA"} / {claim.jurisdiction?.toUpperCase() ?? "CA"}
-                      {claim.provinceOfService ? ` · ${claim.provinceOfService}` : ""}
-                    </div>
-                    <div className="text-sm text-gray-700">{claim.nextAction}</div>
-                    {serviceSummary(claim) ? (
-                      <div className="text-xs text-gray-500">{serviceSummary(claim)}</div>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-xs text-gray-600">
-                      {claim.owner ?? messages.common.unassigned} · {claim.lastUpdate}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <ConfidenceBadge confidence={claim.confidence} />
-                      {getSLABadge(claim.slaRisk, messages.sla)}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </div>
-          )}
 
-          <div className="mt-4">
-            <Link href="/app/claims" className="text-sm font-medium text-blue-600 hover:text-blue-700">
-              {messages.searchAllClaimsCta}
+          {/* Footer link */}
+          <div style={{ marginTop: 16 }}>
+            <Link href="/app/claims" style={{ fontSize: 13, fontWeight: 500, color: "#2563eb", textDecoration: "none" }}
+              onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+            >
+              {messages.searchAllClaimsCta} →
             </Link>
           </div>
         </div>
       </div>
 
+      {/* ── Detail panel ── */}
       {selectedClaim ? (
-        <div className="hidden w-96 shrink-0 overflow-auto border-l border-gray-200 bg-white lg:block">
-          <div className="p-6">
-            <div className="mb-6 flex items-start justify-between">
+        <div
+          className="hidden lg:flex"
+          style={{
+            width: 340, flexShrink: 0, flexDirection: "column",
+            borderLeft: "1px solid rgba(15,23,42,0.07)",
+            background: "#fff", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "20px 20px 28px" }}>
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">{selectedClaim.claimNumber}</h2>
-                <p className="mt-1 text-sm text-gray-600">{selectedClaim.patientName}</p>
+                <Link
+                  href={`/app/claim/${selectedClaim.claimId}`}
+                  style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", textDecoration: "none", letterSpacing: "-0.015em", fontFamily: "var(--font-inter, system-ui, sans-serif)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "#2563eb"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "#0f172a"; }}
+                >
+                  {selectedClaim.claimNumber}
+                </Link>
+                <p style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>{selectedClaim.patientName}</p>
               </div>
               <button
                 onClick={() => setSelectedClaimId(null)}
-                className="rounded p-1 hover:bg-gray-100"
+                style={{ background: "rgba(15,23,42,0.04)", border: "none", cursor: "pointer", padding: 6, borderRadius: 8, color: "#64748b", flexShrink: 0 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(15,23,42,0.08)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(15,23,42,0.04)"; }}
               >
-                <X className="h-5 w-5 text-gray-600" />
+                <X style={{ width: 14, height: 14 }} />
               </button>
             </div>
 
-            <div className="mb-6">
-              <div className="mb-2 text-xs font-medium text-gray-600">
+            {/* Status + confidence */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 7 }}>
                 {messages.currentStatusLabel}
               </div>
-              <StatusPill variant={statusVariantFromText(selectedClaim.claimStatus)} size="md">
-                {selectedClaim.claimStatus}
-              </StatusPill>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-gray-600">{messages.columns.confidence}:</span>
-                <ConfidenceBadge confidence={selectedClaim.confidence} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <StatusPill variant={statusVariantFromText(selectedClaim.claimStatus)} size="md">
+                  {selectedClaim.claimStatus}
+                </StatusPill>
+                <ConfidenceBadge confidence={selectedClaim.confidence} size="md" />
               </div>
             </div>
 
-            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <div className="flex items-start gap-2">
-                <ChevronRight className="mt-0.5 h-4 w-4 text-blue-600" />
+            {/* Next action callout */}
+            <div style={{
+              padding: "12px 14px", borderRadius: 10, marginBottom: 18,
+              background: "rgba(37,99,235,0.05)",
+              border: "1px solid rgba(37,99,235,0.12)",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <ChevronRight style={{ width: 14, height: 14, color: "#2563eb", marginTop: 1, flexShrink: 0 }} />
                 <div>
-                  <div className="text-sm font-medium text-blue-900">{selectedClaim.nextAction}</div>
-                  <div className="mt-1 text-xs text-blue-700">{selectedClaim.queueReason}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1e3a8a", lineHeight: 1.4 }}>{selectedClaim.nextAction}</div>
+                  <div style={{ fontSize: 12, color: "#3b82f6", marginTop: 3, lineHeight: 1.4 }}>{selectedClaim.queueReason}</div>
                 </div>
               </div>
             </div>
 
-            <div className="mb-6 space-y-3 text-sm text-gray-700">
-              <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">{messages.labels.payer}</div>
-                <div>{selectedClaim.payerName}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">{messages.labels.service}</div>
-                <div>{serviceSummary(selectedClaim) || messages.common.serviceNotCaptured}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">
-                  {messages.labels.assignedOwner}
+            {/* Detail rows */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+              {[
+                { label: messages.labels.payer, value: selectedClaim.payerName },
+                { label: messages.labels.service, value: serviceSummary(selectedClaim) || messages.common.serviceNotCaptured },
+                { label: messages.labels.assignedOwner, value: selectedClaim.owner ?? messages.common.unassigned },
+                { label: messages.labels.lastTouched, value: selectedClaim.lastUpdate },
+                { label: messages.labels.evidence, value: `${selectedClaim.evidenceCount} ${messages.common.evidenceArtifacts}` },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 3 }}>{label}</div>
+                  <div style={{ fontSize: 13.5, color: "#0f172a" }}>{value}</div>
                 </div>
-                <div>{selectedClaim.owner ?? messages.common.unassigned}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">
-                  {messages.labels.lastTouched}
-                </div>
-                <div>{selectedClaim.lastUpdate}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-xs font-medium text-gray-600">{messages.labels.evidence}</div>
-                <div>
-                  {selectedClaim.evidenceCount} {messages.common.evidenceArtifacts}
-                </div>
-              </div>
+              ))}
             </div>
 
-            <div className="space-y-2">
+            {/* Divider */}
+            <div style={{ height: 1, background: "rgba(15,23,42,0.06)", marginBottom: 16 }} />
+
+            {/* Actions */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <Link
                 href={`/app/claim/${selectedClaim.claimId}`}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "10px 16px", borderRadius: 9999,
+                  background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+                  color: "#fff", fontSize: 13.5, fontWeight: 600, textDecoration: "none",
+                  boxShadow: "0 2px 10px rgba(37,99,235,0.25)",
+                }}
               >
                 {messages.viewFullClaim}
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight style={{ width: 14, height: 14 }} />
               </Link>
               {canRequestStatus ? (
                 <ClaimRetrieveButton
@@ -799,7 +839,13 @@ export function QueueClient({
                   title={retrieveMessages.tooltip}
                   loadingText={retrieveMessages.loading}
                   successText={retrieveMessages.completed}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-70"
+                  className="w-full"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "9px 16px", borderRadius: 9999, width: "100%",
+                    border: "1px solid rgba(15,23,42,0.13)", background: "#fff",
+                    fontSize: 13.5, fontWeight: 600, color: "#374151", cursor: "pointer",
+                  }}
                 >
                   {retrieveMessages.label}
                 </ClaimRetrieveButton>

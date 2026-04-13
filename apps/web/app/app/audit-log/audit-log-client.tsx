@@ -14,7 +14,6 @@ import {
 
 import { KPICard } from "../../../components/kpi-card";
 import { StatusPill } from "../../../components/status-pill";
-import { cn } from "../../../lib/cn";
 import { getActorTypeLabel } from "../../../lib/display-labels";
 import type { TenioMessages } from "../../../lib/locale";
 import type { AuditEventView } from "../../../lib/pilot-api";
@@ -26,112 +25,195 @@ type AuditLogClientProps = {
 
 const AUDIT_EXPORT_ENABLED = false;
 
+const TH: React.CSSProperties = {
+  padding: "10px 14px",
+  textAlign: "left",
+  fontSize: 10.5,
+  fontWeight: 600,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#94a3b8",
+  borderBottom: "1px solid rgba(15,23,42,0.07)",
+  whiteSpace: "nowrap",
+  background: "#fafafa",
+};
+
+const TD: React.CSSProperties = {
+  padding: "11px 14px",
+  fontSize: 12.5,
+  color: "#374151",
+  borderBottom: "1px solid rgba(15,23,42,0.05)",
+  verticalAlign: "middle",
+};
+
+const DETAIL_LABEL: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#94a3b8",
+  marginBottom: 3,
+};
+
+const DETAIL_VALUE: React.CSSProperties = {
+  fontSize: 12.5,
+  fontWeight: 500,
+  color: "#0f172a",
+};
+
 export function AuditLogClient({ events, messages }: AuditLogClientProps) {
   const [selectedEvent, setSelectedEvent] = useState(events[0]);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   if (!selectedEvent) {
     return (
-      <div className="p-6 text-sm text-gray-600">{messages.common.noEvents}</div>
+      <div style={{ padding: 24, fontSize: 13, color: "#64748b" }}>{messages.common.noEvents}</div>
     );
   }
 
+  const humanActions = events.filter((e) => e.actor.type === "human").length;
+  const systemActions = events.filter((e) => e.actor.type === "system").length;
+  const sensitiveChanges = events.filter((e) => e.sensitivity === "high-risk").length;
+
   return (
-    <div className="flex h-full flex-col bg-gray-50">
-      <div className="border-b border-gray-200 bg-white px-4 py-3.5 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">{messages.heading}</h1>
-            <p className="mt-0.5 text-xs text-gray-600">{messages.subheading}</p>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f8fafc" }}>
+
+      {/* Page header */}
+      <div style={{
+        padding: "18px 28px 14px",
+        borderBottom: "1px solid rgba(15,23,42,0.08)",
+        background: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        flexShrink: 0,
+      }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 3 }}>
+            Compliance
           </div>
-          {AUDIT_EXPORT_ENABLED ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                <Star className="h-3.5 w-3.5" />
-                Saved Views
-              </button>
-              <button className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
-                <Download className="h-3.5 w-3.5" />
-                Export Log
-              </button>
-            </div>
-          ) : null}
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>
+            {messages.heading}
+          </h1>
+          <p style={{ marginTop: 2, fontSize: 12.5, color: "#64748b" }}>{messages.subheading}</p>
         </div>
+        {AUDIT_EXPORT_ENABLED ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "7px 14px", borderRadius: 8,
+              border: "1px solid rgba(15,23,42,0.12)", background: "#fff",
+              fontSize: 12.5, fontWeight: 500, color: "#374151", cursor: "pointer",
+            }}>
+              <Star style={{ width: 13, height: 13 }} />
+              Saved Views
+            </button>
+            <button style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "7px 14px", borderRadius: 9999,
+              background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+              fontSize: 12.5, fontWeight: 600, color: "#fff",
+              border: "none", cursor: "pointer",
+            }}>
+              <Download style={{ width: 13, height: 13 }} />
+              Export Log
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <div className="space-y-6 p-4 sm:p-6">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KPICard title={messages.kpis.eventsToday} value={String(events.length)} subtitle="live records" />
-            <KPICard
-              title={messages.kpis.humanActions}
-              value={String(events.filter((event) => event.actor.type === "human").length)}
-              subtitle="manual interactions"
-            />
-            <KPICard
-              title={messages.kpis.systemActions}
-              value={String(events.filter((event) => event.actor.type === "system").length)}
-              subtitle="automated decisions"
-            />
-            <KPICard
-              title={messages.kpis.sensitiveChanges}
-              value={String(events.filter((event) => event.sensitivity === "high-risk").length)}
-              subtitle="requires attention"
-            />
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ padding: "20px 28px" }}>
+
+          {/* KPI strip */}
+          <div style={{
+            display: "flex", background: "#fff",
+            border: "1px solid rgba(15,23,42,0.08)", borderRadius: 10,
+            boxShadow: "0 1px 4px rgba(15,23,42,0.04)", overflow: "hidden",
+            marginBottom: 16,
+          }}>
+            <KPICard strip isFirst title={messages.kpis.eventsToday} value={String(events.length)} subtext="live records" />
+            <KPICard strip title={messages.kpis.humanActions} value={String(humanActions)} subtext="manual interactions" />
+            <KPICard strip title={messages.kpis.systemActions} value={String(systemActions)} subtext="automated decisions" />
+            <KPICard strip title={messages.kpis.sensitiveChanges} value={String(sensitiveChanges)} subtext="requires attention" variant={sensitiveChanges > 0 ? "warning" : "neutral"} />
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="relative flex-1">
-                  <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder={messages.searchPlaceholder}
-                    className="w-full rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-                <button
-                  onClick={() => setShowFilters((current) => !current)}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium whitespace-nowrap",
-                    showFilters
-                      ? "border-blue-200 bg-blue-50 text-blue-700"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  <Filter className="h-4 w-4" />
-                  {messages.filtersButton}
-                </button>
+          {/* Search & filter bar */}
+          <div style={{
+            background: "#fff", border: "1px solid rgba(15,23,42,0.08)",
+            borderRadius: 10, padding: "12px 16px",
+            boxShadow: "0 1px 4px rgba(15,23,42,0.04)", marginBottom: 14,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ position: "relative", flex: 1 }}>
+                <Search style={{ position: "absolute", top: "50%", left: 10, transform: "translateY(-50%)", width: 14, height: 14, color: "#94a3b8" }} />
+                <input
+                  type="text"
+                  placeholder={messages.searchPlaceholder}
+                  style={{
+                    width: "100%", padding: "7px 12px 7px 32px",
+                    border: "1px solid rgba(15,23,42,0.1)", borderRadius: 8,
+                    fontSize: 13, color: "#374151", background: "#f8fafc",
+                    outline: "none", boxSizing: "border-box",
+                  }}
+                />
               </div>
-
-              {showFilters ? (
-                <div className="grid grid-cols-1 gap-3 border-t border-gray-200 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    messages.filterLabels.dateRange,
-                    messages.filterLabels.actor,
-                    messages.filterLabels.actionType,
-                    messages.filterLabels.objectType
-                  ].map((label) => (
-                    <div key={label}>
-                      <label className="mb-1.5 block text-xs font-medium text-gray-700">
-                        {label}
-                      </label>
-                      <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        <option>{messages.filterLabels.all}</option>
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", borderRadius: 8, cursor: "pointer",
+                  fontSize: 13, fontWeight: 500,
+                  ...(showFilters
+                    ? { border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8" }
+                    : { border: "1px solid rgba(15,23,42,0.1)", background: "#fff", color: "#374151" }),
+                }}
+              >
+                <Filter style={{ width: 13, height: 13 }} />
+                {messages.filtersButton}
+              </button>
             </div>
+
+            {showFilters ? (
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12,
+                marginTop: 12, paddingTop: 12,
+                borderTop: "1px solid rgba(15,23,42,0.07)",
+              }}>
+                {[
+                  messages.filterLabels.dateRange,
+                  messages.filterLabels.actor,
+                  messages.filterLabels.actionType,
+                  messages.filterLabels.objectType,
+                ].map((label) => (
+                  <div key={label}>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 5 }}>
+                      {label}
+                    </label>
+                    <select style={{
+                      width: "100%", padding: "6px 10px",
+                      border: "1px solid rgba(15,23,42,0.1)", borderRadius: 7,
+                      fontSize: 12.5, color: "#374151", background: "#fff",
+                      outline: "none",
+                    }}>
+                      <option>{messages.filterLabels.all}</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white lg:col-span-8">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b border-gray-200 bg-gray-50">
+          {/* Master/detail layout */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 14, alignItems: "start" }}>
+
+            {/* Event table */}
+            <div style={{
+              background: "#fff", border: "1px solid rgba(15,23,42,0.08)",
+              borderRadius: 10, overflow: "hidden",
+              boxShadow: "0 1px 4px rgba(15,23,42,0.04)",
+            }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
                     <tr>
                       {[
                         messages.tableHeaders.time,
@@ -139,203 +221,231 @@ export function AuditLogClient({ events, messages }: AuditLogClientProps) {
                         messages.tableHeaders.action,
                         messages.tableHeaders.object,
                         messages.tableHeaders.summary,
-                        messages.tableHeaders.sensitivity
-                      ].map(
-                        (header, index) => (
-                          <th key={header} className="px-4 py-3 text-left">
-                            {index === 0 ? (
-                              <button className="flex items-center gap-1 text-xs font-medium text-gray-700 hover:text-gray-900">
-                                {header}
-                                <ArrowUpDown className="h-3 w-3" />
-                              </button>
-                            ) : (
-                              <span className="text-xs font-medium text-gray-700">{header}</span>
-                            )}
-                          </th>
-                        )
-                      )}
+                        messages.tableHeaders.sensitivity,
+                      ].map((header, index) => (
+                        <th key={header} style={TH}>
+                          {index === 0 ? (
+                            <button style={{
+                              display: "flex", alignItems: "center", gap: 4,
+                              background: "none", border: "none", cursor: "pointer",
+                              fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em",
+                              textTransform: "uppercase", color: "#94a3b8", padding: 0,
+                            }}>
+                              {header}
+                              <ArrowUpDown style={{ width: 11, height: 11 }} />
+                            </button>
+                          ) : header}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {events.map((event) => (
-                      <tr
-                        key={event.id}
-                        onClick={() => setSelectedEvent(event)}
-                        className={cn(
-                          "cursor-pointer transition-colors",
-                          selectedEvent.id === event.id ? "bg-blue-50" : "hover:bg-gray-50"
-                        )}
-                      >
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">{event.time}</div>
-                          <div className="text-xs text-gray-500">{event.date}</div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={cn(
-                                "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium",
-                                event.actor.type === "human"
-                                  ? "bg-blue-100 text-blue-700"
+                  <tbody>
+                    {events.map((event) => {
+                      const isSelected = selectedEvent.id === event.id;
+                      return (
+                        <tr
+                          key={event.id}
+                          onClick={() => setSelectedEvent(event)}
+                          style={{
+                            cursor: "pointer",
+                            background: isSelected ? "#eff6ff" : "transparent",
+                            transition: "background 0.1s",
+                            borderLeft: isSelected ? "2px solid #2563eb" : "2px solid transparent",
+                          }}
+                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
+                          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <td style={{ ...TD, whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 500, color: "#0f172a" }}>{event.time}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8" }}>{event.date}</div>
+                          </td>
+                          <td style={{ ...TD, whiteSpace: "nowrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{
+                                width: 28, height: 28, borderRadius: "50%",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 11, fontWeight: 700,
+                                ...(event.actor.type === "human"
+                                  ? { background: "#dbeafe", color: "#1d4ed8" }
                                   : event.actor.type === "owner"
-                                    ? "bg-purple-100 text-purple-700"
-                                    : "bg-gray-100 text-gray-700"
-                              )}
+                                    ? { background: "#f3e8ff", color: "#7c3aed" }
+                                    : { background: "#f1f5f9", color: "#64748b" }),
+                              }}>
+                                {event.actor.avatar}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>{event.actor.name}</div>
+                                <div style={{ fontSize: 11, color: "#94a3b8" }}>{getActorTypeLabel(event.actor.type, messages.actorTypes)}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ ...TD, whiteSpace: "nowrap" }}>
+                            <StatusPill
+                              variant={
+                                event.action.includes("Updated")
+                                  ? "warning"
+                                  : event.action.includes("Routed") || event.action.includes("Retrieved")
+                                    ? "info"
+                                    : "neutral"
+                              }
                             >
-                              {event.actor.avatar}
+                              {event.action}
+                            </StatusPill>
+                          </td>
+                          <td style={{ ...TD, whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>{event.object}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8" }}>{event.objectId}</div>
+                          </td>
+                          <td style={TD}>
+                            <div style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5, color: "#374151" }}>
+                              {event.summary}
                             </div>
-                            <div>
-                              <div className="text-xs font-medium text-gray-900">
-                                {event.actor.name}
+                          </td>
+                          <td style={{ ...TD, whiteSpace: "nowrap" }}>
+                            {event.sensitivity === "high-risk" ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                <AlertTriangle style={{ width: 13, height: 13, color: "#dc2626" }} />
+                                <span style={{ fontSize: 11, fontWeight: 600, color: "#dc2626" }}>{messages.common.highRisk}</span>
                               </div>
-                              <div className="text-xs text-gray-500">
-                                {getActorTypeLabel(event.actor.type, messages.actorTypes)}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <StatusPill
-                            variant={
-                              event.action.includes("Updated")
-                                ? "warning"
-                                : event.action.includes("Routed") || event.action.includes("Retrieved")
-                                  ? "info"
-                                  : "neutral"
-                            }
-                          >
-                            {event.action}
-                          </StatusPill>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-xs font-medium text-gray-900">{event.object}</div>
-                          <div className="text-xs text-gray-500">{event.objectId}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="max-w-xs truncate text-xs text-gray-900">
-                            {event.summary}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {event.sensitivity === "high-risk" ? (
-                            <div className="flex items-center gap-1.5">
-                              <AlertTriangle className="h-4 w-4 text-red-600" />
-                              <span className="text-xs font-medium text-red-700">{messages.common.highRisk}</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-500">{messages.common.normal}</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            ) : (
+                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{messages.common.normal}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            <div className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white lg:col-span-4">
-              <div className="flex-1 overflow-y-auto">
-                <div className="border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white px-5 py-4">
-                  <div className="mb-4 flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-base font-semibold text-gray-900">
-                        {selectedEvent.action}
-                      </h3>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">{messages.detail.eventId}:</span>
-                        <span className="font-mono text-xs text-gray-700">{selectedEvent.id}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <div className="mb-1 text-gray-500">{messages.detail.time}</div>
-                      <div className="font-medium text-gray-900">{selectedEvent.time}</div>
-                      <div className="text-gray-600">{selectedEvent.date}</div>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-gray-500">{messages.detail.actor}</div>
-                      <div className="font-medium text-gray-900">{selectedEvent.actor.name}</div>
-                      <div className="text-gray-600">{getActorTypeLabel(selectedEvent.actor.type, messages.actorTypes)}</div>
-                    </div>
-                    <div className="col-span-2">
-                      <div className="mb-1 text-gray-500">{messages.detail.object}</div>
-                      <div className="font-medium text-gray-900">
-                        {selectedEvent.object} · {selectedEvent.objectId}
-                      </div>
-                    </div>
-                  </div>
+            {/* Detail panel */}
+            <div style={{
+              background: "#fff", border: "1px solid rgba(15,23,42,0.08)",
+              borderRadius: 10, overflow: "hidden",
+              boxShadow: "0 1px 4px rgba(15,23,42,0.04)",
+              position: "sticky", top: 0,
+            }}>
+              {/* Detail header */}
+              <div style={{
+                padding: "16px 18px",
+                borderBottom: "1px solid rgba(15,23,42,0.07)",
+                background: "linear-gradient(to bottom, #fafafa, #fff)",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 4 }}>
+                  Event Detail
                 </div>
-
-                <div className="border-b border-gray-200 px-5 py-4">
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                    {messages.detail.summary}
-                  </h4>
-                  <p className="text-sm leading-relaxed text-gray-900">{selectedEvent.summary}</p>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                  {selectedEvent.action}
                 </div>
-
-                {selectedEvent.beforeAfter ? (
-                  <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
-                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                      {messages.detail.changes}
-                    </h4>
-                    <div className="space-y-4">
-                      {Object.entries(selectedEvent.beforeAfter).map(([key, value]) => {
-                        const change = value as { from: string; to: string };
-
-                        return <div key={key}>
-                          <div className="mb-2 text-xs font-medium capitalize text-gray-600">
-                            {key}
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-red-200 bg-white p-3">
-                              <div className="mb-2 text-xs font-semibold text-red-700">{messages.detail.before}</div>
-                              <div className="text-sm font-medium text-gray-900">{change.from}</div>
-                            </div>
-                            <div className="rounded-lg border border-green-200 bg-white p-3">
-                              <div className="mb-2 text-xs font-semibold text-green-700">{messages.detail.after}</div>
-                              <div className="text-sm font-medium text-gray-900">{change.to}</div>
-                            </div>
-                          </div>
-                        </div>;
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="bg-gray-50 px-5 py-4">
-                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-700">
-                    {messages.detail.metadata}
-                  </h4>
-                  <div className="space-y-2.5 text-xs">
-                    {[
-                      [messages.detail.eventId, selectedEvent.id],
-                      [messages.detail.requestId, selectedEvent.requestId ?? "—"],
-                      [messages.detail.category, selectedEvent.category],
-                      [messages.detail.organization, messages.common.pilotOrg],
-                      [messages.detail.payer, selectedEvent.payer]
-                    ].map(([label, value]) => (
-                      <div key={label} className="flex items-center justify-between py-1.5">
-                        <span className="text-gray-600">{label}</span>
-                        <span className="text-gray-900">{value}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 10.5, color: "#94a3b8" }}>{messages.detail.eventId}</span>
+                  <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748b", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>
+                    {selectedEvent.id}
+                  </span>
                 </div>
               </div>
 
-              <div className="space-y-2 border-t border-gray-200 bg-white px-5 py-4">
-                <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
-                  <ExternalLink className="h-4 w-4" />
+              {/* Who + when */}
+              <div style={{
+                padding: "14px 18px",
+                borderBottom: "1px solid rgba(15,23,42,0.07)",
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14,
+              }}>
+                <div>
+                  <div style={DETAIL_LABEL}>{messages.detail.time}</div>
+                  <div style={DETAIL_VALUE}>{selectedEvent.time}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{selectedEvent.date}</div>
+                </div>
+                <div>
+                  <div style={DETAIL_LABEL}>{messages.detail.actor}</div>
+                  <div style={DETAIL_VALUE}>{selectedEvent.actor.name}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{getActorTypeLabel(selectedEvent.actor.type, messages.actorTypes)}</div>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={DETAIL_LABEL}>{messages.detail.object}</div>
+                  <div style={DETAIL_VALUE}>{selectedEvent.object} · {selectedEvent.objectId}</div>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
+                <div style={DETAIL_LABEL}>{messages.detail.summary}</div>
+                <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#374151", margin: 0 }}>{selectedEvent.summary}</p>
+              </div>
+
+              {/* Before/after */}
+              {selectedEvent.beforeAfter ? (
+                <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(15,23,42,0.07)", background: "#fafafa" }}>
+                  <div style={DETAIL_LABEL}>{messages.detail.changes}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 6 }}>
+                    {Object.entries(selectedEvent.beforeAfter).map(([key, value]) => {
+                      const change = value as { from: string; to: string };
+                      return (
+                        <div key={key}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "capitalize", marginBottom: 6 }}>{key}</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            <div style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #fecaca", background: "#fff" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", marginBottom: 4 }}>{messages.detail.before}</div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: "#0f172a" }}>{change.from}</div>
+                            </div>
+                            <div style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #bbf7d0", background: "#fff" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#166534", marginBottom: 4 }}>{messages.detail.after}</div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: "#0f172a" }}>{change.to}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Metadata */}
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
+                <div style={DETAIL_LABEL}>{messages.detail.metadata}</div>
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 0 }}>
+                  {[
+                    [messages.detail.requestId, selectedEvent.requestId ?? "—"],
+                    [messages.detail.category, selectedEvent.category],
+                    [messages.detail.organization, messages.common.pilotOrg],
+                    [messages.detail.payer, selectedEvent.payer],
+                  ].map(([label, val]) => (
+                    <div key={label} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "7px 0", borderBottom: "1px solid rgba(15,23,42,0.05)",
+                    }}>
+                      <span style={{ fontSize: 11.5, color: "#94a3b8" }}>{label}</span>
+                      <span style={{ fontSize: 11.5, fontWeight: 500, color: "#374151" }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <button style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 9999, width: "100%",
+                  background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                  border: "none", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer",
+                }}>
+                  <ExternalLink style={{ width: 13, height: 13 }} />
                   {messages.detail.viewObject}
                 </button>
-                <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                  <FileText className="h-4 w-4" />
+                <button style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 9999, width: "100%",
+                  background: "#fff", border: "1px solid rgba(15,23,42,0.13)",
+                  fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer",
+                }}>
+                  <FileText style={{ width: 13, height: 13 }} />
                   {messages.detail.exportEvent}
                 </button>
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>

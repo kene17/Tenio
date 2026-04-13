@@ -67,16 +67,10 @@
       "claimId": "Claim ID",
       "patient": "Patient",
       "payer": "Payer",
-      "service": "Service",
       "status": "Status",
       "nextAction": "Next action",
-      "queueReason": "Queue / reason",
       "owner": "Owner",
-      "lastTouched": "Last touched",
-      "sla": "Age / SLA",
-      "confidence": "Confidence",
-      "evidence": "Evidence",
-      "actions": "Actions"
+      "sla": "Age / SLA"
     },
     "sla": {
       "onTrack": "On track",
