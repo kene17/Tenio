@@ -54,5 +54,11 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Install AI service (Python)
+        run: python -m pip install -e ./services/ai
+
+      - name: Test AI service
+        run: PYTHONPATH=. python -m unittest services.ai.tests.test_main -v
+
       - name: Build
         run: npm run build
