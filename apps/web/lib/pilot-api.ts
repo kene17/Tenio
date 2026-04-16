@@ -69,6 +69,7 @@ export type ClaimDetailView = {
   statusLabel: string;
   lastUpdatedLabel: string;
   slaLabel: string;
+  slaRisk: "healthy" | "at-risk" | "breached";
   machineSummary: string;
   recommendedNextSteps: string[];
   agentInsights: {
