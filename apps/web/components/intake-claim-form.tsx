@@ -58,7 +58,7 @@ export function IntakeClaimForm({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/claims/intake", {
+      const response = await fetch("/api/claims", {
         method: "POST",
         headers: {
           "content-type": "application/json"

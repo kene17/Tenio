@@ -268,13 +268,13 @@ export async function buildApp() {
     return { session };
   });
 
-  app.get("/claims", { preHandler: requirePermission("claims:read") }, async (request) => ({
-    items: await workflow.getClaims(request.tenioActor!.organizationId)
-  }));
-
-  app.get("/claims-list", { preHandler: requirePermission("claims:read") }, async (request) => ({
-    items: await workflow.getClaimsList(request.tenioActor!.organizationId)
-  }));
+  app.get("/claims", { preHandler: requirePermission("claims:read") }, async (request) => {
+    const view = (request.query as Record<string, string>)?.view;
+    if (view === "list") {
+      return { items: await workflow.getClaimsList(request.tenioActor!.organizationId) };
+    }
+    return { items: await workflow.getClaims(request.tenioActor!.organizationId) };
+  });
 
   app.get("/queue", { preHandler: requirePermission("queue:read") }, async (request) => ({
     items: await workflow.getPilotQueue(request.tenioActor!.organizationId)
@@ -384,7 +384,7 @@ export async function buildApp() {
   );
 
   app.get(
-    "/claim-intake-options",
+    "/payers",
     { preHandler: requirePermission("claims:import") },
     async (request) => ({
       items: (await workflow.getPayerConfigurations(request.tenioActor!.organizationId)).map(
@@ -468,7 +468,7 @@ export async function buildApp() {
   );
 
   app.post(
-    "/claims/intake",
+    "/claims",
     { preHandler: requirePermission("claims:write") },
     async (request) => {
       const body = request.body as {
@@ -505,21 +505,14 @@ export async function buildApp() {
     }
   );
 
+  // POST /claims/:claimId/follow-ups — log a follow-up, note, or owner assignment
   app.post(
-    "/claims/:claimId/workflow-action",
+    "/claims/:claimId/follow-ups",
     { preHandler: requirePermission("followup:log") },
     async (request, reply) => {
       const { claimId } = request.params as { claimId: string };
       const body = request.body as {
-        action:
-          | "assign_owner"
-          | "add_note"
-          | "approve_review"
-          | "resolve_claim"
-          | "escalate_claim"
-          | "reopen_claim"
-          | "mark_call_required"
-          | "log_follow_up";
+        action: "assign_owner" | "add_note" | "mark_call_required" | "log_follow_up";
         assignee?: string;
         note?: string;
         outcome?:
@@ -534,21 +527,40 @@ export async function buildApp() {
       };
 
       try {
-        const item = await workflow.applyClaimAction(claimId, body.action, request.tenioActor!, {
-          assignee: body.assignee,
-          note: body.note,
-          outcome: body.outcome,
-          nextAction: body.nextAction,
-          followUpAt: body.followUpAt
-        });
-
-        return { item };
+        return {
+          item: await workflow.applyClaimAction(claimId, body.action, request.tenioActor!, {
+            assignee: body.assignee,
+            note: body.note,
+            outcome: body.outcome,
+            nextAction: body.nextAction,
+            followUpAt: body.followUpAt
+          })
+        };
       } catch (error) {
-        return sendError(
-          reply,
-          404,
-          error instanceof Error ? error.message : "Claim action failed"
-        );
+        return sendError(reply, 404, error instanceof Error ? error.message : "Claim action failed");
+      }
+    }
+  );
+
+  // POST /claims/:claimId/status — advance claim status (resolve, escalate, reopen, review)
+  app.post(
+    "/claims/:claimId/status",
+    { preHandler: requirePermission("followup:log") },
+    async (request, reply) => {
+      const { claimId } = request.params as { claimId: string };
+      const body = request.body as {
+        action: "approve_review" | "resolve_claim" | "escalate_claim" | "reopen_claim";
+        note?: string;
+      };
+
+      try {
+        return {
+          item: await workflow.applyClaimAction(claimId, body.action, request.tenioActor!, {
+            note: body.note
+          })
+        };
+      } catch (error) {
+        return sendError(reply, 404, error instanceof Error ? error.message : "Claim action failed");
       }
     }
   );
