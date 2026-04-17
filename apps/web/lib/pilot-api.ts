@@ -31,6 +31,7 @@ export type QueueItemView = {
   lastUpdate: string;
   age: string;
   slaRisk: "healthy" | "at-risk" | "breached";
+  requiresPhoneCall?: boolean;
   confidence: number;
   evidenceCount: number;
   priority: "low" | "normal" | "high" | "urgent";

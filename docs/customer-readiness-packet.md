@@ -39,7 +39,7 @@ For a first Canadian design-partner pilot, this also means:
 
 - rollout is support-led, not self-serve
 - Tenio provisions the initial named accounts
-- manual payer portal checks may still be part of the pilot workflow at the start
+- manual payer portal checks should be assumed at pilot start unless a supported connector is truly live for that customer
 - automated Canadian retrieval should be positioned as an in-pilot expansion step, not existing production coverage
 
 Tenio is designed to expand beyond that scope, but tomorrow's supported deployment story is intentionally narrow.

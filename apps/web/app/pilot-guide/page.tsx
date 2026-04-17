@@ -24,7 +24,7 @@ export default function PilotGuidePage() {
             <div>4. Workflow remains authoritative for routing, review, ownership, and audit.</div>
             <div>5. Evidence is stored durably and served through authenticated app access.</div>
             <div>6. For the first Canadian pilot, Tenio provisions the initial accounts and supports rollout directly.</div>
-            <div>7. Manual payer portal checks may still be part of pilot start until automated Canadian retrieval is enabled.</div>
+            <div>7. Manual payer portal checks should be assumed at pilot start unless a supported connector is truly live for that customer.</div>
           </div>
         </section>
 
@@ -98,7 +98,7 @@ export default function PilotGuidePage() {
           <div className="mt-4 space-y-3 text-sm text-gray-700">
             <div>Be explicit that Tenio is the workflow system for queue ownership, evidence, and follow-up from day one.</div>
             <div>Be equally explicit that automated Canadian retrieval is not yet live at pilot start.</div>
-            <div>Recommended wording: “At pilot start, your team will do status checks through your payer portals and record the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We’re building automated retrieval for TELUS eClaims and expect to enable that during the pilot.”</div>
+            <div>Recommended wording: “At pilot start, your team will do status checks through your payer portals and record the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We will prioritize automation based on your actual payer mix and enable supported retrieval paths during the pilot.”</div>
           </div>
         </section>
 
