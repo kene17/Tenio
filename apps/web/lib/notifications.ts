@@ -91,16 +91,16 @@ export function buildNotifications(
 
   // ── Audit-derived ──────────────────────────────────────────────────────────
   for (const event of auditEvents) {
-    if (!event.claimId || !isRecentAuditEvent(event, nowMs)) continue;
+    if (!event.objectId || !isRecentAuditEvent(event, nowMs)) continue;
 
     const claimNumber = (event.detail as Record<string, unknown> | undefined)
-      ?.claimNumber as string | undefined ?? event.claimId;
+      ?.claimNumber as string | undefined ?? event.objectId;
 
     if (event.eventType === "retrieval.failed") {
       items.push({
         id: event.id,
         kind: "retrieval_failed",
-        claimId: event.claimId,
+        claimId: event.objectId,
         claimNumber,
         summary: event.summary || `Retrieval failed for ${claimNumber}`,
         at: event.time,
@@ -113,11 +113,11 @@ export function buildNotifications(
       event.action === "Phone Call Required" ||
       (event.detail as Record<string, unknown> | undefined)?.phoneCallRequired === true;
 
-    if (isPhoneRequired && event.claimId) {
+    if (isPhoneRequired && event.objectId) {
       items.push({
         id: event.id,
         kind: "phone_required",
-        claimId: event.claimId,
+        claimId: event.objectId,
         claimNumber,
         summary: event.summary || `Phone call required for ${claimNumber}`,
         at: event.time,
@@ -137,7 +137,7 @@ export function buildNotifications(
       items.push({
         id: event.id,
         kind: "retrieval_complete",
-        claimId: event.claimId,
+        claimId: event.objectId,
         claimNumber,
         summary: event.summary || `Retrieval completed for ${claimNumber}`,
         at: event.time,

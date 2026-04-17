@@ -69,7 +69,6 @@ function makeAudit(overrides: Partial<AuditEventView> = {}): AuditEventView {
     summary: "Retrieval completed for CLM-001",
     sensitivity: "normal",
     category: "Retrieval Action",
-    claimId: "CLM-001",
     ...overrides
   };
 }
@@ -365,7 +364,7 @@ describe("audit-derived › retrieval_failed", () => {
   it("falls back to a generated summary when event.summary is empty", () => {
     const items = buildNotifications(
       [],
-      [makeAudit({ eventType: "retrieval.failed", summary: "", claimId: "CLM-X", claimNumber: "CLM-X" })],
+      [makeAudit({ eventType: "retrieval.failed", summary: "", objectId: "CLM-X" })],
       NOW
     );
     const s = items.find((n) => n.kind === "retrieval_failed")?.summary ?? "";
@@ -378,7 +377,7 @@ describe("audit-derived › retrieval_failed", () => {
       [
         makeAudit({
           eventType: "retrieval.failed",
-          claimId: "CLM-X",
+          objectId: "CLM-X",
           detail: { claimNumber: "CLM-DETAIL-789" }
         })
       ],
@@ -387,10 +386,10 @@ describe("audit-derived › retrieval_failed", () => {
     expect(items.find((n) => n.kind === "retrieval_failed")?.claimNumber).toBe("CLM-DETAIL-789");
   });
 
-  it("falls back to claimId as claimNumber when detail is absent", () => {
+  it("falls back to objectId as claimNumber when detail is absent", () => {
     const items = buildNotifications(
       [],
-      [makeAudit({ eventType: "retrieval.failed", claimId: "CLM-FB", detail: undefined })],
+      [makeAudit({ eventType: "retrieval.failed", objectId: "CLM-FB", detail: undefined })],
       NOW
     );
     expect(items.find((n) => n.kind === "retrieval_failed")?.claimNumber).toBe("CLM-FB");
@@ -620,19 +619,19 @@ describe("audit staleness filter", () => {
   });
 });
 
-// ── 10. claimId guard ─────────────────────────────────────────────────────────
+// ── 10. objectId guard ────────────────────────────────────────────────────────
 
-describe("audit claimId guard", () => {
-  it("excludes events with no claimId field", () => {
-    const { claimId: _, ...noClaimId } = makeAudit({ eventType: "retrieval.failed" });
-    const items = buildNotifications([], [noClaimId as AuditEventView], NOW);
+describe("audit objectId guard", () => {
+  it("excludes events with no objectId field", () => {
+    const { objectId: _, ...noObjectId } = makeAudit({ eventType: "retrieval.failed" });
+    const items = buildNotifications([], [noObjectId as AuditEventView], NOW);
     expect(items).toHaveLength(0);
   });
 
-  it("excludes events with an empty string claimId", () => {
+  it("excludes events with an empty string objectId", () => {
     const items = buildNotifications(
       [],
-      [makeAudit({ claimId: "", eventType: "retrieval.failed" })],
+      [makeAudit({ objectId: "", eventType: "retrieval.failed" })],
       NOW
     );
     expect(items).toHaveLength(0);
@@ -660,8 +659,8 @@ describe("combined queue and audit", () => {
       makeQueue({ claimId: "C", claimNumber: "C", requiresPhoneCall: true })
     ];
     const audits = [
-      makeAudit({ id: "AU1", claimId: "D", claimNumber: "D", eventType: "retrieval.failed" }),
-      makeAudit({ id: "AU2", claimId: "E", claimNumber: "E", action: "Retrieved", category: "Retrieval Action" })
+      makeAudit({ id: "AU1", objectId: "D", eventType: "retrieval.failed" }),
+      makeAudit({ id: "AU2", objectId: "E", action: "Retrieved", category: "Retrieval Action" })
     ];
     const items = buildNotifications(queue, audits, NOW);
     const kinds = items.map((n) => n.kind);
@@ -698,13 +697,13 @@ describe("sort order", () => {
     });
     const auditNewer = makeAudit({
       id: "AU-NEWER",
-      claimId: "AU1",
+      objectId: "AU1",
       time: "2026-04-16T10:00:00.000Z",
       eventType: "retrieval.failed"
     });
     const auditOlder = makeAudit({
       id: "AU-OLDER",
-      claimId: "AU2",
+      objectId: "AU2",
       time: "2026-04-16T05:00:00.000Z",
       eventType: "retrieval.failed"
     });
@@ -735,9 +734,9 @@ describe("field shape invariant — all kinds", () => {
     makeQueue({ slaRisk: "at-risk", claimId: "SAR", claimNumber: "SAR" })
   ];
   const audits = [
-    makeAudit({ id: "RF", claimId: "RF", eventType: "retrieval.failed", summary: "Failed" }),
-    makeAudit({ id: "RC", claimId: "RC", action: "Retrieved", category: "Retrieval Action" }),
-    makeAudit({ id: "PR", claimId: "PR", action: "Phone Call Required", category: "Claim Workflow" })
+    makeAudit({ id: "RF", objectId: "RF", eventType: "retrieval.failed", summary: "Failed" }),
+    makeAudit({ id: "RC", objectId: "RC", action: "Retrieved", category: "Retrieval Action" }),
+    makeAudit({ id: "PR", objectId: "PR", action: "Phone Call Required", category: "Claim Workflow" })
   ];
 
   it("every notification from a full mixed payload has all required fields", () => {
