@@ -45,7 +45,7 @@ Canada can be the first market if it gives Tenio these advantages:
 
 - faster access to real customers through local trust and in-person selling
 - easier support and implementation during the first deployment
-- a clearer local wedge in Ottawa through dental, paramedical, and billing-service workflows
+- a clearer initial wedge in Ontario through dental, paramedical, and billing-service workflows, with Ottawa as one valid early example
 - a chance to win with a narrow, operationally painful workflow before going broader
 
 Canada is **not** automatically the best long-term market just because the team is local.
@@ -125,18 +125,19 @@ Do not target all Canadian healthcare admin at once.
 
 Pick one:
 
-- Ottawa dental group practices
-- Ottawa billing services / outsourced RCM firms
-- Ottawa paramedical clinic chains
+- Ontario dental group practices
+- Ontario billing services / outsourced RCM firms
+- Ontario paramedical clinic chains
 
 The default recommendation is:
 
-- start with Ottawa dental or dental-adjacent billing services
+- start with Ontario dental or dental-adjacent billing services
 - only if they have enough claim follow-up volume to prove labor savings
 
 Ottawa-specific note:
 
-- if the target office or billing firm serves a meaningful federal employee population, treat **Sun Life / PSHCP** as the highest-priority payer workflow to validate in Phase 0 because Ottawa's public-servant concentration makes it the strongest local demand signal
+- if the target office or billing firm serves a meaningful federal employee population, treat **Sun Life / PSHCP** as the highest-priority payer workflow to validate in Phase 0
+- otherwise derive connector priority from the customer’s actual payer mix rather than geography
 
 ## The Engineering Principle
 
@@ -165,11 +166,16 @@ Objectives:
 
 Required outputs:
 
-- 10 to 15 discovery calls with Ottawa offices or billing firms
+- 10 to 15 discovery calls with Ontario offices or billing firms
 - one named target ICP
 - confirmed first-customer workflow
-- confirmed connector priority list
+- confirmed connector priority list derived from real payer mix
 - direct validation of whether TELUS or another rail actually supports the needed status retrieval path
+
+Ontario screening note:
+
+- if the target customer is in Toronto or another higher-friction market, qualify the IT/security approver, procurement path, and expected approval lead time early
+- deprioritize prospects that are unlikely to clear pilot approval within **30–45 days** unless they are strategically exceptional
 
 Do not build a TELUS connector from assumptions. Confirm:
 

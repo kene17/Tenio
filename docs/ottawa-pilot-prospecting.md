@@ -2,6 +2,8 @@
 
 Internal guide for finding a **first pilot** preferring **Ottawa, Ontario** so we can meet **in person**. This is a **working document**—verify every company and contact before outreach.
 
+This document is intentionally **city-specific**. Use [`docs/design-partner-go-no-go.md`](./design-partner-go-no-go.md) for the generic Ontario pilot checklist and go/no-go standard.
+
 ---
 
 ## What we’re offering (one sentence)
@@ -35,7 +37,7 @@ The National Capital Region has many **OHIP billing** and **provincial** RCM pro
 For the first Canadian pilot conversation, be explicit:
 
 - Tenio can be the workflow system from day one
-- manual payer portal checks may still be used at pilot start
+- manual payer portal checks should be assumed at pilot start unless a supported connector is truly live for that customer
 - automated Canadian retrieval should be framed as an in-pilot expansion step, not live production coverage
 
 ---
@@ -102,7 +104,7 @@ Hi [Name]—I’m exploring a **focused pilot** on **claim-status follow-up** fo
 
 If they ask about automation timing, use this directly:
 
-> “At pilot start, your team may still do status checks through payer portals and log the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We’re building automated retrieval for TELUS eClaims and expect to enable it during the pilot.”
+> “At pilot start, your team will do status checks through your payer portals and record the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We will prioritize automation based on your actual payer mix and enable supported retrieval paths during the pilot.”
 
 ---
 

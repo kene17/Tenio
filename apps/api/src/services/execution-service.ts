@@ -29,20 +29,12 @@ export class ExecutionService {
       claimId: claim.id,
       normalizedStatusText: "Pending payer review",
       confidence: 0.67,
-      evidence: [
-        {
-          id: `evidence_${claim.id}`,
-          kind: "screenshot",
-          label: "Portal summary",
-          url: `s3://tenio-demo/${claim.id}/portal-summary.png`,
-          createdAt: new Date().toISOString()
-        }
-      ],
+      evidence: [],
       recommendedAction: "review",
       rawNotes:
-        "Execution layer falls back to deterministic candidate output when the AI service is unavailable.",
+        "Execution layer falls back to deterministic candidate output when the AI service is unavailable. No evidence was synthesized.",
       rationale:
-        "No AI interpretation was available, so the execution layer returned a conservative candidate.",
+        "No AI interpretation was available, so the execution layer returned a conservative candidate without synthesized evidence.",
       routeReason:
         "The workflow layer should review the fallback output before treating it as official state.",
       agentTraceId: `fallback_${claim.id}`,

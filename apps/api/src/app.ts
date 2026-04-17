@@ -409,6 +409,9 @@ export async function buildApp() {
         escalationThreshold: number;
         defaultSlaHours: number;
         autoAssignOwner: boolean;
+        statusRules?: string[];
+        reviewRules?: string[];
+        destinations?: Array<{ id: string; label: string; kind: "webhook" | "sftp"; status: "active" | "inactive" }>;
       };
 
       try {

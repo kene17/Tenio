@@ -81,7 +81,6 @@ export function KPICard({
           {effectiveTitle}
         </div>
         <div style={{
-          fontFamily: "var(--font-inter, system-ui, sans-serif)",
           fontSize: 24,
           fontWeight: 700,
           letterSpacing: "-0.03em",
@@ -124,7 +123,6 @@ export function KPICard({
         {effectiveTitle}
       </div>
       <div style={{
-        fontFamily: "var(--font-inter, system-ui, sans-serif)",
         fontSize: 24,
         fontWeight: 700,
         letterSpacing: "-0.03em",

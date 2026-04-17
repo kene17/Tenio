@@ -137,7 +137,7 @@ export function ClaimsClient({
               padding: "18px 24px", borderBottom: "1px solid rgba(15,23,42,0.07)",
             }}>
               <div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.015em" }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.015em" }}>
                   {claimsMessages.intakeLabel}
                 </h2>
                 <p style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{claimsMessages.intakeBody}</p>
@@ -173,9 +173,8 @@ export function ClaimsClient({
             </Link>
           </div>
           <h1 style={{
-            fontFamily: "var(--font-inter, system-ui, sans-serif)",
-            fontWeight: 700, fontSize: 22, color: "#0f172a",
-            letterSpacing: "-0.025em", lineHeight: 1.25, marginBottom: 4,
+            fontWeight: 600, fontSize: 22, color: "#0f172a",
+            letterSpacing: "-0.015em", lineHeight: 1.25, marginBottom: 4,
           }}>
             {claimsMessages.heading}
           </h1>

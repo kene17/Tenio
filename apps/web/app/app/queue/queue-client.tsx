@@ -306,7 +306,7 @@ export function QueueClient({
                   <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2563eb" }}>
                     {setupMessages.welcomeEyebrow}
                   </span>
-                  <h2 style={{ fontFamily: "var(--font-inter, system-ui, sans-serif)", fontWeight: 700, fontSize: 20, color: "#0f172a", letterSpacing: "-0.02em", marginTop: 6, marginBottom: 6 }}>
+                  <h2 style={{ fontWeight: 600, fontSize: 20, color: "#0f172a", letterSpacing: "-0.015em", marginTop: 6, marginBottom: 6 }}>
                     {setupMessages.welcomeTitle}
                   </h2>
                   <p style={{ fontSize: 13.5, color: "#475569", lineHeight: 1.6 }}>{setupMessages.welcomeBody}</p>
@@ -434,9 +434,8 @@ export function QueueClient({
               {todayLabel}
             </div>
             <h1 style={{
-              fontFamily: "var(--font-inter, system-ui, sans-serif)",
-              fontWeight: 700, fontSize: 22,
-              color: "#0f172a", letterSpacing: "-0.025em",
+              fontWeight: 600, fontSize: 22,
+              color: "#0f172a", letterSpacing: "-0.015em",
               lineHeight: 1.25, marginBottom: 4,
             }}>
               {messages.heading}
@@ -753,7 +752,7 @@ export function QueueClient({
               <div>
                 <Link
                   href={`/app/claim/${selectedClaim.claimId}`}
-                  style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", textDecoration: "none", letterSpacing: "-0.015em", fontFamily: "var(--font-inter, system-ui, sans-serif)" }}
+                  style={{ fontSize: 15, fontWeight: 600, color: "#0f172a", textDecoration: "none", letterSpacing: "-0.015em" }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = "#2563eb"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = "#0f172a"; }}
                 >

@@ -4,7 +4,7 @@ This is the internal gate document for handing Tenio to a real Canadian design p
 
 It assumes:
 
-- first partner is an Ottawa paramedical clinic
+- first partner is an Ontario clinic or billing team in a support-led pilot
 - launch motion is support-led, not self-serve
 - real patient-adjacent data must not enter the system until legal and hosting prerequisites are complete
 
@@ -14,11 +14,36 @@ Tenio is app-close for a support-led pilot.
 
 That does **not** mean it is automatically go-live ready.
 
-Do not hand the product to a real design partner until all five gates below are true.
+Do not hand the product to a real design partner until all six gates below are true.
 
 ## Required Gates
 
-### 1. Tenio provisions the initial accounts
+### 1. Customer fit and payer mix are qualified
+
+Before calling an Ontario clinic or billing team a real pilot candidate, confirm:
+
+- the customer accepts a support-led rollout
+- there is one named ops champion
+- the team has enough claim-follow-up volume to measure value
+- the team can export a bounded claim inventory, ideally from Jane
+- the real payer mix is known and the workflow is not being inferred from geography
+- connector priority is derived from the customer’s actual payer mix, not an Ottawa-specific assumption
+- OHIP-heavy or provincial-only workflows are treated as a weak fit unless the follow-up workflow still matches Tenio’s queue, evidence, and structured follow-up model
+
+For Toronto-area prospects or any larger Ontario organization, also confirm:
+
+- the IT or security approver is identified early
+- whether they require MSA before technical review
+- whether they require PHIPA or ISA review before data sharing
+- whether they require a vendor security questionnaire
+- whether procurement approval extends beyond the ops champion
+- expected pilot approval lead time
+
+Default screening rule:
+
+- if the prospect is unlikely to clear the required approval path within **30–45 days**, deprioritize it for the first pilot unless it is strategically exceptional
+
+### 2. Tenio provisions the initial accounts
 
 The first pilot is support-led.
 
@@ -28,7 +53,7 @@ That means:
 - the clinic is not expected to invite or manage users in-app on day one
 - user-management APIs may exist, but they are not the customer handoff story
 
-### 2. One real Jane export has been validated end to end
+### 3. One real Jane export has been validated end to end
 
 Treat the importer as unproven until a real customer file passes:
 
@@ -40,7 +65,7 @@ Treat the importer as unproven until a real customer file passes:
 
 Do not treat fixture CSVs or hand-made samples as equivalent to a real clinic export.
 
-### 3. Cold-user Tuesday-morning walkthrough passes
+### 4. Cold-user Tuesday-morning walkthrough passes
 
 This is the real usability gate.
 
@@ -58,7 +83,7 @@ No live guidance.
 
 If they get stuck, treat it as a product bug or UX gap before partner handoff.
 
-### 4. PHIPA information-sharing agreement is signed before real data enters
+### 5. PHIPA information-sharing agreement is signed before real data enters
 
 Before any patient-adjacent production data is uploaded:
 
@@ -68,7 +93,7 @@ Before any patient-adjacent production data is uploaded:
 
 This is mandatory even for a support-led pilot.
 
-### 5. Hosted environment is in AWS `ca-central-1` before go-live
+### 6. Hosted environment is in AWS `ca-central-1` before go-live
 
 No real Canadian pilot data should be handled in:
 
@@ -81,6 +106,8 @@ Minimum expectation before go-live:
 - web, API, worker, storage, and database hosting decisions are recorded
 - PHI-touching systems are in `ca-central-1`
 - backup and evidence storage locations are confirmed
+- hosted secrets are environment-specific, including `TENIO_WEB_SESSION_SECRET`
+- no demo/default org names, support emails, seeded credentials, or fake evidence paths appear in the hosted environment
 
 ## Product Reality
 
@@ -112,10 +139,10 @@ State this clearly on the first call:
 
 - Tenio will onboard the initial team and support rollout directly
 - the clinic will import active claims into Tenio and work the queue there
-- payer status checks may still be manual at pilot start
-- operators will log those outcomes in Tenio while automated retrieval is being built in parallel
-- TELUS eClaims automation is on the roadmap during the pilot, not already live
+- payer status checks will be manual at pilot start unless a supported connector is truly live for that customer on day one
+- operators will log those outcomes in Tenio while supported retrieval paths are enabled during the pilot
+- automation priority will follow the customer’s actual payer mix, not a city-based assumption
 
 Recommended wording:
 
-> At pilot start, your team will do status checks through your payer portals and record the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We’re building automated retrieval for TELUS eClaims and expect to enable that during the pilot.
+> At pilot start, your team will do status checks through your payer portals and record the outcome in Tenio. Tenio is already the workflow system for queue ownership, evidence, and follow-up. We will prioritize automation based on your actual payer mix and enable supported retrieval paths during the pilot.

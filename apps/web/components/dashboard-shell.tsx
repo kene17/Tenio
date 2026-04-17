@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { hasPermission, roleLabel, type UserRole } from "@tenio/domain";
 import {
   Activity,
   BarChart3,
-  Bell,
   Building2,
   CheckSquare,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   FileSearch,
   FileText,
   ListChecks,
@@ -24,7 +25,156 @@ import {
 
 import { cn } from "../lib/cn";
 import type { Locale, TenioMessages } from "../lib/locale";
+import {
+  parseSidebarCollapsedPref,
+  sidebarWidth,
+  SIDEBAR_STORAGE_KEY,
+} from "../lib/sidebar";
+import { NotificationBell } from "./notification-panel";
 import { SentryUserBootstrap } from "./sentry-user-bootstrap";
+
+function UserMenu({
+  currentUserInitials,
+  currentUserName,
+  currentRole,
+  signOutLabel,
+}: {
+  currentUserInitials: string;
+  currentUserName: string;
+  currentRole: UserRole;
+  signOutLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  return (
+    <div ref={ref} className="hidden md:block" style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "4px 10px 4px 4px",
+          borderRadius: 9999,
+          border: `1px solid ${open ? "rgba(37,99,235,0.20)" : "rgba(15,23,42,0.09)"}`,
+          background: open ? "#f8faff" : "#fff",
+          cursor: "pointer",
+          transition: "background 0.15s, border-color 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#f8faff";
+          e.currentTarget.style.borderColor = "rgba(37,99,235,0.20)";
+        }}
+        onMouseLeave={(e) => {
+          if (!open) {
+            e.currentTarget.style.background = "#fff";
+            e.currentTarget.style.borderColor = "rgba(15,23,42,0.09)";
+          }
+        }}
+      >
+        <span
+          style={{
+            display: "flex",
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#fff",
+            flexShrink: 0,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {currentUserInitials}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>
+          {currentUserName}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: "#2563eb",
+            background: "rgba(37,99,235,0.08)",
+            borderRadius: 4,
+            padding: "2px 6px",
+          }}
+        >
+          {roleLabel(currentRole)}
+        </span>
+        <ChevronDown
+          style={{
+            width: 13,
+            height: 13,
+            color: "#94a3b8",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.15s",
+          }}
+        />
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            minWidth: 160,
+            background: "#fff",
+            border: "1px solid rgba(15,23,42,0.09)",
+            borderRadius: 10,
+            boxShadow: "0 4px 16px rgba(15,23,42,0.10)",
+            padding: "4px",
+            zIndex: 100,
+          }}
+        >
+          <form action="/api/auth/logout" method="post">
+            <button
+              type="submit"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 7,
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#374151",
+                textAlign: "left",
+                transition: "background 0.12s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(15,23,42,0.05)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+            >
+              <LogOut style={{ width: 14, height: 14, color: "#94a3b8" }} />
+              {signOutLabel}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DashboardShell({
   children,
@@ -52,7 +202,19 @@ export function DashboardShell({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return parseSidebarCollapsedPref(localStorage.getItem(SIDEBAR_STORAGE_KEY));
+  });
   const [isPending, startTransition] = useTransition();
+
+  function toggleSidebar() {
+    setSidebarCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
   const canImportClaims = hasPermission(currentRole, "claims:import");
   const canReadPerformance = hasPermission(currentRole, "performance:read");
   const canReadPayers = hasPermission(currentRole, "payer:read");
@@ -129,7 +291,7 @@ export function DashboardShell({
     </span>
   );
 
-  const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
+  const SidebarContent = ({ onNav, collapsed = false }: { onNav?: () => void; collapsed?: boolean }) => (
     <>
       {/* Logo */}
       <div
@@ -137,16 +299,30 @@ export function DashboardShell({
           height: 64,
           display: "flex",
           alignItems: "center",
-          padding: "0 20px",
+          justifyContent: collapsed ? "center" : "flex-start",
+          padding: collapsed ? "0" : "0 20px",
           borderBottom: "1px solid rgba(15,23,42,0.06)",
           flexShrink: 0,
+          overflow: "hidden",
         }}
       >
-        <Wordmark size={20} />
+        {collapsed ? (
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #2563EB, #4f46e5)",
+            }}
+          />
+        ) : (
+          <Wordmark size={20} />
+        )}
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, overflowY: "auto", padding: "12px 10px" }}>
+      <nav style={{ flex: 1, overflowY: "auto", padding: collapsed ? "12px 6px" : "12px 10px" }}>
         {[...navigation, ...secondaryNavigation].map((item) => {
           const active = isActive(item.href);
           return (
@@ -154,11 +330,13 @@ export function DashboardShell({
               key={item.name}
               href={item.href}
               onClick={onNav}
+              title={collapsed ? item.name : undefined}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                padding: "8px 12px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                gap: collapsed ? 0 : 10,
+                padding: collapsed ? "9px 0" : "8px 12px",
                 borderRadius: 8,
                 fontSize: 13.5,
                 fontWeight: active ? 600 : 500,
@@ -183,13 +361,13 @@ export function DashboardShell({
             >
               <item.icon
                 style={{
-                  width: 16,
-                  height: 16,
+                  width: collapsed ? 18 : 16,
+                  height: collapsed ? 18 : 16,
                   flexShrink: 0,
                   color: active ? "#2563eb" : "#94a3b8",
                 }}
               />
-              {item.name}
+              {!collapsed && item.name}
             </Link>
           );
         })}
@@ -231,6 +409,7 @@ export function DashboardShell({
           </>
         )}
       </nav>
+
     </>
   );
 
@@ -244,18 +423,64 @@ export function DashboardShell({
       />
 
       {/* ── Desktop sidebar ── */}
-      <aside
+      <div
         className="hidden lg:flex"
-        style={{
-          width: 232,
-          flexDirection: "column",
-          background: "#ffffff",
-          borderRight: "1px solid rgba(15,23,42,0.07)",
-          flexShrink: 0,
-        }}
+        style={{ position: "relative", flexShrink: 0, zIndex: 10 }}
       >
-        <SidebarContent />
-      </aside>
+        <aside
+          style={{
+            width: sidebarWidth(sidebarCollapsed),
+            display: "flex",
+            flexDirection: "column",
+            background: "#ffffff",
+            borderRight: "1px solid rgba(15,23,42,0.07)",
+            overflow: "hidden",
+            transition: "width 0.22s cubic-bezier(0.16,1,0.3,1)",
+            height: "100%",
+          }}
+        >
+          <SidebarContent collapsed={sidebarCollapsed} />
+        </aside>
+
+        {/* Edge toggle button */}
+        <button
+          onClick={toggleSidebar}
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden lg:flex"
+          style={{
+            position: "absolute",
+            top: 72,
+            right: -12,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            border: "1px solid rgba(15,23,42,0.10)",
+            background: "#ffffff",
+            boxShadow: "0 1px 4px rgba(15,23,42,0.12)",
+            cursor: "pointer",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#94a3b8",
+            transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
+            zIndex: 20,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#f0f4ff";
+            e.currentTarget.style.color = "#2563eb";
+            e.currentTarget.style.boxShadow = "0 2px 8px rgba(37,99,235,0.18)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#ffffff";
+            e.currentTarget.style.color = "#94a3b8";
+            e.currentTarget.style.boxShadow = "0 1px 4px rgba(15,23,42,0.12)";
+          }}
+        >
+          {sidebarCollapsed
+            ? <ChevronsRight style={{ width: 13, height: 13 }} />
+            : <ChevronsLeft style={{ width: 13, height: 13 }} />
+          }
+        </button>
+      </div>
 
       {/* ── Mobile overlay ── */}
       {mobileMenuOpen && (
@@ -456,126 +681,18 @@ export function DashboardShell({
             </div>
 
             {/* Bell */}
-            <button
-              style={{
-                position: "relative",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#64748b",
-                padding: 8,
-                borderRadius: 8,
-                transition: "background 0.15s, color 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(15,23,42,0.05)";
-                e.currentTarget.style.color = "#0f172a";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "none";
-                e.currentTarget.style.color = "#64748b";
-              }}
-            >
-              <Bell style={{ width: 17, height: 17 }} />
-            </button>
+            <NotificationBell />
 
             {/* Divider */}
             <span style={{ width: 1, height: 20, background: "rgba(15,23,42,0.08)", flexShrink: 0 }} />
 
-            {/* Sign out — ghost pill */}
-            <form action="/api/auth/logout" method="post" className="hidden sm:block">
-              <button
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 14px",
-                  borderRadius: 9999,
-                  border: "1px solid rgba(15,23,42,0.13)",
-                  background: "rgba(255,255,255,0.7)",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "#374151",
-                  transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#fff";
-                  e.currentTarget.style.borderColor = "rgba(15,23,42,0.20)";
-                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,23,42,0.07)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.7)";
-                  e.currentTarget.style.borderColor = "rgba(15,23,42,0.13)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <LogOut style={{ width: 13, height: 13 }} />
-                {messages.signOut}
-              </button>
-            </form>
-
-            {/* User chip */}
-            <button
-              className="hidden md:flex"
-              style={{
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 10px 4px 4px",
-                borderRadius: 9999,
-                border: "1px solid rgba(15,23,42,0.09)",
-                background: "#fff",
-                cursor: "pointer",
-                transition: "background 0.15s, border-color 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8faff";
-                e.currentTarget.style.borderColor = "rgba(37,99,235,0.20)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#fff";
-                e.currentTarget.style.borderColor = "rgba(15,23,42,0.09)";
-              }}
-            >
-              {/* Avatar */}
-              <span
-                style={{
-                  display: "flex",
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#fff",
-                  flexShrink: 0,
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {currentUserInitials}
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>
-                {currentUserName}
-              </span>
-              {/* Role badge */}
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.07em",
-                  textTransform: "uppercase",
-                  color: "#2563eb",
-                  background: "rgba(37,99,235,0.08)",
-                  borderRadius: 4,
-                  padding: "2px 6px",
-                }}
-              >
-                {roleLabel(currentRole)}
-              </span>
-              <ChevronDown style={{ width: 13, height: 13, color: "#94a3b8" }} />
-            </button>
+            {/* User chip with sign-out dropdown */}
+            <UserMenu
+              currentUserInitials={currentUserInitials}
+              currentUserName={currentUserName}
+              currentRole={currentRole}
+              signOutLabel={messages.signOut}
+            />
           </div>
         </header>
 
