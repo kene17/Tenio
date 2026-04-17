@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { getApiRouteHeaders } from "../../../../lib/server-session";
+import { getApiRouteHeaders } from "../../../lib/server-session";
 
 export async function POST(request: Request) {
   const body = await request.json();
   const apiBaseUrl = process.env.TENIO_API_BASE_URL ?? "http://127.0.0.1:4000";
-  const response = await fetch(`${apiBaseUrl}/claims/intake`, {
+  const response = await fetch(`${apiBaseUrl}/claims`, {
     method: "POST",
     cache: "no-store",
     headers: await getApiRouteHeaders(),
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
   if (!response.ok) {
     return NextResponse.json(
-      { message: `Failed to intake claim: ${response.status}` },
+      { message: `Failed to create claim: ${response.status}` },
       { status: response.status }
     );
   }

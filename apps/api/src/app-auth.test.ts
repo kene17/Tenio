@@ -309,7 +309,7 @@ test("protected routes return 403 without an authenticated session", async () =>
       }),
       app.inject({
         method: "POST",
-        url: "/claims/intake",
+        url: "/claims",
         headers: commonHeaders,
         payload: {
           organizationId: appConfig.seedOrgId,
@@ -321,7 +321,7 @@ test("protected routes return 403 without an authenticated session", async () =>
       }),
       app.inject({
         method: "POST",
-        url: "/claims/CLM-203657/workflow-action",
+        url: "/claims/CLM-203657/follow-ups",
         headers: commonHeaders,
         payload: { action: "add_note", note: "test" }
       }),
@@ -371,7 +371,7 @@ test("operator can work claims but cannot read payer policy, export, audit, stat
       }),
       app.inject({
         method: "POST",
-        url: "/claims/intake",
+        url: "/claims",
         headers: commonHeaders,
         payload: {
           organizationId: appConfig.seedOrgId,
@@ -391,7 +391,7 @@ test("operator can work claims but cannot read payer policy, export, audit, stat
       }),
       app.inject({
         method: "POST",
-        url: "/claims/CLM-203657/workflow-action",
+        url: "/claims/CLM-203657/follow-ups",
         headers: commonHeaders,
         payload: {
           action: "log_follow_up",
@@ -485,7 +485,7 @@ test("viewer is read-only and cannot download evidence", async () => {
       }),
       app.inject({
         method: "POST",
-        url: "/claims/intake",
+        url: "/claims",
         headers: {
           ...authHeaders(viewerSession),
           "content-type": "application/json"
@@ -500,7 +500,7 @@ test("viewer is read-only and cannot download evidence", async () => {
       }),
       app.inject({
         method: "POST",
-        url: "/claims/CLM-203657/workflow-action",
+        url: "/claims/CLM-203657/follow-ups",
         headers: {
           ...authHeaders(viewerSession),
           "content-type": "application/json"
@@ -691,7 +691,7 @@ test("onboarding state derives setup progress from org activity and queue tour c
   try {
     const intake = await app.inject({
       method: "POST",
-      url: "/claims/intake",
+      url: "/claims",
       headers: {
         ...authHeaders(ownerSession),
         "content-type": "application/json"
@@ -912,7 +912,7 @@ test("opening a claim detail marks the first queue review step complete", async 
 
     const intake = await app.inject({
       method: "POST",
-      url: "/claims/intake",
+      url: "/claims",
       headers: {
         ...authHeaders(ownerSession),
         "content-type": "application/json"
@@ -1044,7 +1044,7 @@ test("import preview, import commit, follow-up, and status emit the expected aud
 
     const followUp = await app.inject({
       method: "POST",
-      url: "/claims/CLM-203657/workflow-action",
+      url: "/claims/CLM-203657/follow-ups",
       headers: {
         ...authHeaders(ownerSession),
         "content-type": "application/json"

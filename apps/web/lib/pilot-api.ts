@@ -69,6 +69,7 @@ export type ClaimDetailView = {
   statusLabel: string;
   lastUpdatedLabel: string;
   slaLabel: string;
+  slaRisk: "healthy" | "at-risk" | "breached";
   machineSummary: string;
   recommendedNextSteps: string[];
   agentInsights: {
@@ -385,7 +386,7 @@ export async function getClaimDetail(claimId: string) {
 }
 
 export async function getClaimsList() {
-  return apiFetch<{ items: ClaimsListItemView[] }>("/claims-list");
+  return apiFetch<{ items: ClaimsListItemView[] }>("/claims?view=list");
 }
 
 export async function getResults() {
@@ -416,7 +417,7 @@ export async function getClaimIntakeOptions() {
       jurisdiction: "us" | "ca";
       countryCode: "US" | "CA";
     }>;
-  }>("/claim-intake-options");
+  }>("/payers");
 }
 
 export async function getStatus() {
@@ -454,24 +455,16 @@ export async function createClaimIntake(input: {
   slaAt?: string | null;
   sourceStatus?: string | null;
 }) {
-  return apiFetch<{ item: ClaimDetailView | null }>("/claims/intake", {
+  return apiFetch<{ item: ClaimDetailView | null }>("/claims", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export async function submitClaimWorkflowAction(
+export async function logClaimFollowUp(
   claimId: string,
   payload: {
-    action:
-      | "assign_owner"
-      | "add_note"
-      | "approve_review"
-      | "resolve_claim"
-      | "escalate_claim"
-      | "reopen_claim"
-      | "mark_call_required"
-      | "log_follow_up";
+    action: "assign_owner" | "add_note" | "mark_call_required" | "log_follow_up";
     assignee?: string;
     note?: string;
     outcome?:
@@ -485,7 +478,20 @@ export async function submitClaimWorkflowAction(
     followUpAt?: string | null;
   }
 ) {
-  return apiFetch<{ item: ClaimDetailView | null }>(`/claims/${claimId}/workflow-action`, {
+  return apiFetch<{ item: ClaimDetailView | null }>(`/claims/${claimId}/follow-ups`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateClaimStatus(
+  claimId: string,
+  payload: {
+    action: "approve_review" | "resolve_claim" | "escalate_claim" | "reopen_claim";
+    note?: string;
+  }
+) {
+  return apiFetch<{ item: ClaimDetailView | null }>(`/claims/${claimId}/status`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

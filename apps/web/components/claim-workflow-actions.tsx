@@ -18,36 +18,43 @@ type ClaimWorkflowActionsProps = {
   messages?: TenioMessages["followUp"];
 };
 
-async function postAction(
-  claimId: string,
-  payload: {
-    action:
-      | "assign_owner"
-      | "add_note"
-      | "approve_review"
-      | "resolve_claim"
-      | "escalate_claim"
-      | "reopen_claim"
-      | "mark_call_required"
-      | "log_follow_up";
-    assignee?: string;
-    note?: string;
-    outcome?:
-      | "status_checked"
-      | "pending_payer"
-      | "more_info_needed"
-      | "needs_review"
-      | "phone_call_required"
-      | "resolved";
-    nextAction?: string;
-    followUpAt?: string | null;
-  }
-) {
-  const response = await fetch(`/api/claims/${claimId}/workflow-action`, {
+type FollowUpPayload = {
+  action: "assign_owner" | "add_note" | "mark_call_required" | "log_follow_up";
+  assignee?: string;
+  note?: string;
+  outcome?:
+    | "status_checked"
+    | "pending_payer"
+    | "more_info_needed"
+    | "needs_review"
+    | "phone_call_required"
+    | "resolved";
+  nextAction?: string;
+  followUpAt?: string | null;
+};
+
+type StatusPayload = {
+  action: "approve_review" | "resolve_claim" | "escalate_claim" | "reopen_claim";
+  note?: string;
+};
+
+type ActionPayload = FollowUpPayload | StatusPayload;
+
+const FOLLOW_UP_ACTIONS = new Set([
+  "assign_owner",
+  "add_note",
+  "mark_call_required",
+  "log_follow_up",
+]);
+
+async function postAction(claimId: string, payload: ActionPayload) {
+  const endpoint = FOLLOW_UP_ACTIONS.has(payload.action)
+    ? `/api/claims/${claimId}/follow-ups`
+    : `/api/claims/${claimId}/status`;
+
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
 
@@ -77,10 +84,7 @@ export function ClaimWorkflowActions({
   const [followUpNextAction, setFollowUpNextAction] = useState("");
   const [followUpAt, setFollowUpAt] = useState("");
 
-  async function handleAction(
-    payload: Parameters<typeof postAction>[1],
-    resetNote = false
-  ) {
+  async function handleAction(payload: ActionPayload, resetNote = false) {
     setIsSubmitting(true);
 
     try {

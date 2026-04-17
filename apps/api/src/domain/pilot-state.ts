@@ -1,13 +1,12 @@
 import type { ExecutionCandidate } from "@tenio/contracts";
-import type {
-  ClaimDetail,
-  ClaimStatus,
-  ClaimSummary,
-  QueueItem,
-  ReviewDecision
-} from "@tenio/domain";
+import type { ClaimDetail, ClaimSummary, QueueItem, ReviewDecision } from "@tenio/domain";
 
 import type { WorkflowDecision } from "../services/review-policy-service.js";
+
+import { statusLabel } from "./claim-status-label.js";
+import { buildPilotSlaPresentation, evaluateSlaRisk } from "./sla-risk.js";
+
+export { statusLabel };
 
 export type ClaimRecord = ClaimDetail & {
   serviceDate: string;
@@ -173,6 +172,7 @@ export type PilotClaimDetail = {
   statusLabel: string;
   lastUpdatedLabel: string;
   slaLabel: string;
+  slaRisk: "healthy" | "at-risk" | "breached";
   machineSummary: string;
   recommendedNextSteps: string[];
   agentInsights: {
@@ -784,22 +784,6 @@ function formatDurationMs(durationMs: number) {
   return `${(durationMs / 1000).toFixed(1)} s`;
 }
 
-function getSlaRisk(slaAt: string): "healthy" | "at-risk" | "breached" {
-  const diff = new Date(slaAt).getTime() - Date.now();
-
-  if (diff < 0) return "breached";
-  if (diff < hours(8)) return "at-risk";
-  return "healthy";
-}
-
-export function statusLabel(status: ClaimStatus, normalizedStatusText: string) {
-  if (status === "resolved") return "Resolved";
-  if (status === "blocked") return "Escalated";
-  if (status === "needs_review") return "Needs Review";
-  if (status === "in_review") return normalizedStatusText || "In Review";
-  return normalizedStatusText || "Pending";
-}
-
 function getMachineSummary(claim: ClaimRecord, result: ResultRecord | undefined) {
   return (
     result?.machineSummary ??
@@ -934,7 +918,7 @@ export function buildPilotQueueItems(
         lastTouchedAt,
         lastUpdate: formatRelativeTime(lastTouchedAt),
         age: `${claim.ageDays} days`,
-        slaRisk: getSlaRisk(item.slaAt),
+        slaRisk: evaluateSlaRisk(item.slaAt, Date.now()),
         confidence: Math.round(claim.confidence * 100),
         evidenceCount: claim.evidence.length,
         priority: claim.priority
@@ -986,6 +970,8 @@ export function buildPilotClaimDetail(
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
     .map(serializeAuditEvent);
 
+  const { risk: slaRisk, label: slaLabel } = buildPilotSlaPresentation(claim.slaAt, Date.now());
+
   return {
     item: toClaimDetail(claim),
     serviceDate: claim.serviceDate,
@@ -1012,13 +998,8 @@ export function buildPilotClaimDetail(
     escalationState: claim.escalationState,
     statusLabel: statusLabel(claim.status, claim.normalizedStatusText),
     lastUpdatedLabel: formatRelativeTime(activityRef),
-    slaLabel:
-      getSlaRisk(claim.slaAt) === "breached"
-        ? "Breached"
-        : `${Math.max(
-            1,
-            Math.round((new Date(claim.slaAt).getTime() - Date.now()) / hours(1))
-          )}h remaining`,
+    slaRisk,
+    slaLabel,
     machineSummary: getMachineSummary(claim, result),
     recommendedNextSteps: getRecommendedNextSteps(claim, result),
     agentInsights: {

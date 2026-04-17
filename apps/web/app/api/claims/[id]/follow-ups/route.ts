@@ -9,7 +9,7 @@ export async function POST(
   const { id } = await context.params;
   const body = await request.json();
   const apiBaseUrl = process.env.TENIO_API_BASE_URL ?? "http://127.0.0.1:4000";
-  const response = await fetch(`${apiBaseUrl}/claims/${id}/workflow-action`, {
+  const response = await fetch(`${apiBaseUrl}/claims/${id}/follow-ups`, {
     method: "POST",
     cache: "no-store",
     headers: await getApiRouteHeaders(),
@@ -18,7 +18,7 @@ export async function POST(
 
   if (!response.ok) {
     return NextResponse.json(
-      { message: `Failed to apply claim action: ${response.status}` },
+      { message: `Failed to log follow-up: ${response.status}` },
       { status: response.status }
     );
   }

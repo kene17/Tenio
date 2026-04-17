@@ -4,6 +4,11 @@ import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ConfidenceBadge } from "../../../../components/confidence-badge";
 import { PilotErrorState } from "../../../../components/pilot-error-state";
+import {
+  CLAIM_DETAIL_PAGE_ROOT_CLASS,
+  CLAIM_DETAIL_TABS_SECTION_CLASS
+} from "../../../../lib/claim-detail-layout";
+import { slaStatusValueClassName } from "../../../../lib/claim-detail-summary";
 import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "../../../../lib/locale";
 import { getClaimDetail, getCurrentSession } from "../../../../lib/pilot-api";
 import { ClaimDetailTabs } from "./claim-detail-tabs";
@@ -59,7 +64,7 @@ export default async function ClaimDetailPage({
   ] as const;
 
   return (
-    <div className="flex h-full flex-col bg-gray-50">
+    <div className={CLAIM_DETAIL_PAGE_ROOT_CLASS}>
       <div className="border-b border-gray-200 bg-white px-6 py-3">
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Link href="/app/queue" className="flex items-center gap-1 hover:text-gray-900">
@@ -80,21 +85,22 @@ export default async function ClaimDetailPage({
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {overviewRows.map(([label, value, sub]) => (
-            <div key={label}>
-              <div className="mb-1 text-xs text-gray-600">{label}</div>
-              <div
-                className={`text-sm ${
-                  label === claimMessages.summaryLabels.slaStatus
-                    ? "font-semibold text-green-700"
-                    : "font-semibold text-gray-900"
-                }`}
-              >
-                {value}
+          {overviewRows.map(([label, value, sub]) => {
+            const isSla = label === claimMessages.summaryLabels.slaStatus;
+            return (
+              <div key={label}>
+                <div className="mb-1 text-xs text-gray-600">{label}</div>
+                <div
+                  className={`text-sm font-semibold ${
+                    isSla ? slaStatusValueClassName(claim.slaRisk) : "text-gray-900"
+                  }`}
+                >
+                  {value}
+                </div>
+                {sub ? <div className="text-xs text-gray-500">{sub}</div> : null}
               </div>
-              {sub ? <div className="text-xs text-gray-500">{sub}</div> : null}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -128,18 +134,16 @@ export default async function ClaimDetailPage({
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1600px] px-6 py-6">
-          <ClaimDetailTabs
-            claim={claim}
-            canDownloadEvidence={canDownloadEvidence}
-            canWorkClaims={canWorkClaims}
-            canQueueWork={canQueueWork}
-            claimMessages={claimMessages}
-            followUpMessages={followUpMessages}
-            retrieveMessages={retrieveMessages}
-          />
-        </div>
+      <div className={CLAIM_DETAIL_TABS_SECTION_CLASS}>
+        <ClaimDetailTabs
+          claim={claim}
+          canDownloadEvidence={canDownloadEvidence}
+          canWorkClaims={canWorkClaims}
+          canQueueWork={canQueueWork}
+          claimMessages={claimMessages}
+          followUpMessages={followUpMessages}
+          retrieveMessages={retrieveMessages}
+        />
       </div>
     </div>
   );
