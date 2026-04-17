@@ -3,9 +3,11 @@ import { randomUUID } from "node:crypto";
 import { processReservedAgentJob, heartbeatIntervalMs } from "./agent-runtime.js";
 import { AiServiceClient } from "./ai-service-client.js";
 import { WorkflowApiClient } from "./api-client.js";
+import { ConnectorServiceClient } from "./connector-service-client.js";
 
 const aiClient = new AiServiceClient();
 const workflowApi = new WorkflowApiClient();
+const connectorServiceClient = new ConnectorServiceClient();
 const workerName = process.env.TENIO_WORKER_NAME ?? "retrieval-worker-1";
 const pollIntervalMs = Number(process.env.TENIO_WORKER_POLL_MS ?? 5000);
 
@@ -49,6 +51,7 @@ async function processOneJob() {
     await processReservedAgentJob(item, {
       workflowApi,
       aiClient,
+      connectorServiceClient,
       workerName,
       requestId,
       getStopReason: () => stopReason

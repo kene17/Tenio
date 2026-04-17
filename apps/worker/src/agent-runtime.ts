@@ -1,22 +1,28 @@
 import { createHash } from "node:crypto";
 
 import type { ClaimDetail } from "@tenio/domain";
-import type {
-  AgentDirective,
-  AgentObservation,
-  AgentPlannerUsage,
-  AgentRunContext,
-  AgentRunTerminalReason,
-  AgentStepHistoryItem,
-  AgentStepRequest,
-  AgentStepResult,
-  ConnectorMode,
-  ExecutionCandidate,
-  ExecutionFailureCategory
+import {
+  CONNECTOR_CANADA_LIFE_BROWSER,
+  CONNECTOR_GREEN_SHIELD_BROWSER,
+  CONNECTOR_MANULIFE_BROWSER,
+  CONNECTOR_SUN_LIFE_BROWSER,
+  CONNECTOR_TELUS_ECLAIMS,
+  type AgentDirective,
+  type AgentObservation,
+  type AgentPlannerUsage,
+  type AgentRunContext,
+  type AgentRunTerminalReason,
+  type AgentStepHistoryItem,
+  type AgentStepRequest,
+  type AgentStepResult,
+  type ConnectorMode,
+  type ExecutionCandidate,
+  type ExecutionFailureCategory
 } from "@tenio/contracts";
 
 import type { AiServiceClient } from "./ai-service-client.js";
 import type { AgentRunState, WorkflowApiClient } from "./api-client.js";
+import type { ConnectorServiceClient } from "./connector-service-client.js";
 import {
   ConnectorExecutionError,
   runPayerRetrieval,
@@ -791,7 +797,11 @@ async function executeConnectorStep(
     publicReason: string;
     plannerUsage: AgentPlannerUsage;
   },
-  options?: { skipStart?: boolean; getStopReason?: () => string | null }
+  options?: {
+    skipStart?: boolean;
+    getStopReason?: () => string | null;
+    connectorServiceClient?: ConnectorServiceClient;
+  }
 ) {
   throwIfStopped(options?.getStopReason);
   if (!options?.skipStart) {
@@ -827,6 +837,112 @@ async function executeConnectorStep(
       return started.item.run;
     }
   }
+
+  // ── TELUS eClaims API connector ───────────────────────────────────────────
+  if (
+    step.connectorId === CONNECTOR_TELUS_ECLAIMS &&
+    options?.connectorServiceClient
+  ) {
+    return executeTelusConnectorStep(
+      workflowApi,
+      item,
+      run,
+      workerName,
+      requestId,
+      step,
+      options.connectorServiceClient,
+      options.getStopReason
+    );
+  }
+
+  if (step.connectorId === CONNECTOR_TELUS_ECLAIMS) {
+    // No connector service client available — route to review with a warning
+    console.warn(
+      JSON.stringify({
+        worker: workerName,
+        status: "telus_connector_unavailable",
+        runId: run.id,
+        requestId,
+        message:
+          "TELUS connector requested but ConnectorServiceClient is not configured"
+      })
+    );
+    const warningObservation: AgentObservation = {
+      observationVersion: 1,
+      connectorId: CONNECTOR_TELUS_ECLAIMS,
+      connectorName: "TELUS eClaims API",
+      connectorVersion: null,
+      executionMode: "api",
+      observedAt: new Date().toISOString(),
+      durationMs: 0,
+      success: false,
+      retryable: true,
+      failureCategory: "network",
+      summary:
+        "TELUS eClaims connector service is not reachable from this worker",
+      portalTextSnippet: null,
+      screenshotUrls: [],
+      evidenceArtifactIds: [],
+      evidenceArtifacts: [],
+      connectorPayloadJson: null
+    };
+    const completed = await workflowApi.completeAgentToolStep(
+      run.id,
+      step.stepNumber,
+      {
+        workerName,
+        result: {
+          observation: warningObservation,
+          summary: warningObservation.summary,
+          evidenceArtifactIds: [],
+          retryable: true,
+          failureCategory: "network"
+        }
+      },
+      requestId
+    );
+    if (!completed.item) throw new Error("Failed to persist TELUS fallback step.");
+    return completed.item.run;
+  }
+  // ── End TELUS intercept ───────────────────────────────────────────────────
+
+  // ── Sun Life PSHCP browser connector ─────────────────────────────────────
+  if (
+    step.connectorId === CONNECTOR_SUN_LIFE_BROWSER &&
+    options?.connectorServiceClient
+  ) {
+    return executeTelusConnectorStep(
+      workflowApi,
+      item,
+      run,
+      workerName,
+      requestId,
+      step,
+      options.connectorServiceClient,
+      options.getStopReason
+    );
+  }
+  // ── End Sun Life intercept ────────────────────────────────────────────────
+
+  // ── Manulife / Canada Life / Green Shield browser connectors ─────────────
+  if (
+    (step.connectorId === CONNECTOR_MANULIFE_BROWSER ||
+      step.connectorId === CONNECTOR_CANADA_LIFE_BROWSER ||
+      step.connectorId === CONNECTOR_GREEN_SHIELD_BROWSER) &&
+    options?.connectorServiceClient
+  ) {
+    return executeTelusConnectorStep(
+      workflowApi,
+      item,
+      run,
+      workerName,
+      requestId,
+      step,
+      options.connectorServiceClient,
+      options.getStopReason
+    );
+  }
+  // ── End Manulife / Canada Life / Green Shield intercept ───────────────────
 
   try {
     throwIfStopped(options?.getStopReason);
@@ -891,11 +1007,112 @@ async function executeConnectorStep(
   }
 }
 
+async function executeTelusConnectorStep(
+  workflowApi: WorkflowApiClient,
+  item: ReservedJob,
+  run: AgentRunState,
+  workerName: string,
+  requestId: string,
+  step: {
+    stepNumber: number;
+    connectorId: string;
+    mode: ConnectorMode;
+    attemptLabel: string;
+    publicReason: string;
+    plannerUsage: AgentPlannerUsage;
+  },
+  connectorServiceClient: ConnectorServiceClient,
+  getStopReason?: () => string | null
+) {
+  throwIfStopped(getStopReason);
+
+  const observation = await connectorServiceClient.execute(
+    {
+      connectorId: CONNECTOR_TELUS_ECLAIMS,
+      mode: "api",
+      orgId: item.claim.organizationId,
+      claimContext: {
+        claimId: item.claim.id,
+        claimNumber: item.claim.claimNumber,
+        orgId: item.claim.organizationId,
+        payerId: item.claim.payerId,
+        serviceDate: item.claim.serviceDate ?? null,
+        billedAmountCents: item.claim.amountCents ?? null,
+        planNumber: item.claim.planNumber ?? null,
+        memberCertificate: item.claim.memberCertificate ?? null,
+        provinceOfService: item.claim.provinceOfService ?? null,
+        serviceCode: item.claim.serviceCode ?? null
+      }
+    },
+    requestId
+  );
+
+  if (!observation) {
+    // Connector service unreachable — treat as retryable network failure
+    const fallback: AgentObservation = {
+      observationVersion: 1,
+      connectorId: CONNECTOR_TELUS_ECLAIMS,
+      connectorName: "TELUS eClaims API",
+      connectorVersion: null,
+      executionMode: "api",
+      observedAt: new Date().toISOString(),
+      durationMs: 0,
+      success: false,
+      retryable: true,
+      failureCategory: "network",
+      summary: "Connector service did not respond for TELUS eClaims",
+      portalTextSnippet: null,
+      screenshotUrls: [],
+      evidenceArtifactIds: [],
+      evidenceArtifacts: [],
+      connectorPayloadJson: null
+    };
+    throwIfStopped(getStopReason);
+    const completed = await workflowApi.completeAgentToolStep(
+      run.id,
+      step.stepNumber,
+      {
+        workerName,
+        result: {
+          observation: fallback,
+          summary: fallback.summary,
+          evidenceArtifactIds: [],
+          retryable: true,
+          failureCategory: "network"
+        }
+      },
+      requestId
+    );
+    if (!completed.item) throw new Error("Failed to persist TELUS network-failure step.");
+    return completed.item.run;
+  }
+
+  throwIfStopped(getStopReason);
+  const stepResult: AgentStepResult = {
+    observation,
+    summary: observation.summary,
+    evidenceArtifactIds: observation.evidenceArtifactIds,
+    retryable: observation.retryable,
+    failureCategory: observation.failureCategory ?? null
+  };
+
+  const completed = await workflowApi.completeAgentToolStep(
+    run.id,
+    step.stepNumber,
+    { workerName, result: stepResult },
+    requestId
+  );
+
+  if (!completed.item) throw new Error("Failed to persist TELUS connector step.");
+  return completed.item.run;
+}
+
 export async function processReservedAgentJob(
   item: ReservedJob,
   dependencies: {
     workflowApi: WorkflowApiClient;
     aiClient: AiServiceClient;
+    connectorServiceClient?: ConnectorServiceClient;
     workerName: string;
     requestId: string;
     getStopReason?: () => string | null;
@@ -944,7 +1161,11 @@ export async function processReservedAgentJob(
             publicReason: replayStep.publicReason,
             plannerUsage: replayStep.plannerUsage ?? runtimePlannerUsage()
           },
-          { skipStart: true, getStopReason: dependencies.getStopReason }
+          {
+            skipStart: true,
+            getStopReason: dependencies.getStopReason,
+            connectorServiceClient: dependencies.connectorServiceClient
+          }
         );
         continue;
       }
@@ -1023,7 +1244,10 @@ export async function processReservedAgentJob(
             publicReason: directive.publicReason,
             plannerUsage: directive.plannerUsage
           },
-          { getStopReason: dependencies.getStopReason }
+          {
+            getStopReason: dependencies.getStopReason,
+            connectorServiceClient: dependencies.connectorServiceClient
+          }
         );
         continue;
       }

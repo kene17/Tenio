@@ -2,12 +2,13 @@ import Fastify from "fastify";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
 import { hasPermission, type Permission } from "@tenio/domain";
-import type { ExecutionCandidate } from "@tenio/contracts";
+import { CONNECTOR_TELUS_ECLAIMS, type ExecutionCandidate } from "@tenio/contracts";
 
-import { checkDatabaseHealth } from "./database.js";
+import { checkDatabaseHealth, getPool } from "./database.js";
 import { initializeStore } from "./domain/store.js";
 import { appConfig, getEvidenceStorageHealthMetadata } from "./config.js";
 import type { ImportProfileId, RawImportRow } from "./import/pms/index.js";
+import { encryptCredential } from "./credential-crypto.js";
 import { ReviewPolicyService } from "./services/review-policy-service.js";
 import { WorkflowService } from "./services/workflow-service.js";
 import { Sentry } from "./sentry.js";
@@ -985,6 +986,110 @@ export async function buildApp() {
       });
 
       return { item };
+    }
+  );
+
+  // ── Credential management ──────────────────────────────────────────────────
+  // Never returns the encrypted payload or raw credential values.
+
+  app.get(
+    "/payers/:payerId/credentials",
+    { preHandler: requirePermission("payer:read") },
+    async (request, reply) => {
+      const { payerId } = request.params as { payerId: string };
+      const result = await getPool().query<{
+        last_verified_at: string | null;
+      }>(
+        `SELECT last_verified_at
+           FROM connector_credentials
+          WHERE org_id = $1
+            AND payer_id = $2
+          LIMIT 1`,
+        [request.tenioActor!.organizationId, payerId]
+      );
+
+      if (!result.rows[0]) {
+        return { connected: false, lastVerifiedAt: null };
+      }
+
+      return {
+        connected: true,
+        lastVerifiedAt: result.rows[0].last_verified_at ?? null
+      };
+    }
+  );
+
+  app.put(
+    "/payers/:payerId/credentials",
+    { preHandler: requirePermission("payer:write") },
+    async (request, reply) => {
+      const { payerId } = request.params as { payerId: string };
+      const body = request.body as {
+        accessToken?: string;
+        refreshToken?: string;
+        planSoftwareId?: string;
+      } | null;
+
+      if (!body?.accessToken) {
+        return sendError(reply, 400, "accessToken is required");
+      }
+
+      const credentialPayload = JSON.stringify({
+        accessToken: body.accessToken,
+        ...(body.refreshToken ? { refreshToken: body.refreshToken } : {}),
+        ...(body.planSoftwareId ? { planSoftwareId: body.planSoftwareId } : {})
+      });
+
+      let encrypted: Buffer;
+      try {
+        encrypted = await encryptCredential(
+          credentialPayload,
+          appConfig.credentialEncryptionKey
+        );
+      } catch (err) {
+        return sendError(
+          reply,
+          500,
+          err instanceof Error ? err.message : "Credential encryption failed"
+        );
+      }
+
+      await getPool().query(
+        `INSERT INTO connector_credentials
+           (org_id, payer_id, connector_id, encrypted_payload, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (org_id, connector_id)
+         DO UPDATE SET
+           payer_id = EXCLUDED.payer_id,
+           encrypted_payload = EXCLUDED.encrypted_payload,
+           session_cache = NULL,
+           updated_at = now()`,
+        [
+          request.tenioActor!.organizationId,
+          payerId,
+          CONNECTOR_TELUS_ECLAIMS,
+          encrypted
+        ]
+      );
+
+      return { connected: true };
+    }
+  );
+
+  app.delete(
+    "/payers/:payerId/credentials",
+    { preHandler: requirePermission("payer:write") },
+    async (request, reply) => {
+      const { payerId } = request.params as { payerId: string };
+
+      await getPool().query(
+        `DELETE FROM connector_credentials
+          WHERE org_id = $1
+            AND payer_id = $2`,
+        [request.tenioActor!.organizationId, payerId]
+      );
+
+      return reply.code(204).send();
     }
   );
 

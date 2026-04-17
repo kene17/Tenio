@@ -280,6 +280,11 @@ export type PerformanceView = {
   }>;
 };
 
+export type PayerCredentialView = {
+  connected: boolean;
+  lastVerifiedAt: string | null;
+};
+
 export type StatusView = {
   lastImportAt: string | null;
   lastImportOutcome: "success" | "failure" | null;
@@ -496,6 +501,12 @@ export async function updateClaimStatus(
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function getPayerCredentials(payerId: string) {
+  return apiFetch<PayerCredentialView>(
+    `/payers/${encodeURIComponent(payerId)}/credentials`
+  );
 }
 
 export async function triggerClaimRetrieval(claimId: string) {

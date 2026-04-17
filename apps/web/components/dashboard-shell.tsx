@@ -8,6 +8,7 @@ import {
   Activity,
   BarChart3,
   Building2,
+  Cable,
   CheckSquare,
   ChevronDown,
   ChevronsLeft,
@@ -233,6 +234,9 @@ export function DashboardShell({
       : []),
     ...(canReadPayers
       ? [{ name: messages.navigation.configuration, href: "/app/configuration", icon: Settings }]
+      : []),
+    ...(canReadPayers
+      ? [{ name: "Connections", href: "/app/connections", icon: Cable }]
       : [])
   ];
 
