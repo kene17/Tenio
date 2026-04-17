@@ -122,7 +122,7 @@ export default async function ResultsPage() {
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 4 }}>
               {todayLabel}
             </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1.2, margin: 0 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.015em", lineHeight: 1.2, margin: 0 }}>
               {resultsMessages.heading}
             </h1>
             <p style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>{resultsMessages.subheading}</p>

@@ -90,7 +90,7 @@ export function AuditLogClient({ events, messages }: AuditLogClientProps) {
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 3 }}>
             Compliance
           </div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.015em", margin: 0 }}>
             {messages.heading}
           </h1>
           <p style={{ marginTop: 2, fontSize: 12.5, color: "#64748b" }}>{messages.subheading}</p>
@@ -335,7 +335,7 @@ export function AuditLogClient({ events, messages }: AuditLogClientProps) {
                 <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 4 }}>
                   Event Detail
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em" }}>
                   {selectedEvent.action}
                 </div>
                 <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>

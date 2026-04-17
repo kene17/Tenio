@@ -2947,6 +2947,9 @@ export type UpdatePayerPolicyInput = {
   escalationThreshold: number;
   defaultSlaHours: number;
   autoAssignOwner: boolean;
+  statusRules?: string[];
+  reviewRules?: string[];
+  destinations?: PayerConfigurationRecord["destinations"];
 };
 
 export async function getReviewPolicyForClaim(claimId: string) {
@@ -2987,6 +2990,9 @@ export async function updatePayerConfigurationPolicy(
     escalationThreshold,
     defaultSlaHours,
     autoAssignOwner: input.autoAssignOwner,
+    statusRules: input.statusRules ?? existing.statusRules,
+    reviewRules: input.reviewRules ?? existing.reviewRules,
+    destinations: input.destinations ?? existing.destinations,
     issues: [],
     status: existing.status
   };

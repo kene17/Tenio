@@ -79,9 +79,8 @@ export function PerformanceClient({
         {/* ── Heading ── */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{
-            fontFamily: "var(--font-inter, system-ui, sans-serif)",
-            fontWeight: 700, fontSize: 22, color: "#0f172a",
-            letterSpacing: "-0.025em", lineHeight: 1.25, marginBottom: 4,
+            fontWeight: 600, fontSize: 22, color: "#0f172a",
+            letterSpacing: "-0.015em", lineHeight: 1.25, marginBottom: 4,
           }}>
             {messages.heading}
           </h1>
