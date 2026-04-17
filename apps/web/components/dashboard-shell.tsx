@@ -10,6 +10,8 @@ import {
   Building2,
   CheckSquare,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   FileSearch,
   FileText,
   ListChecks,
@@ -23,6 +25,11 @@ import {
 
 import { cn } from "../lib/cn";
 import type { Locale, TenioMessages } from "../lib/locale";
+import {
+  parseSidebarCollapsedPref,
+  sidebarWidth,
+  SIDEBAR_STORAGE_KEY,
+} from "../lib/sidebar";
 import { NotificationBell } from "./notification-panel";
 import { SentryUserBootstrap } from "./sentry-user-bootstrap";
 
@@ -195,7 +202,19 @@ export function DashboardShell({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return parseSidebarCollapsedPref(localStorage.getItem(SIDEBAR_STORAGE_KEY));
+  });
   const [isPending, startTransition] = useTransition();
+
+  function toggleSidebar() {
+    setSidebarCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
   const canImportClaims = hasPermission(currentRole, "claims:import");
   const canReadPerformance = hasPermission(currentRole, "performance:read");
   const canReadPayers = hasPermission(currentRole, "payer:read");
@@ -272,7 +291,7 @@ export function DashboardShell({
     </span>
   );
 
-  const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
+  const SidebarContent = ({ onNav, collapsed = false }: { onNav?: () => void; collapsed?: boolean }) => (
     <>
       {/* Logo */}
       <div
@@ -280,16 +299,30 @@ export function DashboardShell({
           height: 64,
           display: "flex",
           alignItems: "center",
-          padding: "0 20px",
+          justifyContent: collapsed ? "center" : "flex-start",
+          padding: collapsed ? "0" : "0 20px",
           borderBottom: "1px solid rgba(15,23,42,0.06)",
           flexShrink: 0,
+          overflow: "hidden",
         }}
       >
-        <Wordmark size={20} />
+        {collapsed ? (
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #2563EB, #4f46e5)",
+            }}
+          />
+        ) : (
+          <Wordmark size={20} />
+        )}
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, overflowY: "auto", padding: "12px 10px" }}>
+      <nav style={{ flex: 1, overflowY: "auto", padding: collapsed ? "12px 6px" : "12px 10px" }}>
         {[...navigation, ...secondaryNavigation].map((item) => {
           const active = isActive(item.href);
           return (
@@ -297,11 +330,13 @@ export function DashboardShell({
               key={item.name}
               href={item.href}
               onClick={onNav}
+              title={collapsed ? item.name : undefined}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                padding: "8px 12px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                gap: collapsed ? 0 : 10,
+                padding: collapsed ? "9px 0" : "8px 12px",
                 borderRadius: 8,
                 fontSize: 13.5,
                 fontWeight: active ? 600 : 500,
@@ -326,13 +361,13 @@ export function DashboardShell({
             >
               <item.icon
                 style={{
-                  width: 16,
-                  height: 16,
+                  width: collapsed ? 18 : 16,
+                  height: collapsed ? 18 : 16,
                   flexShrink: 0,
                   color: active ? "#2563eb" : "#94a3b8",
                 }}
               />
-              {item.name}
+              {!collapsed && item.name}
             </Link>
           );
         })}
@@ -374,6 +409,7 @@ export function DashboardShell({
           </>
         )}
       </nav>
+
     </>
   );
 
@@ -387,18 +423,64 @@ export function DashboardShell({
       />
 
       {/* ── Desktop sidebar ── */}
-      <aside
+      <div
         className="hidden lg:flex"
-        style={{
-          width: 232,
-          flexDirection: "column",
-          background: "#ffffff",
-          borderRight: "1px solid rgba(15,23,42,0.07)",
-          flexShrink: 0,
-        }}
+        style={{ position: "relative", flexShrink: 0, zIndex: 10 }}
       >
-        <SidebarContent />
-      </aside>
+        <aside
+          style={{
+            width: sidebarWidth(sidebarCollapsed),
+            display: "flex",
+            flexDirection: "column",
+            background: "#ffffff",
+            borderRight: "1px solid rgba(15,23,42,0.07)",
+            overflow: "hidden",
+            transition: "width 0.22s cubic-bezier(0.16,1,0.3,1)",
+            height: "100%",
+          }}
+        >
+          <SidebarContent collapsed={sidebarCollapsed} />
+        </aside>
+
+        {/* Edge toggle button */}
+        <button
+          onClick={toggleSidebar}
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden lg:flex"
+          style={{
+            position: "absolute",
+            top: 72,
+            right: -12,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            border: "1px solid rgba(15,23,42,0.10)",
+            background: "#ffffff",
+            boxShadow: "0 1px 4px rgba(15,23,42,0.12)",
+            cursor: "pointer",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#94a3b8",
+            transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
+            zIndex: 20,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#f0f4ff";
+            e.currentTarget.style.color = "#2563eb";
+            e.currentTarget.style.boxShadow = "0 2px 8px rgba(37,99,235,0.18)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#ffffff";
+            e.currentTarget.style.color = "#94a3b8";
+            e.currentTarget.style.boxShadow = "0 1px 4px rgba(15,23,42,0.12)";
+          }}
+        >
+          {sidebarCollapsed
+            ? <ChevronsRight style={{ width: 13, height: 13 }} />
+            : <ChevronsLeft style={{ width: 13, height: 13 }} />
+          }
+        </button>
+      </div>
 
       {/* ── Mobile overlay ── */}
       {mobileMenuOpen && (
