@@ -446,7 +446,7 @@ export function createSeedPayerConfigurations(
     {
       id: "cfg_telus_health",
       organizationId,
-      payerId: "payer_telus_health",
+      payerId: "payer_telus_eclaims",
       payerName: "TELUS Health eClaims",
       jurisdiction: "ca",
       countryCode: "CA",

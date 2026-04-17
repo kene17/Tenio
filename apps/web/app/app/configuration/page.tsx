@@ -3,21 +3,42 @@ import { getLocaleMessages, getMessagesForLocale, getPilotErrorChrome } from "..
 import {
   getAuditLog,
   getCurrentSession,
-  getPayerConfigurations
+  getPayerConfigurations,
+  getPayerCredentials,
+  type PayerCredentialView
 } from "../../../lib/pilot-api";
 import { ConfigurationClient } from "./configuration-client";
 
 export const dynamic = "force-dynamic";
 
+const CREDENTIAL_PAYER_IDS = [
+  "payer_telus_eclaims",
+  "payer_sun_life",
+  "payer_manulife",
+  "payer_canada_life",
+  "payer_green_shield"
+] as const;
+
 export default async function ConfigurationPage() {
   try {
-    const [{ items: payers }, { items: auditEvents }, session, { messages }] = await Promise.all([
-      getPayerConfigurations(),
-      getAuditLog(),
-      getCurrentSession(),
-      getLocaleMessages()
-    ]);
+    const [{ items: payers }, { items: auditEvents }, session, { messages }, ...credentialResults] =
+      await Promise.all([
+        getPayerConfigurations(),
+        getAuditLog(),
+        getCurrentSession(),
+        getLocaleMessages(),
+        ...CREDENTIAL_PAYER_IDS.map((id) =>
+          getPayerCredentials(id).catch(
+            (): PayerCredentialView => ({ connected: false, lastVerifiedAt: null })
+          )
+        )
+      ]);
     const fallbackMessages = getMessagesForLocale("en");
+
+    const credentialsByPayerId: Record<string, PayerCredentialView> = {};
+    CREDENTIAL_PAYER_IDS.forEach((id, i) => {
+      credentialsByPayerId[id] = credentialResults[i] as PayerCredentialView;
+    });
 
     return (
       <ConfigurationClient
@@ -26,6 +47,7 @@ export default async function ConfigurationPage() {
         currentRole={session?.role ?? "viewer"}
         messages={messages.configuration ?? fallbackMessages.configuration}
         roleHelpTitle={messages.roleHelp?.title ?? fallbackMessages.roleHelp.title}
+        credentialsByPayerId={credentialsByPayerId}
       />
     );
   } catch {

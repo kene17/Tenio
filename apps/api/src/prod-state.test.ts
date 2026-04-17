@@ -168,7 +168,7 @@ test("findMissingSeedPayerConfigurations only returns payer profiles absent by i
 
   assert.equal(missing.some((config) => config.payerId === "payer_aetna"), false);
   assert.equal(missing.some((config) => config.payerId === "payer_sun_life"), false);
-  assert.equal(missing.some((config) => config.payerId === "payer_telus_health"), true);
+  assert.equal(missing.some((config) => config.payerId === "payer_telus_eclaims"), true);
   assert.equal(missing.some((config) => config.payerId === "payer_cigna"), true);
   assert.equal(missing.some((config) => config.payerId === "payer_uhc"), true);
 });

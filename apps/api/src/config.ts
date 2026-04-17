@@ -128,7 +128,16 @@ export const appConfig = {
   seedOperatorName: readEnv("TENIO_SEED_OPERATOR_NAME", "Marcus Williams"),
   seedOperatorPassword: readEnv("TENIO_SEED_OPERATOR_PASSWORD", "tenio-operator-demo"),
   supportEmail: readEnv("NEXT_PUBLIC_PILOT_SUPPORT_EMAIL", "pilot-support@example.com"),
-  sentryDsn: readOptionalEnv("SENTRY_DSN")
+  sentryDsn: readOptionalEnv("SENTRY_DSN"),
+  credentialEncryptionKey: requireProductionSecret(
+    "TENIO_CREDENTIAL_ENCRYPTION_KEY",
+    // 32 zero-bytes as hex — safe default for local dev only
+    "0000000000000000000000000000000000000000000000000000000000000000"
+  ),
+  connectorServiceToken: requireProductionSecret(
+    "TENIO_CONNECTOR_SERVICE_TOKEN",
+    "tenio-local-connector-service-token"
+  )
 };
 
 export function getDatabaseHealthMetadata() {

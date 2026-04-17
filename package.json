@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "services/connectors"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -20,7 +21,8 @@
     "dev:web": "npm run dev --workspace @tenio/web",
     "dev:api": "npm run dev --workspace @tenio/api",
     "dev:worker": "npm run dev --workspace @tenio/worker",
-    "dev:ai": "services/ai/.venv/bin/python -m uvicorn services.ai.app.main:app --reload"
+    "dev:ai": "services/ai/.venv/bin/python -m uvicorn services.ai.app.main:app --reload",
+    "dev:connectors": "npm run dev --workspace @tenio/connectors"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

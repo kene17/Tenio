@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Circle,
   FileSearch,
+  Globe,
   Pencil,
   Plus,
   Save,
@@ -21,8 +22,12 @@ import {
 
 import { PageRoleBanner } from "../../../components/page-role-banner";
 import { cn } from "../../../lib/cn";
+import {
+  canonicalPayerIdForCredentials,
+  resolvePayerCredentialFromMap
+} from "../../../lib/payer-credentials";
 import type { TenioMessages } from "../../../lib/locale";
-import type { AuditEventView, PayerConfigurationView } from "../../../lib/pilot-api";
+import type { AuditEventView, PayerConfigurationView, PayerCredentialView } from "../../../lib/pilot-api";
 
 // ── Destination type ──────────────────────────────────────────────────────────
 
@@ -442,6 +447,300 @@ function DestinationsSection({
   );
 }
 
+// ── Per-payer connector config ────────────────────────────────────────────────
+
+type CredentialField = { name: string; label: string; type: "text" | "password"; required: boolean };
+
+const PAYER_CONNECTOR_CONFIG: Record<string, {
+  connectorId: string;
+  connectorMode: "api" | "browser";
+  credentialFields: CredentialField[];
+}> = {
+  payer_telus_eclaims: {
+    connectorId: "telus-eclaims-api",
+    connectorMode: "api",
+    credentialFields: [
+      { name: "accessToken", label: "Access Token", type: "password", required: true },
+      { name: "refreshToken", label: "Refresh Token", type: "password", required: false },
+      { name: "planSoftwareId", label: "Plan Software ID", type: "text", required: false }
+    ]
+  },
+  payer_sun_life: {
+    connectorId: "sun-life-pshcp-browser",
+    connectorMode: "browser",
+    credentialFields: [
+      { name: "username", label: "Username", type: "text", required: true },
+      { name: "password", label: "Password", type: "password", required: true }
+    ]
+  },
+  payer_manulife: {
+    connectorId: "manulife-groupbenefits-browser",
+    connectorMode: "browser",
+    credentialFields: [
+      { name: "username", label: "Username", type: "text", required: true },
+      { name: "password", label: "Password", type: "password", required: true }
+    ]
+  },
+  payer_canada_life: {
+    connectorId: "canada-life-groupnet-browser",
+    connectorMode: "browser",
+    credentialFields: [
+      { name: "username", label: "Username", type: "text", required: true },
+      { name: "password", label: "Password", type: "password", required: true }
+    ]
+  },
+  payer_green_shield: {
+    connectorId: "green-shield-provider-browser",
+    connectorMode: "browser",
+    credentialFields: [
+      { name: "username", label: "Username", type: "text", required: true },
+      { name: "password", label: "Password", type: "password", required: true }
+    ]
+  }
+};
+
+// ── Connection card ───────────────────────────────────────────────────────────
+
+function ConnectionCard({
+  payerId,
+  payerName,
+  initialCredential,
+  canWrite
+}: {
+  payerId: string;
+  payerName: string;
+  initialCredential: PayerCredentialView;
+  canWrite: boolean;
+}) {
+  const apiPayerId = canonicalPayerIdForCredentials(payerId);
+  const config = PAYER_CONNECTOR_CONFIG[apiPayerId];
+
+  const [connected, setConnected] = useState(initialCredential.connected);
+  const [lastVerifiedAt, setLastVerifiedAt] = useState(initialCredential.lastVerifiedAt);
+  const [formOpen, setFormOpen] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setConnected(initialCredential.connected);
+    setLastVerifiedAt(initialCredential.lastVerifiedAt);
+    setFormOpen(false);
+    setFields({});
+    setError(null);
+  }, [payerId, initialCredential.connected, initialCredential.lastVerifiedAt]);
+
+  if (!config) return null;
+
+  const isApi = config.connectorMode === "api";
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/payers/${encodeURIComponent(apiPayerId)}/credentials`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(fields)
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { message?: string };
+        setError(data.message ?? "Failed to save credentials.");
+        return;
+      }
+      setConnected(true);
+      setLastVerifiedAt(null);
+      setFormOpen(false);
+      setFields({});
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!confirm(`Disconnect ${payerName}? Automated retrieval will stop until reconnected.`)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await fetch(`/api/payers/${encodeURIComponent(apiPayerId)}/credentials`, { method: "DELETE" });
+      setConnected(false);
+      setLastVerifiedAt(null);
+    } catch {
+      setError("Failed to disconnect. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section
+      style={{
+        marginBottom: 24,
+        borderRadius: 10,
+        border: "1px solid rgba(15,23,42,0.08)",
+        background: "#fff",
+        overflow: "hidden",
+        boxShadow: "0 1px 4px rgba(15,23,42,0.04)"
+      }}
+    >
+      {/* Header row */}
+      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+          {/* Mode icon */}
+          <span style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+            background: isApi ? "rgba(37,99,235,0.07)" : "rgba(124,58,237,0.07)",
+            color: isApi ? "#2563eb" : "#7c3aed"
+          }}>
+            {isApi
+              ? <Zap style={{ width: 15, height: 15 }} />
+              : <Globe style={{ width: 15, height: 15 }} />}
+          </span>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 7 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>Connection</span>
+              {/* Connected/not badge */}
+              {connected ? (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "1px 7px", borderRadius: 5,
+                  border: "1px solid #bbf7d0", background: "#f0fdf4",
+                  fontSize: 11, fontWeight: 600, color: "#166534"
+                }}>
+                  <CheckCircle style={{ width: 9, height: 9 }} /> Connected
+                </span>
+              ) : (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "1px 7px", borderRadius: 5,
+                  border: "1px solid rgba(15,23,42,0.10)", background: "#f8fafc",
+                  fontSize: 11, fontWeight: 600, color: "#64748b"
+                }}>
+                  Not connected
+                </span>
+              )}
+              {/* Mode badge */}
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                padding: "1px 6px", borderRadius: 4,
+                border: isApi ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(124,58,237,0.18)",
+                background: isApi ? "rgba(37,99,235,0.05)" : "rgba(124,58,237,0.05)",
+                fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const,
+                color: isApi ? "#1d4ed8" : "#6d28d9"
+              }}>
+                {isApi ? "REST API" : "Browser"}
+              </span>
+            </div>
+            {connected && lastVerifiedAt && (
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                Last verified {new Date(lastVerifiedAt).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
+              </span>
+            )}
+            {!connected && !canWrite && (
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>Contact your account owner to connect this payer.</span>
+            )}
+          </div>
+        </div>
+
+        {canWrite && (
+          <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
+            {connected && (
+              <button
+                onClick={() => void handleDisconnect()}
+                disabled={saving}
+                style={{
+                  padding: "6px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 600,
+                  border: "1px solid rgba(220,38,38,0.2)", background: "rgba(220,38,38,0.04)",
+                  color: "#dc2626", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1
+                }}
+              >
+                Disconnect
+              </button>
+            )}
+            <button
+              onClick={() => { setFormOpen((v) => !v); setError(null); setFields({}); }}
+              disabled={saving}
+              style={{
+                padding: "6px 14px", borderRadius: 9999, fontSize: 12, fontWeight: 600,
+                border: "none", cursor: saving ? "wait" : "pointer",
+                background: formOpen || connected
+                  ? "rgba(15,23,42,0.06)"
+                  : "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                color: formOpen || connected ? "#0f172a" : "#fff"
+              }}
+            >
+              {formOpen ? "Cancel" : connected ? "Update credentials" : "Connect"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Inline form */}
+      {formOpen && (
+        <div style={{ borderTop: "1px solid rgba(15,23,42,0.06)", background: "#f8fafc", padding: "16px 20px" }}>
+          <form onSubmit={(e) => void handleSave(e)}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              {config.credentialFields.map((field) => (
+                <label key={field.name} style={{ display: "block" }}>
+                  <span style={{ display: "block", marginBottom: 4, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: "#64748b" }}>
+                    {field.label}{!field.required && <span style={{ fontWeight: 400, textTransform: "none" as const, letterSpacing: 0, color: "#94a3b8", marginLeft: 4 }}>(optional)</span>}
+                  </span>
+                  <input
+                    type={field.type}
+                    required={field.required}
+                    autoComplete={field.type === "password" ? "new-password" : "off"}
+                    value={fields[field.name] ?? ""}
+                    onChange={(e) => setFields((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                    placeholder={field.type === "password" ? "••••••••" : `Enter ${field.label.toLowerCase()}`}
+                    style={{
+                      width: "100%", padding: "8px 11px",
+                      border: "1px solid rgba(15,23,42,0.15)", borderRadius: 7,
+                      fontSize: 13, color: "#0f172a", background: "#fff",
+                      outline: "none", boxSizing: "border-box" as const
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            {error && (
+              <div style={{ marginTop: 12, padding: "7px 11px", background: "rgba(220,38,38,0.05)", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 6, fontSize: 12, color: "#dc2626" }}>
+                {error}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  padding: "7px 18px", borderRadius: 9999, fontSize: 12, fontWeight: 600,
+                  background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", color: "#fff",
+                  cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1
+                }}
+              >
+                {saving ? "Saving…" : "Save credentials"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFormOpen(false); setError(null); setFields({}); }}
+                style={{
+                  padding: "7px 14px", borderRadius: 9999, fontSize: 12, fontWeight: 500,
+                  background: "none", border: "1px solid rgba(15,23,42,0.12)", color: "#64748b", cursor: "pointer"
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function ConfigurationClient({
@@ -449,13 +748,15 @@ export function ConfigurationClient({
   auditEvents,
   currentRole,
   messages,
-  roleHelpTitle
+  roleHelpTitle,
+  credentialsByPayerId
 }: {
   payers: PayerConfigurationView[];
   auditEvents: AuditEventView[];
   currentRole: UserRole;
   messages: TenioMessages["configuration"];
   roleHelpTitle: string;
+  credentialsByPayerId: Record<string, PayerCredentialView>;
 }) {
   const router = useRouter();
   const canManageConfiguration = hasPermission(currentRole, "payer:write");
@@ -642,6 +943,17 @@ export function ConfigurationClient({
               </span>
             </div>
           </div>
+
+          {/* Connection card */}
+          <ConnectionCard
+            payerId={currentPayer.payerId}
+            payerName={currentPayer.payerName}
+            initialCredential={resolvePayerCredentialFromMap(
+              currentPayer.payerId,
+              credentialsByPayerId
+            )}
+            canWrite={canManageConfiguration}
+          />
 
           {/* Workflow policy */}
           <section className="mb-6 rounded-lg border border-gray-200 bg-white p-5">

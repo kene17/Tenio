@@ -13,6 +13,9 @@ export const CONNECTOR_AETNA_API = "aetna-claim-status-api";
 export const CONNECTOR_SUN_LIFE_BROWSER = "sun-life-pshcp-browser";
 export const CONNECTOR_TELUS_ECLAIMS = "telus-eclaims-api";
 export const CONNECTOR_PORTAL_FALLBACK = "portal-browser-fallback";
+export const CONNECTOR_MANULIFE_BROWSER = "manulife-groupbenefits-browser";
+export const CONNECTOR_CANADA_LIFE_BROWSER = "canada-life-groupnet-browser";
+export const CONNECTOR_GREEN_SHIELD_BROWSER = "green-shield-provider-browser";
 
 export const KNOWN_PAYER_IDS = [
   PAYER_AETNA,
@@ -29,8 +32,64 @@ export const KNOWN_CONNECTOR_IDS = [
   CONNECTOR_AETNA_API,
   CONNECTOR_SUN_LIFE_BROWSER,
   CONNECTOR_TELUS_ECLAIMS,
-  CONNECTOR_PORTAL_FALLBACK
+  CONNECTOR_PORTAL_FALLBACK,
+  CONNECTOR_MANULIFE_BROWSER,
+  CONNECTOR_CANADA_LIFE_BROWSER,
+  CONNECTOR_GREEN_SHIELD_BROWSER
 ] as const;
+
+export const telusEclaimsPayloadSchema = z.object({
+  connectorId: z.literal("telus-eclaims-api"),
+  claimNumber: z.string().nullable(),
+  claimStatus: z.string().nullable(),
+  paidAmountCents: z.number().int().nullable(),
+  processedAt: z.string().nullable(),
+  denialReason: z.string().nullable(),
+  infoRequired: z.string().nullable(),
+  insurerReference: z.string().nullable(),
+  rawResponse: z.record(z.string(), z.unknown()).nullable()
+});
+export type TelusEclaimsPayload = z.infer<typeof telusEclaimsPayloadSchema>;
+
+export const sunLifePayloadSchema = z.object({
+  connectorId: z.literal("sun-life-pshcp-browser"),
+  claimNumber: z.string().nullable(),
+  statusText: z.string().nullable(),
+  paidAmountCents: z.number().int().nullable(),
+  denialReason: z.string().nullable(),
+  rawHtml: z.string().nullable()
+});
+export type SunLifePayload = z.infer<typeof sunLifePayloadSchema>;
+
+export const manulifePayloadSchema = z.object({
+  connectorId: z.literal("manulife-groupbenefits-browser"),
+  claimNumber: z.string().nullable(),
+  statusText: z.string().nullable(),
+  paidAmountCents: z.number().int().nullable(),
+  denialReason: z.string().nullable(),
+  rawHtml: z.string().nullable()
+});
+export type ManulifePayload = z.infer<typeof manulifePayloadSchema>;
+
+export const canadaLifePayloadSchema = z.object({
+  connectorId: z.literal("canada-life-groupnet-browser"),
+  claimNumber: z.string().nullable(),
+  statusText: z.string().nullable(),
+  paidAmountCents: z.number().int().nullable(),
+  denialReason: z.string().nullable(),
+  rawHtml: z.string().nullable()
+});
+export type CanadaLifePayload = z.infer<typeof canadaLifePayloadSchema>;
+
+export const greenShieldPayloadSchema = z.object({
+  connectorId: z.literal("green-shield-provider-browser"),
+  claimNumber: z.string().nullable(),
+  statusText: z.string().nullable(),
+  paidAmountCents: z.number().int().nullable(),
+  denialReason: z.string().nullable(),
+  rawHtml: z.string().nullable()
+});
+export type GreenShieldPayload = z.infer<typeof greenShieldPayloadSchema>;
 
 export const evidenceArtifactSchema = z.object({
   id: z.string(),
